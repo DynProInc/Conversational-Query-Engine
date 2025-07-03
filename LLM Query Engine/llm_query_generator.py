@@ -15,7 +15,7 @@ dotenv.load_dotenv()
 
 def load_data_dictionary(file_path: str) -> pd.DataFrame:
     """
-    Load data dictionary from Excel or CSV file
+    Load data dictionary from Excel or CSV
     
     Args:
         file_path: Path to Excel or CSV file with data dictionary
@@ -23,6 +23,13 @@ def load_data_dictionary(file_path: str) -> pd.DataFrame:
     Returns:
         DataFrame containing the data dictionary
     """
+    # Handle None case to prevent 'NoneType' object has no attribute 'endswith' error
+    if file_path is None:
+        print("WARNING: No data dictionary path provided")
+        # Return an empty DataFrame with some basic columns - using uppercase column names
+        return pd.DataFrame(columns=["TABLE_NAME", "COLUMN_NAME", "DESCRIPTION", "SAMPLE_VALUES", "DATA_TYPE"])
+        
+    # Now we can safely check the file extension
     if file_path.endswith('.xlsx') or file_path.endswith('.xls'):
         return pd.read_excel(file_path)
     elif file_path.endswith('.csv'):
@@ -173,6 +180,8 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
     client = openai.OpenAI(api_key=api_key)
     logger = TokenLogger() if log_tokens else None
     
+    import datetime
+    start_time = datetime.datetime.now()
     try:
         response = client.chat.completions.create(
             model=model,
@@ -206,20 +215,24 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
             except Exception as e:
                 print(f"Error logging token usage: {str(e)}")
         
+        execution_time_ms = (datetime.datetime.now() - start_time).total_seconds() * 1000
         return {
             "sql": sql_query,
             "model": model,
-            **token_usage
+            **token_usage,
+            "execution_time_ms": execution_time_ms
         }
     except Exception as e:
         error_msg = f"Error generating SQL query: {str(e)}"
+        execution_time_ms = (datetime.datetime.now() - start_time).total_seconds() * 1000
         return {
             "sql": error_msg,
             "model": model,
             "error": str(e),
             "prompt_tokens": 0,
             "completion_tokens": 0,
-            "total_tokens": 0
+            "total_tokens": 0,
+            "execution_time_ms": execution_time_ms
         }
 
 

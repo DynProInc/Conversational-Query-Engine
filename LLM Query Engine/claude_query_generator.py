@@ -121,66 +121,88 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
         # The following blocks are intentionally left empty after debug removal.
         pass
 
-        # Extract SQL query from response
-        sql_query = None
-        if response and hasattr(response, 'content') and response.content and len(response.content) > 0:
-            # Make sure we're getting text content
-            if hasattr(response.content[0], 'text'):
-                if response.content[0].text is None:
-                    
-                    full_text = ""
-                else:
-                    full_text = response.content[0].text
+        # Extract SQL query from response - new simplified approach
+        # Start with a valid default SQL that will work as a fallback
+        sql_query = "SELECT 'No SQL query was successfully extracted' AS error_message"
+        
+        # Only proceed if we have a valid response with content
+        if response and hasattr(response, 'content') and response.content:
+            try:
+                # Get the text content directly from Claude's response (similar to OpenAI pattern)
+                full_text = ""
                 
-                if not isinstance(full_text, str):
-                    
-                    full_text = str(full_text)
-                full_text = full_text.strip() if full_text else ""
+                # Safety check for text attribute
+                if hasattr(response.content[0], 'text'):
+                    if response.content[0].text is not None:
+                        full_text = response.content[0].text
+                        if not isinstance(full_text, str):
+                            full_text = str(full_text)
+                        full_text = full_text.strip()
                 
+                # Exit early if we have no text to parse
+                if not full_text:
+                    print("DEBUG: Empty text content from Claude response")
+                    return {
+                        "sql": sql_query,
+                        "model": model,
+                        "error": "Empty response from Claude",
+                        "prompt_tokens": response.usage.input_tokens if hasattr(response, 'usage') else 0,
+                        "completion_tokens": response.usage.output_tokens if hasattr(response, 'usage') else 0,
+                        "total_tokens": (response.usage.input_tokens + response.usage.output_tokens) if hasattr(response, 'usage') else 0
+                    }
                 
-                # Extract and clean code block if present
-                if full_text and "```" in full_text:
-                    # Handle SQL code blocks
+                # Extract SQL from code blocks if present
+                if "```" in full_text:
                     import re
-                    # Look for SQL code blocks with different markers: ```sql, ```SQL, ``` sql, etc.
+                    # First try to find SQL-specific code blocks
                     sql_blocks = re.findall(r'```(?:sql|SQL)?([\s\S]*?)```', full_text)
                     
-                    if sql_blocks:
-                        # Use the first SQL block found
-                        sql_candidate = sql_blocks[0]
-                        if sql_candidate is None:
-                            
-                            sql_query = "SELECT 'Error: SQL block was None' AS error_message"
-                        else:
-                            sql_query = sql_candidate.strip() if isinstance(sql_candidate, str) else str(sql_candidate).strip()
-                        
+                    if sql_blocks and sql_blocks[0]:
+                        # Successfully found an SQL code block
+                        extracted_sql = sql_blocks[0].strip()
+                        if extracted_sql:  # Only update if we got something meaningful
+                            sql_query = extracted_sql
                     else:
-                        # If no SQL block found but we have code blocks, use the first code block
+                        # If no SQL-specific blocks, try any code blocks
                         code_blocks = re.findall(r'```([\s\S]*?)```', full_text)
-                        if code_blocks:
-                            code_candidate = code_blocks[0]
-                            if code_candidate is None:
-                                
-                                sql_query = "SELECT 'Error: Code block was None' AS error_message"
-                            else:
-                                sql_query = code_candidate.strip() if isinstance(code_candidate, str) else str(code_candidate).strip()
-                            
+                        if code_blocks and code_blocks[0]:
+                            extracted_code = code_blocks[0].strip()
+                            if extracted_code:  # Only update if we got something meaningful
+                                sql_query = extracted_code
                 
-                # If no code blocks or couldn't extract SQL, use the full response
-                if not sql_query:
-                    # If response contains SELECT, use everything
-                    if "SELECT" in full_text.upper():
-                        sql_query = full_text
-                        
-            else:
-                pass
+                # If we still don't have SQL but the response contains SELECT keywords
+                # Use the entire response as the SQL
+                elif "SELECT" in full_text.upper():
+                    sql_query = full_text
+                
+                # Final check to ensure sql_query is a string
+                if sql_query is None:
+                    sql_query = "SELECT 'SQL extraction resulted in None' AS error_message"
+                elif not isinstance(sql_query, str):
+                    sql_query = str(sql_query)
+                
+                # Ensure SQL is not empty
+                if not sql_query.strip():
+                    sql_query = "SELECT 'Empty SQL query extracted' AS error_message"
+                    
+            except Exception as e:
+                print(f"DEBUG: Error extracting SQL from Claude response: {str(e)}")
+                sql_query = f"SELECT 'Error extracting SQL: {str(e).replace("'", "''")}' AS error_message"
         else:
-            pass
+            print("DEBUG: Invalid response structure from Claude")
+            sql_query = "SELECT 'Invalid response structure from Claude' AS error_message"
     
         # Ensure we return a valid string for SQL even if extraction failed (OpenAI pattern)
-        if not isinstance(sql_query, str) or not sql_query:
-            
-            sql_query = "SELECT 'Error: Could not extract valid SQL from Claude response' AS error_message"
+        if sql_query is None:
+            sql_query = "SELECT 'Error: SQL query extraction resulted in None' AS error_message"
+        elif not isinstance(sql_query, str):
+            # Try to convert to string if possible
+            try:
+                sql_query = str(sql_query)
+            except:
+                sql_query = "SELECT 'Error: Could not convert SQL query to string' AS error_message"
+        elif not sql_query.strip():  # Empty string or whitespace
+            sql_query = "SELECT 'Error: Empty SQL query extracted' AS error_message"
         
         # Get token usage
         usage_data = {
@@ -223,7 +245,7 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
         }
 
 
-def natural_language_to_sql_claude(query: str, data_dictionary_path: str, api_key: Optional[str] = None, 
+def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None, api_key: Optional[str] = None, 
                                model: str = "claude-3-5-sonnet-20241022", log_tokens: bool = True) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Claude

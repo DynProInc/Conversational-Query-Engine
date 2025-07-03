@@ -14,7 +14,7 @@ def make_api_request(prompt, model="openai", limit_rows=100, data_dictionary_pat
     
     Args:
         prompt: Natural language query
-        model: Which backend to use - "openai", "claude", or "compare" 
+        model: Which backend to use - "openai", "claude", "compare", or "gemini"
         limit_rows: Maximum rows to return
         data_dictionary_path: Optional path to data dictionary
         specific_model: Optional specific model name (e.g., "gpt-4o" or "claude-3-opus")
@@ -24,6 +24,7 @@ def make_api_request(prompt, model="openai", limit_rows=100, data_dictionary_pat
     API_OPENAI_ENDPOINT = f"{API_BASE_URL}/query"
     API_CLAUDE_ENDPOINT = f"{API_BASE_URL}/query/claude"
     API_COMPARE_ENDPOINT = f"{API_BASE_URL}/query/compare"
+    API_GEMINI_ENDPOINT = f"{API_BASE_URL}/query/gemini/execute"
     API_MODELS_ENDPOINT = f"{API_BASE_URL}/models"
 
     print(f"\nDEBUG: Making API request to {model.lower()} model")
@@ -35,6 +36,9 @@ def make_api_request(prompt, model="openai", limit_rows=100, data_dictionary_pat
     elif model.lower() == "compare":
         endpoint = API_COMPARE_ENDPOINT
         print(f"DEBUG: Using Compare endpoint: {endpoint}")
+    elif model.lower() == "gemini":
+        endpoint = API_GEMINI_ENDPOINT
+        print(f"DEBUG: Using Gemini endpoint: {endpoint}")
     else:  # Default to OpenAI
         endpoint = API_OPENAI_ENDPOINT
         print(f"DEBUG: Using OpenAI endpoint: {endpoint}")
@@ -90,7 +94,7 @@ def display_results(response, model_type):
         result = response.json()
         
         print("\n=== API Response ===")
-        print(f"Prompt: {result['prompt']}")
+        print(f"Prompt: {result.get('prompt', result.get('query', ''))}")
         
         # Handle comparison mode differently
         if model_type == "compare":
@@ -156,7 +160,7 @@ def display_results(response, model_type):
                 else:
                     print("Execution time: Not available")
         else:
-            # Handle regular (single model) response
+            # Handle regular (single model) response (OpenAI, Claude, Gemini)
             print(f"Model: {result.get('model', 'Unknown')}")
             print(f"Generated SQL Query: \n{result.get('query', 'No query generated')}")
             
@@ -247,8 +251,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Test the NL-to-SQL API with different models")
     parser.add_argument("--prompt", "-p", help="Natural language query")
     parser.add_argument("--limit", "-l", type=int, default=100, help="Maximum number of rows to return")
-    parser.add_argument("--model", "-m", default="openai", choices=["openai", "claude", "compare"],
-                        help="Model to use for generation (openai, claude, or compare)")
+    parser.add_argument("--model", "-m", default="openai", choices=["openai", "claude", "compare", "gemini"],
+                        help="Model to use for generation (openai, claude, compare, or gemini)")
     parser.add_argument("--specific-model", "-s", help="Specific model version to use (e.g., gpt-4o, claude-3-opus)")
     parser.add_argument("--data-dictionary", "-d", help="Path to data dictionary")
     parser.add_argument("--interactive", "-i", action="store_true", help="Run in interactive mode")
