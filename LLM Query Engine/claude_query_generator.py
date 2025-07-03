@@ -105,7 +105,7 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
     logger = TokenLogger() if log_tokens else None
     
     try:
-        print(f"DEBUG: Calling Claude API with model: {model}")
+        
         response = client.messages.create(
             model=model,
             max_tokens=1000,
@@ -114,31 +114,29 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                 {"role": "user", "content": prompt}
             ]
         )
-        print("DEBUG: Claude API call successful")
-        print(f"DEBUG: Response type: {type(response)}")
-        print(f"DEBUG: Response content length: {len(response.content) if hasattr(response, 'content') else 'No content'}")
-        if hasattr(response, 'content') and len(response.content) > 0:
-            print(f"DEBUG: First content item type: {type(response.content[0])}")
-            print(f"DEBUG: First content item text sample: {response.content[0].text[:100] if hasattr(response.content[0], 'text') else 'No text attribute'}")
-        else:
-            print("DEBUG: No content items in response")
         
+        
+        
+        # (DEBUG prints removed)
+        # The following blocks are intentionally left empty after debug removal.
+        pass
+
         # Extract SQL query from response
         sql_query = None
         if response and hasattr(response, 'content') and response.content and len(response.content) > 0:
             # Make sure we're getting text content
             if hasattr(response.content[0], 'text'):
                 if response.content[0].text is None:
-                    print("DEBUG: response.content[0].text is None! Forcing fallback SQL.")
+                    
                     full_text = ""
                 else:
                     full_text = response.content[0].text
-                print(f"DEBUG: Full text type: {type(full_text)}")
+                
                 if not isinstance(full_text, str):
-                    print(f"DEBUG: full_text is not a string ({type(full_text)}), converting to string.")
+                    
                     full_text = str(full_text)
                 full_text = full_text.strip() if full_text else ""
-                print(f"DEBUG: Full text length: {len(full_text)}")
+                
                 
                 # Extract and clean code block if present
                 if full_text and "```" in full_text:
@@ -151,37 +149,37 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                         # Use the first SQL block found
                         sql_candidate = sql_blocks[0]
                         if sql_candidate is None:
-                            print("DEBUG: sql_candidate from sql_blocks is None! Forcing fallback SQL.")
+                            
                             sql_query = "SELECT 'Error: SQL block was None' AS error_message"
                         else:
                             sql_query = sql_candidate.strip() if isinstance(sql_candidate, str) else str(sql_candidate).strip()
-                        print(f"DEBUG: Extracted SQL from code block: {sql_query[:50]}...")
+                        
                     else:
                         # If no SQL block found but we have code blocks, use the first code block
                         code_blocks = re.findall(r'```([\s\S]*?)```', full_text)
                         if code_blocks:
                             code_candidate = code_blocks[0]
                             if code_candidate is None:
-                                print("DEBUG: code_candidate from code_blocks is None! Forcing fallback SQL.")
+                                
                                 sql_query = "SELECT 'Error: Code block was None' AS error_message"
                             else:
                                 sql_query = code_candidate.strip() if isinstance(code_candidate, str) else str(code_candidate).strip()
-                            print(f"DEBUG: Extracted SQL from generic code block: {sql_query[:50]}...")
+                            
                 
                 # If no code blocks or couldn't extract SQL, use the full response
                 if not sql_query:
                     # If response contains SELECT, use everything
                     if "SELECT" in full_text.upper():
                         sql_query = full_text
-                        print(f"DEBUG: Using full text as SQL: {sql_query[:50]}...")
+                        
             else:
-                print(f"WARNING: Response content doesn't have text attribute: {type(response.content[0])}")
+                pass
         else:
-            print(f"WARNING: Invalid response structure: {response}")
-                    
+            pass
+    
         # Ensure we return a valid string for SQL even if extraction failed (OpenAI pattern)
         if not isinstance(sql_query, str) or not sql_query:
-            print(f"WARNING: SQL query is None or not a string, setting fallback SQL string (OpenAI pattern)")
+            
             sql_query = "SELECT 'Error: Could not extract valid SQL from Claude response' AS error_message"
         
         # Get token usage
@@ -192,8 +190,14 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
         }
         
         # Log token usage if requested
-        if logger and query_text:
-            logger.log_usage(model, query_text, usage_data)
+        if log_tokens and logger:
+            token_cost = logger.log_usage(
+                model=model,
+                query=query_text,
+                usage=usage_data,
+                prompt=query_text,  # Use only the user query as prompt, not the full system prompt
+                sql_query=sql_query  # Include the SQL query in logs
+            )
             
         return {
             "sql": sql_query,
@@ -206,7 +210,7 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
     except Exception as e:
         import traceback
         tb_str = traceback.format_exc()
-        print(f"DEBUG: Exception in generate_sql_query_claude: {str(e)}\n{tb_str}")
+        
         error_msg = f"SELECT 'Error in SQL generation: {str(e).replace("'", "''")}\nTRACEBACK: {tb_str.replace("'", "''").replace(chr(10), ' ')}' AS error_message"
         return {
             "sql": error_msg,
@@ -234,7 +238,7 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str, api_ke
     Returns:
         Dictionary with SQL query, token usage and other metadata
     """
-    print(f"DEBUG: Starting natural_language_to_sql_claude with query: {query}")
+    
     
     # Set default API key from environment if not provided
     if not api_key:
@@ -264,11 +268,11 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str, api_ke
             log_tokens=log_tokens
         )
         
-        print(f"DEBUG: SQL from Claude query generator: '{result.get('sql', 'No SQL found')}', type: {type(result.get('sql'))}")
+        
         
         # Ensure 'sql' key always exists and contains a valid string
         if 'sql' not in result or result['sql'] is None or not isinstance(result['sql'], str):
-            print(f"DEBUG: SQL missing or invalid in result, setting default SQL message")
+            
             result['sql'] = "SELECT 'No valid SQL query was generated' AS message"
         
         # Add additional metadata
@@ -279,11 +283,11 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str, api_ke
             "data_dictionary": data_dictionary_path
         })
         
-        print(f"DEBUG: Returning result with SQL: '{result['sql'][:50]}...' (truncated)")
+        
         return result
     
     except Exception as e:
-        print(f"DEBUG: Exception in natural_language_to_sql_claude: {str(e)}")
+        
         import traceback
         traceback.print_exc()
         
@@ -322,16 +326,21 @@ if __name__ == "__main__":
     # Set the model name
     model = "claude-3-5-sonnet-20241022"
     
-    print(f"Testing Claude SQL generation with query: '{query}'")
     try:
         result = natural_language_to_sql_claude(query, data_dict_path, model=model)
-        print("\nGenerated SQL:")
-        print(result["sql"])
-        print(f"\nModel: {result['model']}")
-        print(f"Execution time: {result.get('execution_time_ms', 0):.2f} ms")
-        print(f"Prompt tokens: {result.get('prompt_tokens', 0)}")
-        print(f"Completion tokens: {result.get('completion_tokens', 0)}")
-        print(f"Total tokens: {result.get('total_tokens', 0)}")
+        
+        # Match output format with llm_query_generator.py
+        print(f"Using model provider: claude")
+        print(f"Using specific model: {result['model']}")
+        
+        print(f"\nQuery: {query}\n")
+        print(f"SQL:\n```sql\n{result['sql']}\n```\n")
+        
+        print("Token Usage:")
+        print(f"  Prompt tokens: {result.get('prompt_tokens', 0)}")
+        print(f"  Completion tokens: {result.get('completion_tokens', 0)}")
+        print(f"  Total tokens: {result.get('total_tokens', 0)}")
+        print(f"\nExecution time: {result.get('execution_time_ms', 0):.2f} ms" if result.get('execution_time_ms') is not None else "\nExecution time: Not available")
     except Exception as e:
         print(f"Error: {str(e)}")
 

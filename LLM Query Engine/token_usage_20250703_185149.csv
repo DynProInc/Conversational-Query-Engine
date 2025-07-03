@@ -1,0 +1,2 @@
+timestamp,model,prompt,query,prompt_tokens,completion_tokens,total_tokens,input_cost,output_cost,total_cost
+2025-07-03 18:52:04,gpt-4o,Show me the top 5 stores with highest sales,,1566,110,1676,0.01566,0.0033,0.01896

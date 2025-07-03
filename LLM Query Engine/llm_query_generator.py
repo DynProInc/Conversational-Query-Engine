@@ -187,20 +187,29 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
         sql_query = response.choices[0].message.content.strip()
         
         # Get token usage
-        usage_data = {
+        token_usage = {
             "prompt_tokens": response.usage.prompt_tokens,
             "completion_tokens": response.usage.completion_tokens,
             "total_tokens": response.usage.total_tokens
         }
         
-        # Log token usage if requested
-        if logger and query_text:
-            logger.log_usage(model, query_text, usage_data)
-            
+        # Log token usage to CSV if requested
+        if log_tokens:
+            try:
+                logger.log_usage(
+                    model=model, 
+                    query=query_text,
+                    usage=token_usage,
+                    prompt=query_text,  # Include the user's query as prompt
+                    sql_query=sql_query  # Include the generated SQL query
+                )
+            except Exception as e:
+                print(f"Error logging token usage: {str(e)}")
+        
         return {
             "sql": sql_query,
             "model": model,
-            **usage_data
+            **token_usage
         }
     except Exception as e:
         error_msg = f"Error generating SQL query: {str(e)}"

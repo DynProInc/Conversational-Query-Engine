@@ -25,18 +25,24 @@ class TokenLogger:
         Initialize the token logger
         
         Args:
-            log_file: Path to log file (defaults to token_usage.csv in current directory)
+            log_file: Path to log file (if None, create a new timestamped CSV file in current directory)
         """
-        self.log_file = log_file or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'token_usage.csv')
+        if log_file is None:
+            self.log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'token_usage.csv')
+        else:
+            self.log_file = log_file
         self._ensure_log_file_exists()
     
     def _ensure_log_file_exists(self):
         """Create log file with headers if it doesn't exist"""
-        if not os.path.exists(self.log_file):
+        file_exists = os.path.exists(self.log_file) and os.path.getsize(self.log_file) > 0
+        
+        # Create the file with headers if it doesn't exist or is empty
+        if not file_exists:
             with open(self.log_file, 'w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow([
-                    'timestamp', 'model', 'query', 'prompt_tokens', 
+                    'timestamp', 'model', 'prompt', 'sql_query', 'prompt_tokens', 
                     'completion_tokens', 'total_tokens', 'input_cost', 
                     'output_cost', 'total_cost'
                 ])
@@ -76,15 +82,16 @@ class TokenLogger:
             'total_cost': round(total_cost, 6)
         }
     
-    def log_usage(self, model: str, query: str, usage: Dict[str, int]) -> Dict[str, Any]:
+    def log_usage(self, model: str, query: str, usage: Dict[str, int], prompt: str = "", sql_query: str = "") -> Dict[str, Any]:
         """
-        Log token usage and costs to CSV file
+        Log token usage and costs to CSV file, including the prompt.
         
         Args:
-            model: OpenAI model name
+            model: OpenAI/Claude model name
             query: User query
             usage: Dictionary with prompt_tokens, completion_tokens, total_tokens
-            
+            prompt: The full prompt sent to the LLM
+        
         Returns:
             Dictionary with usage and cost information
         """
@@ -100,7 +107,9 @@ class TokenLogger:
         log_entry = {
             'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'model': model,
-            'query': query.replace('\n', ' ')[:100],  # Truncate long queries
+            'query': query.replace('\n', ' ')[:1000],  # Truncate long queries
+            'prompt': prompt.replace('\n', ' ')[:5000],  # Truncate long prompts for readability
+            'sql_query': sql_query.replace('\n', ' ')[:5000] if sql_query else "",  # Store the SQL query
             'prompt_tokens': prompt_tokens,
             'completion_tokens': completion_tokens,
             'total_tokens': total_tokens,
@@ -113,7 +122,8 @@ class TokenLogger:
             writer.writerow([
                 log_entry['timestamp'],
                 log_entry['model'],
-                log_entry['query'],
+                log_entry['prompt'],
+                log_entry['sql_query'],
                 log_entry['prompt_tokens'],
                 log_entry['completion_tokens'],
                 log_entry['total_tokens'],

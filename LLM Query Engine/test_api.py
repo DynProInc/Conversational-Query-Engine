@@ -7,6 +7,7 @@ import json
 import sys
 import os
 import argparse
+from token_logger import TokenLogger
 
 def make_api_request(prompt, model="openai", limit_rows=100, data_dictionary_path=None, specific_model=None):
     """Make a request to the API Server
@@ -197,6 +198,9 @@ def main():
     limit_rows = args.limit
     data_dict = args.data_dictionary
     
+    # Initialize token logger
+    logger = TokenLogger()
+    
     # Display what's being sent
     print(f"\nSending query: '{prompt}'")
     print(f"Using model: {model}{' ('+specific_model+')' if specific_model else ''}")
@@ -214,6 +218,23 @@ def main():
         
         # Display results
         display_results(response, model)
+        
+        # Log the token usage with SQL query
+        if response.status_code == 200:
+            result = response.json()
+            actual_model = result.get('model', model)
+            sql_query = result.get('query', '')
+            token_usage = result.get('token_usage', {})
+            
+            if token_usage:
+                # Log the token usage with the SQL query
+                logger.log_usage(
+                    model=actual_model,
+                    query=prompt,
+                    usage=token_usage,
+                    prompt=prompt,
+                    sql_query=sql_query
+                )
         
     except Exception as e:
         import traceback
