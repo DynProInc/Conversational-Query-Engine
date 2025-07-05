@@ -8,6 +8,7 @@ This module handles the Claude-specific implementation of:
 """
 import os
 import sys
+import json
 import pandas as pd
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -15,6 +16,7 @@ from dotenv import load_dotenv
 # Import our local modules
 from claude_query_generator import natural_language_to_sql_claude
 from snowflake_runner import execute_query
+from token_logger import TokenLogger
 
 # Load environment variables
 load_dotenv()
@@ -77,20 +79,45 @@ def nlq_to_snowflake_claude(question: str,
             print(f"\nAdded limit clause: LIMIT {limit_rows}")
             claude_result["sql"] = sql  # Update the SQL in the result
         
+        # Log token usage for both executed and non-executed queries
+        query_executed_value = None  # Default for non-executed queries
+
         # Execute in Snowflake if requested
         if execute:
             print("\nExecuting in Snowflake...")
+            query_executed_successfully = False
             try:
                 df = execute_query(sql, print_results=True)
                 claude_result["results"] = df
                 claude_result["success"] = True
                 claude_result["row_count"] = len(df)
+                query_executed_successfully = True
+                query_executed_value = 1  # Success
             except Exception as e:
                 print(f"\nError executing SQL in Snowflake: {str(e)}")
                 claude_result["error_execution"] = str(e)
                 claude_result["success"] = False
+                query_executed_value = 0  # Failed execution
         else:
             claude_result["success"] = True  # No execution requested, so no execution error
+            
+        # Always log token usage with appropriate query_executed status
+        try:
+            logger = TokenLogger()
+            logger.log_usage(
+                model=model,
+                query=question,
+                usage={
+                    "prompt_tokens": claude_result.get("prompt_tokens", 0),
+                    "completion_tokens": claude_result.get("completion_tokens", 0),
+                    "total_tokens": claude_result.get("total_tokens", 0)
+                },
+                prompt=question,
+                sql_query=sql,
+                query_executed=query_executed_value  # 1=success, 0=failed, None=not executed
+            )
+        except Exception as log_err:
+            print(f"Error logging token usage: {str(log_err)}")
         
         return claude_result
         

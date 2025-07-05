@@ -202,18 +202,8 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
             "total_tokens": response.usage.total_tokens
         }
         
-        # Log token usage to CSV if requested
-        if log_tokens:
-            try:
-                logger.log_usage(
-                    model=model, 
-                    query=query_text,
-                    usage=token_usage,
-                    prompt=query_text,  # Include the user's query as prompt
-                    sql_query=sql_query  # Include the generated SQL query
-                )
-            except Exception as e:
-                print(f"Error logging token usage: {str(e)}")
+        # NOTE: Token usage is now logged only in nlq_to_snowflake.py after execution
+        # to avoid duplicate entries in the token_usage.csv file
         
         execution_time_ms = (datetime.datetime.now() - start_time).total_seconds() * 1000
         return {

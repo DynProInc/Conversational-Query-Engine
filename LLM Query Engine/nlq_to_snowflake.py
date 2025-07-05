@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 # Import our local modules
 from llm_query_generator import natural_language_to_sql
 from snowflake_runner import execute_query
+from token_logger import TokenLogger
 
 # Load environment variables
 load_dotenv()
@@ -54,7 +55,7 @@ def nlq_to_snowflake(question: str,
         
         # Extract the SQL and clean it
         sql = result["sql"]
-        
+
         # Clean up markdown formatting if present
         if sql.startswith("```"):
             # Remove markdown code blocks if present
@@ -67,29 +68,61 @@ def nlq_to_snowflake(question: str,
                 lines = lines[:-1]
             # Join back into a cleaned SQL string
             sql = "\n".join(lines)
-        
+
         print("\nGenerated SQL:")
         print(sql)
-        
+
+        # Always store cleaned SQL and token usage in result dict before execution
+        result["sql"] = sql
+        # Defensive: propagate token usage if present
+        for k in ["prompt_tokens", "completion_tokens", "total_tokens"]:
+            if k not in result:
+                result[k] = 0
+
         # Add LIMIT if not present and execute flag is True
         if execute and limit_rows > 0 and "LIMIT" not in sql.upper():
             sql = f"{sql.rstrip('; \n')} LIMIT {limit_rows}"
             print(f"\nAdded limit clause: LIMIT {limit_rows}")
             result["sql_with_limit"] = sql
+
+        # Log token usage for both executed and non-executed queries
+        query_executed_value = None  # Default for non-executed queries
         
         # Execute in Snowflake if requested
         if execute:
             print("\nExecuting in Snowflake...")
+            query_executed_successfully = False
             try:
                 df = execute_query(sql, print_results=True)
                 result["results"] = df
                 result["success"] = True
                 result["row_count"] = len(df)
+                query_executed_successfully = True
+                query_executed_value = 1  # Success
             except Exception as e:
                 print(f"\nError executing SQL in Snowflake: {str(e)}")
-                result["error_execution"] = str(e)
                 result["success"] = False
+                result["error_execution"] = str(e)
+                query_executed_value = 0  # Failed execution
         
+        # Always log token usage with appropriate query_executed status
+        try:
+            logger = TokenLogger()
+            logger.log_usage(
+                model=model,
+                query=question,
+                usage={
+                    "prompt_tokens": result.get("prompt_tokens", 0),
+                    "completion_tokens": result.get("completion_tokens", 0),
+                    "total_tokens": result.get("total_tokens", 0)
+                },
+                prompt=question,
+                sql_query=sql,
+                query_executed=query_executed_value  # 1=success, 0=failed, None=not executed
+            )
+        except Exception as log_err:
+            print(f"Error logging token usage: {str(log_err)}")
+
         return result
         
     except Exception as e:

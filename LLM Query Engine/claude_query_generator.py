@@ -211,15 +211,8 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
             "total_tokens": response.usage.input_tokens + response.usage.output_tokens
         }
         
-        # Log token usage if requested
-        if log_tokens and logger:
-            token_cost = logger.log_usage(
-                model=model,
-                query=query_text,
-                usage=usage_data,
-                prompt=query_text,  # Use only the user query as prompt, not the full system prompt
-                sql_query=sql_query  # Include the SQL query in logs
-            )
+        # NOTE: Token usage is now logged only in nlq_to_snowflake_claude.py after execution
+        # to avoid duplicate entries in the token_usage.csv file
             
         return {
             "sql": sql_query,

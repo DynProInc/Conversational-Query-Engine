@@ -9,9 +9,16 @@ from token_logger import TokenLogger
 
 # Import Google GenerativeAI (Gemini) SDK
 gemini_available = False
+genai_with_token_counter = False
 try:
     import google.generativeai as genai
     gemini_available = True
+    try:
+        # Check if token counter is available
+        from google.genai.types import HttpOptions
+        genai_with_token_counter = True
+    except ImportError:
+        print("Google GenerativeAI SDK installed but doesn't support token counting")
 except ImportError:
     print("Google GenerativeAI SDK not found. Please install with: pip install google-generativeai")
 
@@ -107,27 +114,49 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
             # If nothing left, fallback to error
             if not sql_query or not sql_query.strip():
                 sql_query = "SELECT 'Empty SQL query extracted' AS error_message"
-        # Gemini doesn't provide token usage. Set to 0 for now.
+        # Get token counts using the Gemini Count Tokens API if available
         execution_time_ms = (datetime.datetime.now() - start_time).total_seconds() * 1000
-        # Log prompt and SQL to token_usage.csv
-        if logger is not None:
-            logger.log_usage(
-                model=model,
-                query=query_text or prompt,
-                usage={
-                    'prompt_tokens': 0,
-                    'completion_tokens': 0,
-                    'total_tokens': 0
-                },
-                prompt=query_text or "",
-                sql_query=sql_query
-            )
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        
+        if genai_with_token_counter:
+            try:
+                # Count tokens for the prompt
+                client = genai.Client(http_options=HttpOptions(api_version="v1"))
+                prompt_response = client.models.count_tokens(
+                    model=model,
+                    contents=prompt
+                )
+                prompt_tokens = getattr(prompt_response, 'total_tokens', 0)
+                
+                # Count tokens for the completion (the generated SQL)
+                completion_response = client.models.count_tokens(
+                    model=model,
+                    contents=sql_query
+                )
+                completion_tokens = getattr(completion_response, 'total_tokens', 0)
+                
+                # Calculate total tokens
+                total_tokens = prompt_tokens + completion_tokens
+                print(f"Gemini token count - Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
+            except Exception as token_err:
+                print(f"Warning: Could not count tokens for Gemini: {str(token_err)}")
+        else:
+            # Estimate tokens if counter not available (approx 4 chars per token for Gemini)
+            prompt_tokens = len(prompt) // 4
+            completion_tokens = len(sql_query) // 4
+            total_tokens = prompt_tokens + completion_tokens
+            print(f"Gemini token ESTIMATE - Prompt: ~{prompt_tokens}, Completion: ~{completion_tokens}, Total: ~{total_tokens}")
+            print("Note: This is an approximation. Install latest google-generativeai for accurate counts.")
+            # Continue with estimated values if token counter isn't available
+        
         return {
             "sql": sql_query,
             "model": model,
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
             "success": True,
             "results": None,
             "row_count": 0,
@@ -140,9 +169,9 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
             "sql": f"SELECT 'Error in SQL generation: {str(e).replace("'", "''")}' AS error_message",
             "model": model,
             "error": str(e),
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
+            "prompt_tokens": prompt_tokens if 'prompt_tokens' in locals() else 0,
+            "completion_tokens": completion_tokens if 'completion_tokens' in locals() else 0,
+            "total_tokens": total_tokens if 'total_tokens' in locals() else 0,
             "execution_time_ms": execution_time_ms
         }
 

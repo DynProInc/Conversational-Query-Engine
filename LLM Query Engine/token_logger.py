@@ -44,7 +44,7 @@ class TokenLogger:
                 writer.writerow([
                     'timestamp', 'model', 'prompt', 'sql_query', 'prompt_tokens', 
                     'completion_tokens', 'total_tokens', 'input_cost', 
-                    'output_cost', 'total_cost'
+                    'output_cost', 'total_cost', 'query_executed'
                 ])
     
     def _calculate_cost(self, model: str, prompt_tokens: int, completion_tokens: int) -> Dict[str, float]:
@@ -82,7 +82,7 @@ class TokenLogger:
             'total_cost': round(total_cost, 6)
         }
     
-    def log_usage(self, model: str, query: str, usage: Dict[str, int], prompt: str = "", sql_query: str = "") -> Dict[str, Any]:
+    def log_usage(self, model: str, query: str, usage: Dict[str, int], prompt: str = "", sql_query: str = "", query_executed: bool = False) -> Dict[str, Any]:
         """
         Log token usage and costs to CSV file, including the prompt.
         
@@ -113,6 +113,7 @@ class TokenLogger:
             'prompt_tokens': prompt_tokens,
             'completion_tokens': completion_tokens,
             'total_tokens': total_tokens,
+            'query_executed': 1 if query_executed else 0,  # 1 if query executed successfully, 0 otherwise
             **costs  # Include all cost fields
         }
         
@@ -129,7 +130,8 @@ class TokenLogger:
                 log_entry['total_tokens'],
                 log_entry['input_cost'],
                 log_entry['output_cost'],
-                log_entry['total_cost']
+                log_entry['total_cost'],
+                log_entry['query_executed']
             ])
         
         return log_entry
