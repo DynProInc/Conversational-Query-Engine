@@ -99,7 +99,7 @@ def format_data_dictionary(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return tables
 
 
-def generate_sql_prompt(tables: List[Dict[str, Any]], query: str) -> str:
+def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100) -> str:
     """
     Generate system prompt for the LLM with table schema information
     
@@ -155,7 +155,9 @@ When generating SQL:
 4. Only use tables and columns that exist in the provided schema
 5. Add helpful SQL comments to explain complex parts of the query
 6. Return ONLY the SQL code without any other text or explanations
-7. Limit results to 100 rows unless specified otherwise
+7. IMPORTANT: Prioritize row limits in this order:
+   a. If the user explicitly specifies a number of results in their query (e.g., "top 5", "first 10"), use that number
+   b. Otherwise, limit results to {limit_rows} rows
 
 Generate a SQL query for: {query}
 """
@@ -228,7 +230,7 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
 
 def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = None, 
                      api_key: Optional[str] = None, model: str = "gpt-4o", log_tokens: bool = True,
-                     model_provider: str = "openai") -> Dict[str, Any]:
+                     model_provider: str = "openai", limit_rows: int = 100) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL
     
@@ -265,7 +267,7 @@ def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = No
     tables = format_data_dictionary(df)
     
     # Generate prompt and SQL query
-    prompt = generate_sql_prompt(tables, query)
+    prompt = generate_sql_prompt(tables, query, limit_rows=limit_rows)
     result = generate_sql_query(api_key, prompt, model=model, query_text=query, log_tokens=log_tokens)
     
     # Add additional info to the result

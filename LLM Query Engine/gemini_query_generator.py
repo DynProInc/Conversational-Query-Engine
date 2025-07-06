@@ -25,7 +25,7 @@ except ImportError:
 # Reuse these functions from the OpenAI implementation
 from llm_query_generator import load_data_dictionary, format_data_dictionary
 
-def generate_sql_prompt(tables: List[Dict[str, Any]], query: str) -> str:
+def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100) -> str:
     """
     Generate system prompt for Gemini with table schema information
     """
@@ -48,7 +48,9 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str) -> str:
                 tables_context += f" [Business Name: {col['business_name']}]"
             tables_context += "\n"
         tables_context += "\n"
-    prompt = f"""You are an expert SQL query generator for Snowflake database.\n\nYour task is to convert natural language questions into valid SQL queries that can run on Snowflake.\nUse the following data dictionary to understand the database schema:\n\n{tables_context}\nWhen generating SQL:\n1. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)\n2. Include appropriate JOINs based on the data relationships or column name similarities\n3. Format the SQL code clearly with proper indentation and aliases\n4. Only use tables and columns that exist in the provided schema\n5. Return ONLY the SQL code, without any comments, explanations, or markdown\n6. Limit results to 100 rows unless specified otherwise\n\nGenerate a SQL query for: {query}\n"""
+    prompt = f"""You are an expert SQL query generator for Snowflake database.\n\nYour task is to convert natural language questions into valid SQL queries that can run on Snowflake.\nUse the following data dictionary to understand the database schema:\n\n{tables_context}\nWhen generating SQL:\n1. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)\n2. Include appropriate JOINs based on the data relationships or column name similarities\n3. Format the SQL code clearly with proper indentation and aliases\n4. Only use tables and columns that exist in the provided schema\n5. Return ONLY the SQL code, without any comments, explanations, or markdown\n6. IMPORTANT: Prioritize row limits in this order:
+   a. If the user explicitly specifies a number of results in their query (e.g., "top 5", "first 10"), use that number
+   b. Otherwise, limit results to {limit_rows} rows\n\nGenerate a SQL query for: {query}\n"""
     return prompt
 
 def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/gemini-1.5-flash-latest", query_text: str = "", log_tokens: bool = True) -> Dict[str, Any]:
@@ -175,7 +177,7 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
             "execution_time_ms": execution_time_ms
         }
 
-def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[str] = None, api_key: Optional[str] = None, model: str = "models/gemini-1.5-flash-latest", log_tokens: bool = True) -> Dict[str, Any]:
+def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[str] = None, api_key: Optional[str] = None, model: str = "models/gemini-1.5-flash-latest", log_tokens: bool = True, limit_rows: int = 100) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Gemini, matching OpenAI logic for data dictionary and prompt construction.
     If data_dictionary_path is not provided, use the default 'data_dictionary.csv' in the current directory.
@@ -205,7 +207,7 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
         if df.empty:
             raise ValueError("Data dictionary loaded but is empty. Please check your file.")
         tables = format_data_dictionary(df)
-        prompt = generate_sql_prompt(tables, query)
+        prompt = generate_sql_prompt(tables, query, limit_rows=limit_rows)
         result = generate_sql_query_gemini(
             api_key=api_key,
             prompt=prompt,

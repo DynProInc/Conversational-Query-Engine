@@ -51,7 +51,7 @@ def nlq_to_snowflake(question: str,
     
     try:
         # Generate SQL using OpenAI
-        result = natural_language_to_sql(question, data_dictionary_path, model=model)
+        result = natural_language_to_sql(question, data_dictionary_path, model=model, limit_rows=limit_rows)
         
         # Extract the SQL and clean it
         sql = result["sql"]

@@ -190,7 +190,7 @@ Content-Type: application/json
 #### `/query` - Unified Endpoint
 
 ```json
-POST /query
+POST /query/unified
 Content-Type: application/json
 
 {

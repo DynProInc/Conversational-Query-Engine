@@ -53,7 +53,8 @@ def nlq_to_snowflake_claude(question: str,
         claude_result = natural_language_to_sql_claude(
             query=question,
             data_dictionary_path=data_dictionary_path,
-            model=model
+            model=model,
+            limit_rows=limit_rows
         )
         
         # Extract the SQL and ensure it's a valid string

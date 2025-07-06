@@ -345,21 +345,32 @@ async def generate_sql_query_gemini(request: QueryRequest):
             print("SQL generation failed or returned invalid SQL, using fallback")
         print(f"Generated SQL:\n{sql}")
         
-        # Execute SQL
-        print("Executing SQL...")
+        # Check if we should execute SQL
         df = None
-        try:
-            df = execute_query(sql, print_results=True)
-            print(f"Query execution successful: {df.shape[0]} rows, {df.shape[1]} columns")
-            query_executed_successfully = True
-        except Exception as sql_err:
-            print(f"SQL execution failed: {str(sql_err)}")
-            query_executed_successfully = False
-            raise Exception(f"SQL execution failed: {str(sql_err)}")
+        query_executed_successfully = None  # Using None to indicate query was not executed
+        
+        if request.execute_query:
+            print("Executing SQL...")
+            try:
+                df = execute_query(sql, print_results=True)
+                print(f"Query execution successful: {df.shape[0]} rows, {df.shape[1]} columns")
+                query_executed_successfully = True
+            except Exception as sql_err:
+                print(f"SQL execution failed: {str(sql_err)}")
+                query_executed_successfully = False
+                raise Exception(f"SQL execution failed: {str(sql_err)}")
+        else:
+            print("Skipping SQL execution as execute_query=False")
+            # Return empty results when not executing
         
         # Convert results - with multiple fallback mechanisms
         query_output = []
-        if df is not None and hasattr(df, 'shape') and df.shape[0] > 0:
+        
+        # If execute_query was false, always return empty results
+        if not request.execute_query:
+            print("Returning empty query_output as execute_query=False")
+            query_output = []
+        elif df is not None and hasattr(df, 'shape') and df.shape[0] > 0:
             print(f"Converting DataFrame with {df.shape[0]} rows to dict...")
             try:
                 # METHOD 1: Standard Pandas to_dict
@@ -386,10 +397,10 @@ async def generate_sql_query_gemini(request: QueryRequest):
                     print(f"Method 2 successful, got {len(query_output)} items")
                 except Exception as e2:
                     print(f"Method 2 failed: {str(e2)}, using fallback data")
-                    query_output = fallback_output
+                    query_output = []
         else:
             print("No DataFrame results or empty DataFrame")
-            query_output = fallback_output
+            query_output = [] if not request.execute_query else []
         
         # Calculate execution time
         execution_time_ms = int((time.time() - start_time) * 1000)
@@ -402,10 +413,13 @@ async def generate_sql_query_gemini(request: QueryRequest):
         }
         
         # Check if we have valid output or need to use fallback
-        if not query_output:
+        if not query_output and request.execute_query:
             print("WARNING: No query output after conversion attempts, using fallback")
             query_output = fallback_output
             query_executed_successfully = False
+        elif not request.execute_query:
+            print("Empty query_output maintained as execute_query=False")
+            # Keep query_output as empty list
             
         # Log token usage with execution status
         logger.log_usage(
@@ -427,7 +441,8 @@ async def generate_sql_query_gemini(request: QueryRequest):
             success=True,  # Always claim success when we have results
             error_message=None,
             execution_time_ms=execution_time_ms,
-            user_hint="Query executed successfully." if len(query_output) > 0 else "Query executed but no results returned."
+            user_hint="SQL query generated only. Execution skipped." if not request.execute_query else 
+                  ("Query executed successfully." if len(query_output) > 0 else "Query executed but no results returned.")
         )
         
         # Successful result
@@ -519,7 +534,7 @@ async def compare_models(request: QueryRequest):
         # Force OpenAI for this request
         openai_request = copy.deepcopy(request)
         openai_request.model = "gpt-4o"  # Default to GPT-4o
-        openai_request.execute_query = True  # Ensure query execution
+        # Keep execute_query as set by the user
         
         print("\nCompare API: Calling OpenAI endpoint...")
         openai_response = await generate_sql_query(openai_request)
@@ -543,7 +558,7 @@ async def compare_models(request: QueryRequest):
         # Force Claude for this request
         claude_request = copy.deepcopy(request)
         claude_request.model = "claude-3-5-sonnet-20241022"  # Default to Claude 3.5 Sonnet
-        claude_request.execute_query = True  # Ensure query execution
+        # Keep execute_query as set by the user
         
         print("\nCompare API: Calling Claude endpoint...")
         claude_response = await generate_sql_query_claude(claude_request)
@@ -577,7 +592,7 @@ async def compare_models(request: QueryRequest):
         result = nlq_to_snowflake_gemini(
             question=request.prompt,
             data_dictionary_path=request.data_dictionary_path,
-            execute=True,  # Force execution
+            execute=request.execute_query,  # Respect user's execute_query setting
             limit_rows=request.limit_rows,
             model=gemini_model
         )
@@ -792,8 +807,7 @@ async def unified_query_endpoint(request: QueryRequest):
         # For "gemini", "google", or any model containing "gemini" or "palm"
         print("Unified API: Routing to Gemini endpoint")
         request.model = "models/gemini-1.5-flash-latest"  # Set default Gemini model
-        # Force query execution for Gemini
-        request.execute_query = True
+        # No longer forcing query execution - respecting user's execute_query parameter
         return await generate_sql_query_gemini(request)
         
     elif model == "compare" or model == "all":

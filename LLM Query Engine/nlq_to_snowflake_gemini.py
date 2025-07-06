@@ -47,7 +47,8 @@ def nlq_to_snowflake_gemini(question: str,
             query=question,
             data_dictionary_path=data_dictionary_path,
             model=model,
-            log_tokens=True
+            log_tokens=True,
+            limit_rows=limit_rows
         )
         sql = gemini_result.get("sql", "")
         if not isinstance(sql, str):

@@ -99,11 +99,11 @@ celerybeat-schedule
 Thumbs.db
 
 # Ignore Data Dictionary outputs
-Data Dictionary/*.csv
+# Data Dictionary/*.csv
 
 # Ignore Requirements outputs
-Requirements/*.sql
-Requirements/*.txt
+# Requirements/*.sql
+# Requirements/*.txt
 
 # Ignore IDE/editor folders
 .vscode/
