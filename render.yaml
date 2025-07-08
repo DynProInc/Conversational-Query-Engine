@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: conversational-query-engine
+    env: python
+    buildCommand: pip install -r "LLM Query Engine/requirements.txt"
+    startCommand: cd "LLM Query Engine" && python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 8000
+    plan: free
