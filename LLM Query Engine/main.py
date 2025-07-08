@@ -15,7 +15,9 @@ except Exception as e:
 
 # Get the port from the environment variable
 # Render sets the PORT environment variable for web services
+# IMPORTANT: Always use the PORT environment variable on Render
 port = int(os.environ.get("PORT", 10000))
+print(f"PORT environment variable: {os.environ.get('PORT')}")
 
 # Print a message about environment variables
 print("Starting server with environment variables from Render dashboard or local .env file")

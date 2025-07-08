@@ -3,9 +3,11 @@ services:
     name: conversational-query-engine
     env: python
     buildCommand: cd "LLM Query Engine" && pip install -r requirements.txt
-    startCommand: cd "LLM Query Engine" && python main.py
+    startCommand: cd "LLM Query Engine" && gunicorn -w 4 -k uvicorn.workers.UvicornWorker wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
     plan: standard # Using standard plan with 2GB RAM to avoid memory issues
     healthCheckPath: /health
+    healthCheckTimeout: 300 # Increase health check timeout to 5 minutes
+    autoDeploy: true
