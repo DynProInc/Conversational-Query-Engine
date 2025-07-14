@@ -317,7 +317,7 @@ Content-Type: application/json
   "client_id": "penguin",
   "data_dictionary_path": null,
   "execute_query": true,
-  "model": "openai"  // or "claude", "gemini", "all", etc.
+  "model": "openai"  // or "claude", "gemini", "gpt-4o", "all", etc.
 }
 ```
 

@@ -3,7 +3,10 @@
 import os
 import pandas as pd
 import datetime
+import json
+import re  # Ensure re is imported at the top level for use throughout the module
 import dotenv
+import traceback
 from typing import Dict, List, Any, Optional
 from token_logger import TokenLogger
 
@@ -23,83 +26,7 @@ except ImportError:
     import anthropic
 
 
-def extract_limit_from_query(query: str) -> Optional[int]:
-    """
-    Extract numeric limit from user query like "top 5", "first 10", "top five", etc.
-    Handles both digit-based numbers (5) and word-based numbers (five).
-    
-    Args:
-        query: Natural language query
-        
-    Returns:
-        Extracted limit as integer or None if not found
-    """
-    import re
-    
-    # Dictionary to convert word numbers to digits
-    word_to_number = {
-        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
-        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
-        'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
-        'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
-        'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
-        'eighty': 80, 'ninety': 90, 'hundred': 100
-    }
-    
-    # Common patterns for digit-based limits in natural language queries
-    digit_patterns = [
-        r'top\s+(\d+)',              # "top 5"
-        r'first\s+(\d+)',            # "first 10"
-        r'(\d+)\s+(?:rows|results)', # "5 rows", "10 results"
-        r'limit\s+(?:to\s+)?(\d+)',  # "limit to 15", "limit 15"
-        r'show\s+(?:me\s+)?(\d+)',   # "show me 20", "show 20"
-        r'get\s+(?:me\s+)?(\d+)',    # "get me 25", "get 25"
-        r'return\s+(?:me\s+)?(\d+)'  # "return me 30", "return 30"
-    ]
-    
-    # Common patterns for word-based limits
-    word_patterns = [
-        r'top\s+(\w+)',              # "top five"
-        r'first\s+(\w+)',            # "first ten"
-        r'(\w+)\s+(?:rows|results)', # "five rows", "ten results"
-        r'limit\s+(?:to\s+)?(\w+)',  # "limit to fifteen", "limit fifteen"
-        r'show\s+(?:me\s+)?(\w+)',   # "show me twenty", "show twenty"
-        r'get\s+(?:me\s+)?(\w+)',    # "get me twenty-five", "get twenty-five"
-        r'return\s+(?:me\s+)?(\w+)'  # "return me thirty", "return thirty"
-    ]
-    
-    # Try digit-based patterns first
-    for pattern in digit_patterns:
-        matches = re.search(pattern, query.lower())
-        if matches:
-            try:
-                return int(matches.group(1))
-            except (ValueError, IndexError):
-                continue
-    
-    # Try word-based patterns
-    for pattern in word_patterns:
-        matches = re.search(pattern, query.lower())
-        if matches:
-            try:
-                word = matches.group(1).lower()
-                # Handle compound words like "twenty-five"
-                if '-' in word:
-                    parts = word.split('-')
-                    if len(parts) == 2 and parts[0] in word_to_number and parts[1] in word_to_number:
-                        # For words like "twenty-five"
-                        if parts[0] in ['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']:
-                            return word_to_number[parts[0]] + word_to_number[parts[1]]
-                
-                # Direct lookup for simple number words
-                if word in word_to_number:
-                    return word_to_number[word]
-            except (ValueError, IndexError, KeyError):
-                continue
-    
-    return None
-
-def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100) -> str:
+def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100, include_charts: bool = False) -> str:
     """
     Generate system prompt for Claude with table schema information
     
@@ -144,13 +71,109 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         
         tables_context += "\n"
     
-    # Create prompt template for Claude with emphasis on respecting numeric limits
-    limit_instruction = ""
-    if extracted_limit:
-        limit_instruction = f"""
-\nCRITICAL INSTRUCTION: The user has requested {extracted_limit} results. You MUST include 'LIMIT {extracted_limit}' in your SQL query.
+    # Create prompt template for Claude - matching OpenAI's detailed chart instructions
+    chart_instructions = """
+
+After generating the SQL query, recommend appropriate chart types for visualizing the results. Follow these rules:
+
+1. Analyze the query to determine if it returns numeric columns or only categorical data
+2. IMPORTANT: Provide EXACTLY the top 2 chart recommendations that best visualize the data, ordered by priority.
+3. Recommend charts that match the data structure based on these rules:
+
+**CRITICAL: Time-Based Data Handling for Charts:**
+- For time-based data spanning multiple years, ALWAYS use the column with full date information (YYYY-MM format) as the x-axis
+- Multi-year data: Use YYYY-MM column for x-axis, not month names
+
+1. Bar charts: For comparing categorical data or time periods. Suitable for up to ~15 categories.
+   - Required: One categorical column and at least one numeric measure
+   - Best for: Comparisons across categories
+
+2. Line charts: For showing trends over a continuous range (usually time).
+   - Required: One continuous axis (usually time) and at least one numeric measure
+   - Best for: Trends over time, continuous data
+   - IMPORTANT: For time series across multiple years, ALWAYS use the column containing year+month format
+
+3. Pie charts: For showing composition or parts of a whole (limited to 7 or fewer categories).
+   - Required: One categorical column with 7 or fewer categories and one numeric measure
+   - Best for: Part-to-whole relationships, proportions
+
+4. Scatter plots: For showing relationships between two numeric variables.
+   - Required: Two numeric measures
+   - Best for: Correlation analysis, distribution patterns
+
+5. Area charts: For showing cumulative totals over time or categories.
+   - Required: One continuous axis (usually time) and at least one numeric measure
+   - Best for: Cumulative trends, stacked compositions over time
+   - IMPORTANT: For time series across multiple years, ALWAYS use the column containing year+month format
+
+6. Mixed/Combo charts: For comparing different but related metrics with appropriate visualizations.
+   - Required: One shared axis and multiple measures that may have different scales
+   - Best for: Multi-measure comparisons with different scales
+
+For purely categorical data with no numeric measures, recommend a table visualization.
+
+Scale Detection and Secondary Axis:
+- When two measures have significantly different scales (100x+ difference), use a secondary Y-axis
+- For mixed charts, specify which series should use the secondary axis
+- Include scale_detection: true and scale_threshold: 2 in the additional_config
+
+Your response MUST be a valid JSON object with the following structure:
+{
+  "sql": "YOUR SQL QUERY HERE",
+  "chart_recommendations": [
+    {
+      "chart_type": "bar|pie|line|scatter|histogram|area|combo|mixed|table|suggestion",
+      "reasoning": "Why this chart is appropriate",
+      "priority": 1,
+      "chart_config": {
+        "title": "Chart title",
+        "x_axis": "column_name",
+        "y_axis": ["column_name1", "column_name2"],
+        "color_by": "column_name",
+        "aggregate_function": "NONE|SUM|AVG|etc",
+        "chart_library": "plotly",
+        "additional_config": {
+          "show_legend": true,
+          "orientation": "vertical|horizontal",
+          "use_secondary_axis": true,
+          "secondary_axis_columns": ["column_name2"],
+          "scale_detection": true,
+          "scale_threshold": 2
+        }
+      }
+    }
+  ]
+}
+
+Example with scale detection:
+{
+  "sql": "SELECT MONTH_NAME, SUM(SALES) AS TOTAL_SALES, COUNT(ORDER_ID) AS ORDER_COUNT FROM ORDERS GROUP BY MONTH_NAME ORDER BY MONTH_NUMBER;",
+  "chart_recommendations": [{
+    "chart_type": "mixed",
+    "reasoning": "TOTAL_SALES and ORDER_COUNT have different scales",
+    "priority": 1,
+    "chart_config": {
+      "title": "Monthly Sales and Orders",
+      "x_axis": "MONTH_NAME",
+      "series": [
+        { "column": "TOTAL_SALES", "type": "bar", "axis": "primary" },
+        { "column": "ORDER_COUNT", "type": "line", "axis": "secondary" }
+      ],
+      "additional_config": {
+        "use_secondary_axis": true,
+        "secondary_axis_columns": ["ORDER_COUNT"],
+        "scale_detection": true,
+        "scale_threshold": 2
+      }
+    }
+  }]
+}
+
+IMPORTANT: DO NOT include any explanations, code blocks, or markdown formatting outside the JSON. Your entire response must be valid JSON that can be parsed directly.
+""" if include_charts else """
+Return ONLY the SQL code without any other text or explanations.
 """
-    
+
     prompt = f"""You are an expert SQL query generator for Snowflake database.
 
 Your task is to convert natural language questions into valid SQL queries that can run on Snowflake.
@@ -159,22 +182,52 @@ Use the following data dictionary to understand the database schema:
 {tables_context}{limit_instruction}
 
 When generating SQL:
-1. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)
-2. Include appropriate JOINs based on the data relationships or column name similarities
-3. Format the SQL code clearly with proper indentation and aliases
-4. Only use tables and columns that exist in the provided schema
-5. Add helpful SQL comments to explain complex parts of the query
-6. Return ONLY the SQL code without any other text or explanations
-7. EXTREMELY IMPORTANT: If the user specifies a number in their query (like "top 5", "first 10"), you MUST use that exact number in a LIMIT clause
-8. Only if the user does not specify a number, limit results to {limit_rows} rows
+1. Only generate SELECT queries.
+2. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)
+3. For column selections:
+   - Always list columns individually (never concatenate or combine columns till user not asking in prompt)
+   - Use consistent column casing - uppercase for all column names
+   - Format each column on a separate line with proper indentation
+4. Include appropriate JOINs based only on the relationships defined in the schema metadata.
+5. Only use tables and columns that exist in the provided schema.
+6. For numeric values:
+   - Use standard CAST() function for type conversions (e.g., CAST(field AS DECIMAL) or CAST(field AS NUMERIC))
+   - When using GROUP BY, always apply aggregate functions (SUM, AVG, etc.) to non-grouped numeric fields
+   - Example: SUM(CAST(SALES_AMOUNT AS NUMERIC)) AS TOTAL_SALES
+   - ALWAYS use NULLIF() for divisions to prevent division by zero errors:
+     * For percentage calculations: (new_value - old_value) / NULLIF(old_value, 0) * 100
+     * For ratios: numerator / NULLIF(denominator, 0)
+   - For sensitive calculations that must return specific values on zero division:
+     * Use CASE: CASE WHEN denominator = 0 THEN NULL ELSE numerator/denominator END
+7. Format results with consistent column naming:
+   - For aggregations, use uppercase names (e.g., SUM(sales) AS TOTAL_SALES)
+   - For regular columns, maintain original casing
+8. Add helpful SQL comments to explain complex parts of the query
+9. CRITICAL: Follow these row limit rules EXACTLY in this order of priority:
+     a. If the user explicitly specifies a number in their query (e.g., "top 5", "first 10"), use EXACTLY that number in the LIMIT clause
+     b. If no specific number is given but the query mentions "top" or "first" without a number, use exactly {limit_rows} as the LIMIT
+     c. For all other queries, limit results to {limit_rows} rows
+     d. NEVER use default values like 5 or 10 when the limit_rows parameter of {limit_rows} is provided
+10. If the query is unclear, include this comment: -- Please clarify: [specific aspect]
+11. EXTREMELY IMPORTANT: SQL formatting rules:
+    - Always include spaces between SQL keywords and identifiers (e.g., "SELECT column FROM table" not "SELECTcolumn FROMtable")
+    - Use proper spacing around operators (e.g., "column = value" not "column=value")
+    - Always separate keywords with spaces (e.g., "GROUP BY" not "GROUPBY")
+    - For column aliases, always put a space after the AS keyword (e.g., "SUM(value) AS TOTAL" not "SUM(value) ASTOTAL")
+    - Always add a space after each comma in lists (e.g., "col1, col2, col3" not "col1,col2,col3")
+12. CRITICAL: Time-based data handling:
+    - For time-based queries, ALWAYS include both YEAR and MONTH components for proper chronological ordering
+    - When returning monthly data that spans multiple years, use YYYY-MM format (e.g., "2024-05") as the primary x-axis value
+    - For chart recommendations with time data that spans multiple years, ALWAYS use the full date format column (like TRANSACTION_YEAR_MONTH) as the x-axis, NOT just the month name
+    - If month names are included (Jan, Feb, etc.), they should be supplementary and not the primary x-axis for charts
 
-Generate a SQL query for: {query}
+Generate a SQL query for: {query}{chart_instructions}
 """
     return prompt
 
 
 def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-5-sonnet-20241022", 
-                         query_text: str = "", log_tokens: bool = True) -> Dict[str, Any]:
+                         query_text: str = "", log_tokens: bool = True, include_charts: bool = False) -> Dict[str, Any]:
     """
     Generate SQL query using Anthropic Claude API
     
@@ -193,14 +246,26 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
     
     try:
         
-        response = client.messages.create(
-            model=model,
-            max_tokens=1000,
-            temperature=0.1,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
+        # Configure Claude to generate valid JSON when charts are requested
+        if include_charts:
+            response = client.messages.create(
+                model=model,
+                max_tokens=3000,  # Increased token limit for chart recommendations
+                temperature=0.1,
+                system="You are an expert SQL generator that returns valid JSON responses with SQL and chart recommendations. Always ensure your responses are valid JSON.",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+        else:
+            response = client.messages.create(
+                model=model,
+                max_tokens=1000,
+                temperature=0.1,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
         
         
         
@@ -240,7 +305,6 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                 
                 # Extract SQL from code blocks if present
                 if "```" in full_text:
-                    import re
                     # First try to find SQL-specific code blocks
                     sql_blocks = re.findall(r'```(?:sql|SQL)?([\s\S]*?)```', full_text)
                     
@@ -257,9 +321,223 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                             if extracted_code:  # Only update if we got something meaningful
                                 sql_query = extracted_code
                 
+                # For chart recommendations, try to parse JSON - exactly matching OpenAI implementation
+                chart_recommendations = []
+                chart_error = None
+                
+                # Flag to track if we found valid JSON to prevent the entire JSON response being used as SQL
+                json_parsing_success = False
+                
+                if include_charts:
+                    try:
+                        # Remove code blocks if present
+                        original_text = full_text
+                        if full_text.startswith("```json") and full_text.endswith("```"):
+                            full_text = full_text[7:-3].strip()
+                        elif full_text.startswith("```") and full_text.endswith("```"):
+                            full_text = full_text[3:-3].strip()
+                        
+                        # First attempt: Try to clean invalid control characters and parse
+                        cleaned_text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', full_text)
+                        try:
+                            # Parse the cleaned JSON response
+                            json_data = json.loads(cleaned_text)
+                            json_parsing_success = True
+                            print("Successfully parsed JSON after cleaning control characters")
+                        except json.JSONDecodeError:
+                            # If that still fails, try with the original but stricter cleanup
+                            # Replace all non-printable characters
+                            ultra_clean = ''.join(c for c in full_text if c.isprintable())
+                            json_data = json.loads(ultra_clean)
+                            json_parsing_success = True
+                            print("Successfully parsed JSON after strict character cleaning")
+                        
+                        # Extract SQL query and chart recommendations
+                        if "sql" in json_data:
+                            sql_query = json_data.get("sql", "")
+                            # Ensure we're not sending JSON as SQL
+                            if sql_query.startswith("{") and sql_query.endswith("}"):
+                                try:
+                                    # Check if SQL is actually JSON
+                                    test_json = json.loads(sql_query)
+                                    if "sql" in test_json:
+                                        # Extract the actual SQL from nested JSON
+                                        sql_query = test_json.get("sql", "")
+                                except:
+                                    # If it's not valid JSON, keep it as is
+                                    pass
+                        if "chart_recommendations" in json_data:
+                            chart_recommendations = json_data.get("chart_recommendations", [])
+                        if "chart_error" in json_data:
+                            chart_error = json_data.get("chart_error")
+                        
+                    except json.JSONDecodeError as e:
+                        # Fallback if JSON parsing fails
+                        print(f"Error parsing JSON response: {str(e)}")
+                        
+                        # Never use JSON-looking text as SQL
+                        if full_text.strip().startswith('{') and full_text.strip().endswith('}'):
+                            # This looks like JSON but failed to parse - try to extract chart recommendations
+                            # Look for SQL statement pattern within the text
+                            sql_pattern = re.search(r'"sql"\s*:\s*"([^"]+)"', full_text)
+                            if sql_pattern:
+                                sql_query = sql_pattern.group(1)
+                                # Unescape any escaped quotes
+                                sql_query = sql_query.replace("\\\"", '"')
+                            else:
+                                # Try to find a SQL statement by looking for SELECT or WITH
+                                sql_match = re.search(r'(?:WITH|SELECT)\s+[\s\S]*?(?:;|$)', full_text, re.IGNORECASE)
+                                if sql_match:
+                                    sql_query = sql_match.group(0)
+                            
+                            # Try to extract chart recommendations from the JSON-like text
+                            try:
+                                # First attempt - try to extract the entire chart_recommendations array
+                                chart_match = re.search(r'"chart_recommendations"\s*:\s*(\[.*?\]\s*}?)(?:,|\s*}|$)', full_text, re.DOTALL)
+                                if chart_match:
+                                    chart_json = chart_match.group(1)
+                                    
+                                    # Handle case where we captured too much
+                                    if chart_json.count('[') != chart_json.count(']'):
+                                        # Find a balanced closing bracket
+                                        depth = 0
+                                        end_pos = 0
+                                        for i, c in enumerate(chart_json):
+                                            if c == '[':
+                                                depth += 1
+                                            elif c == ']':
+                                                depth -= 1
+                                                if depth == 0:
+                                                    end_pos = i
+                                                    break
+                                        if end_pos > 0:
+                                            chart_json = chart_json[:end_pos+1]
+                                    
+                                    # Clean the extracted JSON before parsing
+                                    chart_json = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', chart_json)
+                                    chart_json = ''.join(c for c in chart_json if c.isprintable())
+                                    
+                                    # Fix common JSON formatting issues
+                                    chart_json = chart_json.replace('\"', '"')  # Fix escaped quotes
+                                    chart_json = chart_json.replace('\\"', '"')  # Fix double-escaped quotes
+                                    chart_json = re.sub(r',\s*}', '}', chart_json)  # Fix trailing commas
+                                    chart_json = re.sub(r',\s*]', ']', chart_json)  # Fix trailing commas in arrays
+                                    
+                                    # Parse the chart recommendations
+                                    try:
+                                        chart_recommendations = json.loads(chart_json)
+                                        print("Successfully extracted chart recommendations from malformed JSON")
+                                    except json.JSONDecodeError:
+                                        # If we can't parse the array, try extracting individual chart objects
+                                        chart_objects = re.findall(r'\{[^\{\}]*"chart_type"[^\{\}]*\}', full_text)
+                                        if chart_objects:
+                                            chart_recommendations = []
+                                            for obj in chart_objects:
+                                                try:
+                                                    clean_obj = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', obj)
+                                                    clean_obj = ''.join(c for c in clean_obj if c.isprintable())
+                                                    chart_obj = json.loads(clean_obj)
+                                                    if 'chart_type' in chart_obj:
+                                                        chart_recommendations.append(chart_obj)
+                                                except:
+                                                    continue
+                                            print(f"Extracted {len(chart_recommendations)} individual chart recommendations")
+                                else:
+                                    # Last resort - try to find complete chart objects
+                                    chart_objects = re.findall(r'\{[^\{\}]*"chart_type"[^\{\}]*\}', full_text)
+                                    if chart_objects:
+                                        chart_recommendations = []
+                                        for obj in chart_objects:
+                                            try:
+                                                clean_obj = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', obj)
+                                                clean_obj = ''.join(c for c in clean_obj if c.isprintable())
+                                                chart_obj = json.loads(clean_obj)
+                                                if 'chart_type' in chart_obj:
+                                                    chart_recommendations.append(chart_obj)
+                                            except:
+                                                continue
+                                        print(f"Extracted {len(chart_recommendations)} individual chart recommendations")
+                            except Exception as chart_err:
+                                print(f"Failed to extract chart recommendations: {str(chart_err)}")
+                                # Try one last approach - look for chart_type patterns
+                                try:
+                                    chart_types = re.findall(r'"chart_type"\s*:\s*"([^"]+)"', full_text)
+                                    if chart_types:
+                                        chart_recommendations = []
+                                        for chart_type in chart_types:
+                                            chart_recommendations.append({
+                                                "chart_type": chart_type,
+                                                "reasoning": "Recovered from malformed JSON",
+                                                "priority": len(chart_recommendations) + 1
+                                            })
+                                        print(f"Recovered {len(chart_recommendations)} basic chart recommendations")
+                                    else:
+                                        chart_recommendations = []
+                                        chart_error = "Cannot generate charts: error in JSON parsing"
+                                except:
+                                    chart_recommendations = []
+                                    chart_error = "Cannot generate charts: error in JSON parsing"
+                        elif "SELECT" in full_text.upper() or "WITH" in full_text.upper():
+                            # Extract only the SQL part if we can identify it
+                            sql_match = re.search(r'(?:WITH|SELECT)\s+[\s\S]*?(?:;|$)', full_text, re.IGNORECASE)
+                            if sql_match:
+                                sql_query = sql_match.group(0)
+                            else:
+                                sql_query = full_text
+                        else:
+                            # Try to extract SQL code block
+                            sql_blocks = re.findall(r'```(?:sql)?([\s\S]*?)```', full_text)
+                            if sql_blocks and sql_blocks[0].strip():
+                                sql_query = sql_blocks[0].strip()
+                            else:
+                                # Default fallback - but ensure it doesn't look like JSON
+                                if not (full_text.strip().startswith('{') and full_text.strip().endswith('}')):
+                                    # Only use as SQL if it doesn't look like JSON
+                                    sql_query = full_text
+                                else:
+                                    # Use a default basic SQL query since we can't extract valid SQL
+                                    sql_query = "SELECT 'Failed to extract valid SQL' AS error_message"
+                        
+                        # If we haven't set chart recommendations yet, initialize as empty
+                        if 'chart_recommendations' not in locals():
+                            chart_recommendations = []
+                        if 'chart_error' not in locals():
+                            chart_error = "Cannot generate charts: error in JSON parsing"
+                    except Exception as e:
+                        print(f"Error processing Claude response for charts: {str(e)}")
+                        chart_error = f"Error extracting chart recommendations: {str(e)}"
+                    
+                    # No additional fallback logic for chart recommendations
+                    # This matches the OpenAI implementation which only uses chart recommendations
+                    # directly from the LLM response
+                else:
+                    # When charts are not included, focus on extracting SQL - similar to OpenAI implementation
+                    # Just extract SQL without chart parsing
+                    if full_text.startswith("```") and "```" in full_text[3:]:
+                        # Remove markdown code blocks if present
+                        lines = full_text.split("\n")
+                        # Remove opening ```sql or ``` line
+                        if lines[0].startswith("```"):
+                            lines = lines[1:]
+                        # Remove closing ``` line if present
+                        if lines and lines[-1].strip() == "```":
+                            lines = lines[:-1]
+                        # Join back into a cleaned SQL string
+                        sql_query = "\n".join(lines)
+                    elif "SELECT" in full_text.upper() or "WITH" in full_text.upper():
+                        # Extract SQL statements directly from the text
+                        sql_match = re.search(r'(?:WITH|SELECT)\s+[\s\S]*?(?:;|$)', full_text, re.IGNORECASE)
+                        if sql_match:
+                            sql_query = sql_match.group(0)
+                        else:
+                            sql_query = full_text
+                    
+                    # Set chart fields to null when charts aren't requested
+                    chart_recommendations = None
+                    chart_error = None
+                
                 # If we still don't have SQL but the response contains SELECT keywords
-                # Use the entire response as the SQL
-                elif "SELECT" in full_text.upper():
+                if "SELECT" in full_text.upper() and not (sql_query and "SELECT" in sql_query.upper()):
                     sql_query = full_text
                 
                 # Final check to ensure sql_query is a string
@@ -301,7 +579,7 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
         # NOTE: Token usage is now logged only in nlq_to_snowflake_claude.py after execution
         # to avoid duplicate entries in the token_usage.csv file
             
-        return {
+        result = {
             "sql": sql_query,
             "model": model,
             "prompt_tokens": usage_data["prompt_tokens"],
@@ -309,12 +587,33 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
             "total_tokens": usage_data["total_tokens"]
         }
         
+        # Always include chart-related fields in the response for consistent structure
+        if include_charts:
+            # Make sure chart recommendations are properly formatted
+            if chart_recommendations and isinstance(chart_recommendations, list):
+                result["chart_recommendations"] = chart_recommendations
+            else:
+                result["chart_recommendations"] = []
+                
+            # Make sure chart error is properly formatted
+            if chart_error:
+                result["chart_error"] = chart_error
+            elif not chart_recommendations:
+                result["chart_error"] = "No chart recommendations available"
+            else:
+                result["chart_error"] = None
+        else:
+            # Set chart fields to null when charts aren't requested
+            result["chart_recommendations"] = None
+            result["chart_error"] = None
+            
+        return result
+        
     except Exception as e:
-        import traceback
         tb_str = traceback.format_exc()
         
         error_msg = f"SELECT 'Error in SQL generation: {str(e).replace("'", "''")}\nTRACEBACK: {tb_str.replace("'", "''").replace(chr(10), ' ')}' AS error_message"
-        return {
+        result = {
             "sql": error_msg,
             "model": model,
             "error": str(e),
@@ -323,11 +622,23 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
             "completion_tokens": 0,
             "total_tokens": 0
         }
+        
+        # Always include chart-related fields in the response for consistent structure
+        # If charts are requested, provide empty list and error message
+        # If charts are not requested, provide null values
+        if include_charts:
+            result["chart_recommendations"] = []
+            result["chart_error"] = "Cannot generate charts: error in SQL generation"
+        else:
+            result["chart_recommendations"] = None
+            result["chart_error"] = None
+            
+        return result
 
 
 def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None, api_key: Optional[str] = None, 
-                               model: str = "claude-3-5-sonnet-20241022", log_tokens: bool = True,
-                               limit_rows: int = 100) -> Dict[str, Any]:
+                               model: str = None, log_tokens: bool = True,
+                               limit_rows: int = 100, include_charts: bool = False) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Claude
     
@@ -348,6 +659,11 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
+            
+    # Set default model from environment if not provided
+    if model is None:
+        # Try both uppercase and lowercase environment variable names
+        model = os.environ.get("ANTHROPIC_MODEL") or os.environ.get("anthropic_model", "claude-3-5-sonnet-20241022")
     
     try:
         # Track execution time
@@ -359,17 +675,9 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
         # Format data dictionary for prompt
         tables = format_data_dictionary(df)
         
-        # Generate prompt
-        prompt = generate_sql_prompt(tables, query, limit_rows=limit_rows)
-        
-        # Generate SQL
-        result = generate_sql_query_claude(
-            api_key=api_key,
-            prompt=prompt,
-            model=model,
-            query_text=query,
-            log_tokens=log_tokens
-        )
+        # Generate prompt and SQL query
+        prompt = generate_sql_prompt(tables, query, limit_rows=limit_rows, include_charts=include_charts)
+        result = generate_sql_query_claude(api_key, prompt, model=model, query_text=query, log_tokens=log_tokens, include_charts=include_charts)
         
         
         
