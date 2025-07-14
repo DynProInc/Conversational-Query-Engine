@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Column Chart Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        .chart-container {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .chart {
+            width: 100%;
+            height: 400px;
+        }
+        .debug-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Multi-Column Chart Test</h1>
+        
+        <div class="controls">
+            <h3>Chart Configuration</h3>
+            <label>
+                <input type="checkbox" id="useSecondaryAxis"> Use Secondary Y-Axis
+            </label>
+        </div>
+        
+        <div class="chart-container">
+            <h2>Test Data</h2>
+            <pre id="test-data"></pre>
+        </div>
+        
+        <div class="chart-container">
+            <h2>Multi-Column Line Chart</h2>
+            <div id="line-chart" class="chart"></div>
+            <div class="debug-info" id="line-chart-debug"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>Multi-Column Bar Chart</h2>
+            <div id="bar-chart" class="chart"></div>
+            <div class="debug-info" id="bar-chart-debug"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>Mixed Chart (Bar + Line)</h2>
+            <div id="mixed-chart" class="chart"></div>
+            <div class="debug-info" id="mixed-chart-debug"></div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data for testing
+        const testData = [
+            {"QUARTER": 1, "TOTAL_SALES": 123047757, "TOTAL_QUANTITY_SOLD": 2148484},
+            {"QUARTER": 2, "TOTAL_SALES": 150031127, "TOTAL_QUANTITY_SOLD": 2404085},
+            {"QUARTER": 3, "TOTAL_SALES": 158468348, "TOTAL_QUANTITY_SOLD": 2427169},
+            {"QUARTER": 4, "TOTAL_SALES": 144055215, "TOTAL_QUANTITY_SOLD": 2436600}
+        ];
+        
+        // Display the test data
+        document.getElementById('test-data').textContent = JSON.stringify(testData, null, 2);
+        
+        // Function to render a multi-column line chart
+        function renderMultiColumnLineChart(data, divId, useSecondaryAxis = false) {
+            console.log(`Rendering multi-column line chart in ${divId}`);
+            
+            // Extract x values (quarters)
+            const xValues = data.map(item => item.QUARTER);
+            
+            // Create traces for each numeric column
+            const plotData = [];
+            
+            // Sales trace
+            const salesTrace = {
+                x: xValues,
+                y: data.map(item => item.TOTAL_SALES),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'TOTAL_SALES',
+                marker: { color: 'rgba(17, 157, 255, 0.8)' },
+                line: { color: 'rgba(17, 157, 255, 0.8)' }
+            };
+            
+            // Quantity trace
+            const quantityTrace = {
+                x: xValues,
+                y: data.map(item => item.TOTAL_QUANTITY_SOLD),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'TOTAL_QUANTITY_SOLD',
+                marker: { color: 'rgba(255, 87, 34, 0.8)' },
+                line: { color: 'rgba(255, 87, 34, 0.8)' }
+            };
+            
+            // If using secondary axis, set the quantity trace to use it
+            if (useSecondaryAxis) {
+                quantityTrace.yaxis = 'y2';
+            }
+            
+            plotData.push(salesTrace, quantityTrace);
+            
+            // Create layout with appropriate axes
+            const layout = {
+                title: 'Quarterly Sales and Quantity',
+                xaxis: { title: 'Quarter' },
+                yaxis: { 
+                    title: 'Total Sales',
+                    titlefont: { color: 'rgba(17, 157, 255, 0.8)' },
+                    tickfont: { color: 'rgba(17, 157, 255, 0.8)' }
+                },
+                margin: { l: 50, r: 50, b: 100, t: 50, pad: 4 },
+                legend: { orientation: 'h', y: -0.2 }
+            };
+            
+            // Add secondary y-axis if needed
+            if (useSecondaryAxis) {
+                layout.yaxis2 = {
+                    title: 'Total Quantity Sold',
+                    titlefont: { color: 'rgba(255, 87, 34, 0.8)' },
+                    tickfont: { color: 'rgba(255, 87, 34, 0.8)' },
+                    overlaying: 'y',
+                    side: 'right'
+                };
+            }
+            
+            // Render the chart
+            Plotly.newPlot(divId, plotData, layout);
+            
+            // Update debug info
+            document.getElementById(`${divId}-debug`).textContent = 
+                `Chart Type: Line Chart\n` +
+                `Columns: QUARTER (x-axis), TOTAL_SALES, TOTAL_QUANTITY_SOLD\n` +
+                `Secondary Y-Axis: ${useSecondaryAxis ? 'Yes (TOTAL_QUANTITY_SOLD)' : 'No'}`;
+        }
+        
+        // Function to render a multi-column bar chart
+        function renderMultiColumnBarChart(data, divId, useSecondaryAxis = false) {
+            console.log(`Rendering multi-column bar chart in ${divId}`);
+            
+            // Extract x values (quarters)
+            const xValues = data.map(item => item.QUARTER);
+            
+            // Create traces for each numeric column
+            const plotData = [];
+            
+            // Sales trace
+            const salesTrace = {
+                x: xValues,
+                y: data.map(item => item.TOTAL_SALES),
+                type: 'bar',
+                name: 'TOTAL_SALES',
+                marker: { color: 'rgba(17, 157, 255, 0.8)' }
+            };
+            
+            // Quantity trace
+            const quantityTrace = {
+                x: xValues,
+                y: data.map(item => item.TOTAL_QUANTITY_SOLD),
+                type: 'bar',
+                name: 'TOTAL_QUANTITY_SOLD',
+                marker: { color: 'rgba(255, 87, 34, 0.8)' }
+            };
+            
+            // If using secondary axis, set the quantity trace to use it
+            if (useSecondaryAxis) {
+                quantityTrace.yaxis = 'y2';
+            }
+            
+            plotData.push(salesTrace, quantityTrace);
+            
+            // Create layout with appropriate axes
+            const layout = {
+                title: 'Quarterly Sales and Quantity',
+                xaxis: { title: 'Quarter' },
+                yaxis: { 
+                    title: 'Total Sales',
+                    titlefont: { color: 'rgba(17, 157, 255, 0.8)' },
+                    tickfont: { color: 'rgba(17, 157, 255, 0.8)' }
+                },
+                margin: { l: 50, r: 50, b: 100, t: 50, pad: 4 },
+                legend: { orientation: 'h', y: -0.2 },
+                barmode: 'group'
+            };
+            
+            // Add secondary y-axis if needed
+            if (useSecondaryAxis) {
+                layout.yaxis2 = {
+                    title: 'Total Quantity Sold',
+                    titlefont: { color: 'rgba(255, 87, 34, 0.8)' },
+                    tickfont: { color: 'rgba(255, 87, 34, 0.8)' },
+                    overlaying: 'y',
+                    side: 'right'
+                };
+            }
+            
+            // Render the chart
+            Plotly.newPlot(divId, plotData, layout);
+            
+            // Update debug info
+            document.getElementById(`${divId}-debug`).textContent = 
+                `Chart Type: Bar Chart\n` +
+                `Columns: QUARTER (x-axis), TOTAL_SALES, TOTAL_QUANTITY_SOLD\n` +
+                `Secondary Y-Axis: ${useSecondaryAxis ? 'Yes (TOTAL_QUANTITY_SOLD)' : 'No'}`;
+        }
+        
+        // Function to render a mixed chart (bar + line)
+        function renderMixedChart(data, divId, useSecondaryAxis = false) {
+            console.log(`Rendering mixed chart in ${divId}`);
+            
+            // Extract x values (quarters)
+            const xValues = data.map(item => item.QUARTER);
+            
+            // Create traces for each numeric column
+            const plotData = [];
+            
+            // Sales trace (bar)
+            const salesTrace = {
+                x: xValues,
+                y: data.map(item => item.TOTAL_SALES),
+                type: 'bar',
+                name: 'TOTAL_SALES',
+                marker: { color: 'rgba(17, 157, 255, 0.8)' }
+            };
+            
+            // Quantity trace (line)
+            const quantityTrace = {
+                x: xValues,
+                y: data.map(item => item.TOTAL_QUANTITY_SOLD),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'TOTAL_QUANTITY_SOLD',
+                marker: { color: 'rgba(255, 87, 34, 0.8)' },
+                line: { color: 'rgba(255, 87, 34, 0.8)' }
+            };
+            
+            // If using secondary axis, set the quantity trace to use it
+            if (useSecondaryAxis) {
+                quantityTrace.yaxis = 'y2';
+            }
+            
+            plotData.push(salesTrace, quantityTrace);
+            
+            // Create layout with appropriate axes
+            const layout = {
+                title: 'Quarterly Sales and Quantity (Mixed Chart)',
+                xaxis: { title: 'Quarter' },
+                yaxis: { 
+                    title: 'Total Sales',
+                    titlefont: { color: 'rgba(17, 157, 255, 0.8)' },
+                    tickfont: { color: 'rgba(17, 157, 255, 0.8)' }
+                },
+                margin: { l: 50, r: 50, b: 100, t: 50, pad: 4 },
+                legend: { orientation: 'h', y: -0.2 }
+            };
+            
+            // Add secondary y-axis if needed
+            if (useSecondaryAxis) {
+                layout.yaxis2 = {
+                    title: 'Total Quantity Sold',
+                    titlefont: { color: 'rgba(255, 87, 34, 0.8)' },
+                    tickfont: { color: 'rgba(255, 87, 34, 0.8)' },
+                    overlaying: 'y',
+                    side: 'right'
+                };
+            }
+            
+            // Render the chart
+            Plotly.newPlot(divId, plotData, layout);
+            
+            // Update debug info
+            document.getElementById(`${divId}-debug`).textContent = 
+                `Chart Type: Mixed Chart (Bar + Line)\n` +
+                `Columns: QUARTER (x-axis), TOTAL_SALES (bar), TOTAL_QUANTITY_SOLD (line)\n` +
+                `Secondary Y-Axis: ${useSecondaryAxis ? 'Yes (TOTAL_QUANTITY_SOLD)' : 'No'}`;
+        }
+        
+        // Initial render of charts
+        renderMultiColumnLineChart(testData, 'line-chart', false);
+        renderMultiColumnBarChart(testData, 'bar-chart', false);
+        renderMixedChart(testData, 'mixed-chart', false);
+        
+        // Add event listener for secondary axis checkbox
+        document.getElementById('useSecondaryAxis').addEventListener('change', function() {
+            const useSecondaryAxis = this.checked;
+            
+            // Re-render all charts with the new setting
+            renderMultiColumnLineChart(testData, 'line-chart', useSecondaryAxis);
+            renderMultiColumnBarChart(testData, 'bar-chart', useSecondaryAxis);
+            renderMixedChart(testData, 'mixed-chart', useSecondaryAxis);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,2661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Query Visualization</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            background-color: #f7f7f7;
+        }
+        
+        .chart-card {
+            background-color: white;
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .chart-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.2rem;
+        }
+        
+        /* Add some responsive styling */
+        @media (max-width: 768px) {
+            .container {
+                width: 95% !important;
+                padding: 10px !important;
+            }
+            .chart-card {
+                width: 100% !important;
+            }
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .chart-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            flex: 1 1 calc(50% - 20px);
+            min-width: 300px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .chart {
+            height: 400px;
+            width: 100%;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .insights {
+            background-color: #e9f7fe;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .insights li {
+            margin-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        /* Tab styling */
+        .tab-navigation {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            background-color: #f1f1f1;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 10px 20px;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+            color: #333;
+        }
+        .tab-button:hover {
+            background-color: #ddd;
+        }
+        .tab-button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .tab-content {
+            display: block;
+            padding: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>SQL Query Visualization</h1>
+            
+            <div class="form-group">
+                <label for="prompt">Natural Language Query:</label>
+                <textarea id="prompt" rows="3" placeholder="Example: Show me the total sales by month for 2024"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="model">LLM Model:</label>
+                <select id="model">
+                    <option value="openai">OpenAI (GPT-4o)</option>
+                    <option value="claude">Claude</option>
+                    <option value="gemini">Google Gemini</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="client">Select Client:</label>
+                <select id="client" onchange="updateDataDictionary()">
+                    <option value="mts">MTS</option>
+                    <option value="penguin">Penguin</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="data-dictionary">Data Dictionary Path:</label>
+                <input type="text" id="data-dictionary" value="Data Dictionary/mts.csv">
+            </div>
+            
+            <div class="form-group">
+                <label for="row-limit">Row Limit:</label>
+                <input type="number" id="row-limit" value="100" min="1" max="10000">
+                <small style="color: #666; display: block; margin-top: 3px;">Maximum number of rows to return (1-10000)</small>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="include-charts" checked>
+                    Include chart recommendations
+                </label>
+            </div>
+
+            <button onclick="executeQuery()">Execute Query</button>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Processing your query...</p>
+        </div>
+
+        <div id="results" style="display: none;">
+            <div class="card">
+                <h2>SQL Query</h2>
+                <pre id="sql-query"></pre>
+            </div>
+
+            <!-- Tab navigation -->
+            <div class="tab-navigation">
+                <button class="tab-button active" data-tab="results-content">Data Results</button>
+                <button class="tab-button" data-tab="charts-content">Charts</button>
+                <button class="tab-button" data-tab="insights-content">Insights</button>
+            </div>
+
+            <!-- Tab content -->
+            <div id="results-content" class="tab-content">
+                <div class="card">
+                    <h2>Query Results</h2>
+                    <pre id="query-results"></pre>
+                </div>
+            </div>
+
+            <div id="charts-content" class="tab-content" style="display: none;">
+                <div class="chart-container" id="charts"></div>
+            </div>
+
+            <div id="insights-content" class="tab-content" style="display: none;">
+                <div class="card">
+                    <h2>Insights</h2>
+                    <div class="insights">
+                        <ul id="insights-list"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize the page when it loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the data dictionary based on default client
+            updateDataDictionary();
+        });
+        
+        // Function to update data dictionary path based on selected client
+        function updateDataDictionary() {
+            const clientSelect = document.getElementById('client');
+            const dataDictionaryInput = document.getElementById('data-dictionary');
+            
+            const selectedClient = clientSelect.value;
+            
+            // Update the data dictionary path based on client selection
+            if (selectedClient === 'mts') {
+                dataDictionaryInput.value = 'Data Dictionary/mts.csv';
+            } else if (selectedClient === 'penguin') {
+                dataDictionaryInput.value = 'Data Dictionary/penguin.csv';
+            }
+            
+            console.log(`Client changed to ${selectedClient}, data dictionary updated to: ${dataDictionaryInput.value}`);
+        }
+        
+        // Function to show a specific tab content and highlight the corresponding tab button
+        function showTab(tabId) {
+            // Validate input
+            if (!tabId) {
+                console.error('Invalid tabId provided to showTab function');
+                return;
+            }
+            
+            // Get the tab content element
+            const targetTab = document.getElementById(tabId);
+            if (!targetTab) {
+                console.error(`Tab content element with id '${tabId}' not found`);
+                return;
+            }
+            
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+            
+            // Show the selected tab content
+            targetTab.style.display = 'block';
+            
+            // Update active state of tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+                if (button.getAttribute('data-tab') === tabId) {
+                    button.classList.add('active');
+                }
+            });
+            
+            console.log(`Tab switched to: ${tabId}`);
+        }
+        
+        // Initialize tab functionality when the document is ready
+        $(document).ready(function() {
+            console.log('Initializing tab functionality');
+            
+            // Add click event listeners to all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    if (tabId) {
+                        showTab(tabId);
+                    } else {
+                        console.error('No data-tab attribute found on tab button');
+                    }
+                });
+            });
+            
+            // Set initial active tab
+            const activeTab = document.querySelector('.tab-button.active');
+            if (activeTab) {
+                const initialTabId = activeTab.getAttribute('data-tab');
+                if (initialTabId) {
+                    showTab(initialTabId);
+                }
+            }
+        });
+        
+        function executeQuery() {
+            const prompt = document.getElementById('prompt').value;
+            const model = document.getElementById('model').value;
+            const dataDictionary = document.getElementById('data-dictionary').value;
+            const includeCharts = document.getElementById('include-charts').checked;
+            const clientId = document.getElementById('client').value;
+            const rowLimit = parseInt(document.getElementById('row-limit').value, 10) || 100;
+            
+            if (!prompt) {
+                alert('Please enter a query');
+                return;
+            }
+            
+            // Validate row limit
+            if (rowLimit < 1 || rowLimit > 10000) {
+                alert('Row limit must be between 1 and 10000');
+                return;
+            }
+            
+            console.log(`Executing query with model=${model}, client=${clientId}, row_limit=${rowLimit}, include_charts=${includeCharts}`);
+            
+            // Show loading indicator
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            
+            // Prepare API request
+            const requestData = {
+                prompt: prompt,
+                model: model,
+                data_dictionary_path: dataDictionary,
+                execute_query: true,
+                include_charts: includeCharts,
+                client_id: clientId,  // Add client ID to the request
+                limit_rows: rowLimit   // Add row limit to the request
+            };
+            
+            console.log('API Request:', requestData);
+            
+            // Call the API
+            fetch('/query/unified', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Client-ID': clientId  // Add client ID to request headers
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`API responded with status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Hide loading indicator
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results').style.display = 'block';
+                
+                // Display SQL query
+                document.getElementById('sql-query').textContent = data.query;
+                
+                // Display query results
+                document.getElementById('query-results').textContent = JSON.stringify(data.query_output, null, 2);
+                
+                // Debug information
+                const debugInfo = document.createElement('div');
+                debugInfo.className = 'card';
+                debugInfo.style.marginBottom = '20px';
+                debugInfo.style.backgroundColor = '#f8f9fa';
+                debugInfo.innerHTML = `
+                    <h3>API Response Debug Info</h3>
+                    <p>Model Used: ${data.model_used || 'Not specified'}</p>
+                    <p>Success: ${data.success ? 'Yes' : 'No'}</p>
+                    <p>Token Usage: ${data.token_usage || 'Not available'}</p>
+                    <p>Chart Recommendations: ${data.chart_recommendations ? 'Available (' + data.chart_recommendations.length + ')' : 'Not available'}</p>
+                    <p>Data Insights: ${data.data_insights ? 'Available (' + data.data_insights.length + ')' : 'Not available'}</p>
+                `;
+                const resultsContainer = document.getElementById('results');
+                resultsContainer.insertBefore(debugInfo, resultsContainer.firstChild);
+                
+                // Data structure preview for debugging chart issues
+                if (data.query_output && data.query_output.length > 0) {
+                    const dataDebug = document.createElement('div');
+                    dataDebug.className = 'card';
+                    dataDebug.style.marginBottom = '20px';
+                    dataDebug.style.backgroundColor = '#f0f8ff';
+                    
+                    const columns = Object.keys(data.query_output[0]);
+                    let dataPreviewHtml = `
+                        <h3>Data Structure Preview</h3>
+                        <p>Available columns: ${columns.join(', ')}</p>
+                        <p>Total rows: ${data.query_output.length}</p>
+                        <details>
+                            <summary>First row data (click to expand)</summary>
+                            <pre>${JSON.stringify(data.query_output[0], null, 2)}</pre>
+                        </details>
+                    `;
+                    
+                    dataDebug.innerHTML = dataPreviewHtml;
+                    resultsContainer.insertBefore(dataDebug, resultsContainer.firstChild);
+                }
+                
+                // Display insights
+                const insightsList = document.getElementById('insights-list');
+                insightsList.innerHTML = '';
+                if (data.data_insights && data.data_insights.length > 0) {
+                    data.data_insights.forEach(insight => {
+                        const li = document.createElement('li');
+                        li.textContent = insight;
+                        insightsList.appendChild(li);
+                    });
+                } else {
+                    const li = document.createElement('li');
+                    li.textContent = 'No insights available';
+                    insightsList.appendChild(li);
+                }
+                
+                // Display chart recommendations
+                const chartsContainer = document.getElementById('charts');
+                chartsContainer.innerHTML = ''; // Clear previous charts
+                
+                console.log("Chart recommendations:", data.chart_recommendations);
+                
+                // If results tab is active by default, switch to charts tab safely
+                if (data.chart_recommendations && data.chart_recommendations.length > 0) {
+                    // Use a safe approach to switch tabs directly instead of simulating a click
+                    try {
+                        console.log('Attempting to switch to charts tab');
+                        // Safely switch to the charts tab if the function exists
+                        if (typeof showTab === 'function') {
+                            // Make sure the tab content element exists before trying to show it
+                            if (document.getElementById('charts-content')) {
+                                showTab('charts-content');
+                            } else {
+                                console.warn('charts-content element not found, cannot switch tab');
+                            }
+                        } else {
+                            console.warn('showTab function not available, cannot switch tab');
+                        }
+                    } catch (e) {
+                        console.error('Error switching to charts tab:', e);
+                    }
+                }
+                
+                // Only create a fallback chart if NO chart recommendations are provided
+                if (!data.chart_recommendations || data.chart_recommendations.length === 0) {
+                    console.log('No chart recommendations provided but we have data. Creating a fallback bar chart.');
+                    
+                    // Create a container for the fallback chart
+                    const fallbackChartDiv = document.createElement('div');
+                    fallbackChartDiv.className = 'chart-card';
+                    
+                    const chartTitle = document.createElement('h3');
+                    chartTitle.textContent = 'Auto-generated Visualization';
+                    fallbackChartDiv.appendChild(chartTitle);
+                    
+                    const chartDescription = document.createElement('p');
+                    chartDescription.textContent = 'This chart was automatically generated based on your query results.';
+                    fallbackChartDiv.appendChild(chartDescription);
+                    
+                    const plotDiv = document.createElement('div');
+                    plotDiv.className = 'chart';
+                    plotDiv.id = 'fallback-chart';
+                    plotDiv.style.width = '100%';
+                    plotDiv.style.height = '400px';
+                    fallbackChartDiv.appendChild(plotDiv);
+                    
+                    chartsContainer.appendChild(fallbackChartDiv);
+                    
+                    try {
+                        // Auto-detect the first numeric column for Y-axis
+                        const columns = Object.keys(data.query_output[0]);
+                        let xColumn = columns[0]; // Default to first column for X-axis
+                        let yColumn = null;
+                        
+                        // Find the first numeric column for Y-axis
+                        for (const col of columns) {
+                            const sampleValue = data.query_output[0][col];
+                            if (!isNaN(parseFloat(sampleValue)) && isFinite(sampleValue)) {
+                                yColumn = col;
+                                break;
+                            }
+                        }
+                        
+                        // If no numeric column found, use the second column if available
+                        if (!yColumn && columns.length > 1) {
+                            yColumn = columns[1];
+                        } else if (!yColumn) {
+                            yColumn = columns[0];
+                        }
+                        
+                        // Create a simple chart config
+                        const fallbackConfig = {
+                            chart_type: 'bar',
+                            x_axis: xColumn,
+                            y_axis: yColumn,
+                            title: `${yColumn} by ${xColumn}`
+                        };
+                        
+                        console.log('Rendering fallback chart with config:', fallbackConfig);
+                        
+                        // Render the fallback chart
+                        renderBarChart(fallbackConfig, data.query_output, 'fallback-chart');
+                        
+                        // Safely switch to the charts tab if the function exists
+                        if (typeof showTab === 'function') {
+                            console.log('Switching to charts tab after fallback chart creation');
+                            // Make sure the tab content element exists before trying to show it
+                            if (document.getElementById('charts-content')) {
+                                showTab('charts-content');
+                            } else {
+                                console.warn('charts-content element not found, cannot switch tab');
+                            }
+                        } else {
+                            console.warn('showTab function not available, cannot switch tab');
+                        }
+                    } catch (error) {
+                        console.error('Error creating fallback chart:', error);
+                        const errorMsg = document.createElement('p');
+                        errorMsg.style.color = 'red';
+                        errorMsg.textContent = `Could not create fallback chart: ${error.message}`;
+                        fallbackChartDiv.appendChild(errorMsg);
+                        
+                        // Add more detailed error information for debugging
+                        const errorDetails = document.createElement('details');
+                        const errorSummary = document.createElement('summary');
+                        errorSummary.textContent = 'Error details';
+                        const errorStack = document.createElement('pre');
+                        errorStack.textContent = error.stack || 'No stack trace available';
+                        errorDetails.appendChild(errorSummary);
+                        errorDetails.appendChild(errorStack);
+                        fallbackChartDiv.appendChild(errorDetails);
+                    }
+                }
+                
+                if (data.chart_recommendations && data.chart_recommendations.length > 0) {
+                    console.log(`Found ${data.chart_recommendations.length} chart recommendations to render`);
+                    
+                    data.chart_recommendations.forEach((chartRec, index) => {
+                        // Create chart container
+                        const chartDiv = document.createElement('div');
+                        chartDiv.className = 'chart-card';
+                        
+                        try {
+                            console.log(`Processing chart ${index + 1}:`, chartRec);
+                            
+                            // Check if the reasoning text mentions a specific chart type
+                            const reasoningText = (chartRec.reasoning || '').toLowerCase();
+                            if (reasoningText.includes('pie chart') && 
+                                chartRec.chart_config && 
+                                chartRec.chart_config.chart_type !== 'pie') {
+                                    
+                                console.log('Text mentions pie chart but config specifies:', 
+                                          chartRec.chart_config.chart_type);
+                                chartRec.chart_config.chart_type = 'pie';
+                            }
+                            
+                            const chartTitle = document.createElement('h3');
+                            chartTitle.textContent = chartRec.chart_config?.title || `Chart ${index + 1}`;
+                            chartDiv.appendChild(chartTitle);
+                            
+                            const chartReason = document.createElement('p');
+                            chartReason.textContent = chartRec.reasoning || 'No reasoning provided';
+                            chartDiv.appendChild(chartReason);
+                            
+                            const chartTypeInfo = document.createElement('p');
+                            chartTypeInfo.style.fontStyle = 'italic';
+                            chartTypeInfo.style.color = '#666';
+                            chartTypeInfo.textContent = `Chart type: ${chartRec.chart_config?.chart_type || 'bar'}`;
+                            chartDiv.appendChild(chartTypeInfo);
+                            
+                            const plotDiv = document.createElement('div');
+                            plotDiv.className = 'chart';
+                            plotDiv.id = `chart-${index}`;
+                            plotDiv.style.width = '100%';
+                            plotDiv.style.height = '400px';
+                            chartDiv.appendChild(plotDiv);
+                            
+                            chartsContainer.appendChild(chartDiv);
+                            
+                            // IMPORTANT: For chart recommendations, we need to ensure the chart_type is correctly passed
+                            // The chart_type is at the root level of chartRec, but we need to make sure it's also in chart_config
+                            if (chartRec.chart_type) {
+                                // If chart_config doesn't exist, create it
+                                if (!chartRec.chart_config) {
+                                    chartRec.chart_config = { chart_type: chartRec.chart_type };
+                                } 
+                                // If chart_config exists but doesn't have chart_type, add it
+                                else if (!chartRec.chart_config.chart_type) {
+                                    chartRec.chart_config.chart_type = chartRec.chart_type;
+                                }
+                            }
+                            
+                            // For mixed charts, ensure we have proper series configuration
+                            if ((chartRec.chart_type === 'mixed' || (chartRec.chart_config && chartRec.chart_config.chart_type === 'mixed')) && 
+                                chartRec.chart_config && chartRec.chart_config.series) {
+                                
+                                console.log('Processing mixed chart with series:', chartRec.chart_config.series);
+                                
+                                // Ensure each series has the correct type and axis properties
+                                chartRec.chart_config.series.forEach((series, idx) => {
+                                    // Ensure we have a type property (might be called chart_type in some responses)
+                                    if (!series.type && series.chart_type) {
+                                        series.type = series.chart_type;
+                                    }
+                                    
+                                    // Set default type if missing
+                                    if (!series.type) {
+                                        series.type = idx === 0 ? 'bar' : 'line';
+                                    }
+                                    
+                                    // Set default axis if missing
+                                    if (!series.axis) {
+                                        // For monetary values (sales, profit), use primary axis
+                                        // For quantity values, use secondary axis
+                                        const colName = series.column.toLowerCase();
+                                        if (colName.includes('quantity') || colName.includes('count') || 
+                                            colName.includes('number') || colName.includes('amount')) {
+                                            series.axis = 'secondary';
+                                        } else {
+                                            series.axis = 'primary';
+                                        }
+                                    }
+                                });
+                            }
+                            
+                            // Add debug info to the chart div
+                            const debugInfo = document.createElement('div');
+                            debugInfo.className = 'debug-info';
+                            debugInfo.style.fontSize = '12px';
+                            debugInfo.style.color = '#666';
+                            debugInfo.style.marginTop = '5px';
+                            debugInfo.textContent = `Chart type: ${chartRec.chart_type || (chartRec.chart_config && chartRec.chart_config.chart_type) || 'unknown'}`;
+                            chartDiv.appendChild(debugInfo);
+                            
+                            // Force the chart_type to be the one specified in the recommendation
+                            const chartType = chartRec.chart_type || (chartRec.chart_config && chartRec.chart_config.chart_type);
+                            console.log(`Chart ${index + 1} type:`, chartType);
+                            
+                            // Render chart based on the type
+                            renderChart(chartRec, data.query_output, plotDiv.id);
+                            
+                        } catch (chartError) {
+                            console.error(`Error rendering chart ${index + 1}:`, chartError);
+                            const errorMessage = document.createElement('p');
+                            errorMessage.style.color = 'red';
+                            errorMessage.textContent = `Error rendering chart: ${chartError.message}`;
+                            chartDiv.appendChild(errorMessage);
+                            chartsContainer.appendChild(chartDiv);
+                        }
+                    });
+                } else {
+                    const noCharts = document.createElement('div');
+                    noCharts.className = 'card';
+                    noCharts.style.padding = '15px';
+                    noCharts.style.marginBottom = '20px';
+                    noCharts.style.backgroundColor = '#f5f5f5';
+                    noCharts.style.borderLeft = '4px solid #9e9e9e';
+                    
+                    // Check if there's a specific chart error message from the API
+                    if (data.chart_error) {
+                        noCharts.innerHTML = `
+                            <h3>Chart Visualization Unavailable</h3>
+                            <p>${data.chart_error}</p>
+                        `;
+                    } else {
+                        noCharts.innerHTML = `
+                            <h3>Chart Visualization Unavailable</h3>
+                            <p>No chart recommendations available for this query result.</p>
+                        `;
+                    }
+                    chartsContainer.appendChild(noCharts);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loading').style.display = 'none';
+                
+                // Display error message in the UI
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'card';
+                errorDiv.style.backgroundColor = '#ffebee';
+                errorDiv.style.borderLeft = '4px solid #f44336';
+                errorDiv.innerHTML = `
+                    <h2>Error</h2>
+                    <p>${error.message || 'An error occurred while processing your query.'}</p>
+                `;
+                
+                const container = document.querySelector('.container');
+                container.insertBefore(errorDiv, document.getElementById('results'));
+            });
+        }
+        
+        /**
+         * Validates and normalizes chart data and configuration
+         * @param {Object} config - Chart configuration
+         * @param {Array} data - Chart data
+         * @param {string} divId - Chart container ID
+         * @returns {Object} - Object with normalized config and data, or null if validation fails
+         */
+        function validateChartData(config, data, divId) {
+            const chartElement = document.getElementById(divId);
+            
+            // Validate config
+            if (!config) {
+                console.error('No chart configuration provided');
+                if (chartElement) {
+                    chartElement.innerHTML = '<div class="alert alert-danger">Invalid chart configuration</div>';
+                }
+                return null;
+            }
+            
+            // Validate data
+            if (!data || data.length === 0) {
+                console.error('No data for chart rendering');
+                if (chartElement) {
+                    chartElement.innerHTML = '<div class="alert alert-warning">No data available for chart</div>';
+                }
+                return null;
+            }
+            
+            // Check if x_axis is defined
+            if (!config.x_axis) {
+                console.warn('No x_axis defined in chart config');
+                
+                // Try to find a suitable column for x-axis
+                const availableColumns = Object.keys(data[0]);
+                if (availableColumns.length > 0) {
+                    // Use the first column as x-axis
+                    config.x_axis = availableColumns[0];
+                    console.log(`Using first available column as x_axis: ${config.x_axis}`);
+                } else {
+                    console.error('No columns available in data');
+                    if (chartElement) {
+                        chartElement.innerHTML = '<div class="alert alert-danger">No columns available in data</div>';
+                    }
+                    return null;
+                }
+            }
+            
+            // Check if data contains the required x column
+            if (!data[0].hasOwnProperty(config.x_axis)) {
+                console.error(`Data doesn't contain required x column: ${config.x_axis}`);
+                console.log('Available columns:', Object.keys(data[0]));
+                
+                // Try to find a suitable alternative column
+                const availableColumns = Object.keys(data[0]);
+                if (availableColumns.length > 0) {
+                    // Use the first column as x-axis
+                    config.x_axis = availableColumns[0];
+                    console.log(`Using alternative x-axis column: ${config.x_axis}`);
+                } else {
+                    if (chartElement) {
+                        chartElement.innerHTML = `<div class="alert alert-danger">Data doesn't contain required x column: ${config.x_axis}</div>`;
+                    }
+                    return null;
+                }
+            }
+            
+            // Handle y_axis normalization
+            if (!config.y_axis) {
+                // Get all numeric columns for potential y-axes (except the x-axis)
+                const numericColumns = Object.keys(data[0]).filter(col => {
+                    // Skip the x-axis column
+                    if (col === config.x_axis) return false;
+                    
+                    // Check if the column contains numeric data
+                    const value = data[0][col];
+                    return typeof value === 'number' || !isNaN(parseFloat(value));
+                });
+                
+                if (numericColumns.length > 0) {
+                    config.y_axis = numericColumns;
+                    console.log(`Using numeric columns as y_axis: ${numericColumns}`);
+                } else {
+                    // If no numeric columns found, use all columns except x-axis
+                    const allColumns = Object.keys(data[0]).filter(col => col !== config.x_axis);
+                    if (allColumns.length > 0) {
+                        config.y_axis = [allColumns[0]]; // Use first non-x column
+                        console.log(`Using first non-x column as y_axis: ${allColumns[0]}`);
+                    } else {
+                        console.error('No suitable y-axis columns found');
+                        if (chartElement) {
+                            chartElement.innerHTML = '<div class="alert alert-danger">No suitable y-axis columns found</div>';
+                        }
+                        return null;
+                    }
+                }
+            } else if (typeof config.y_axis === 'string') {
+                // Convert single string to array for consistent handling
+                config.y_axis = [config.y_axis];
+                console.log(`Converted y_axis string to array: ${config.y_axis}`);
+            }
+            
+            // Validate that all y_axis columns exist in data
+            const validYColumns = config.y_axis.filter(col => data[0].hasOwnProperty(col));
+            if (validYColumns.length === 0) {
+                console.error('None of the specified y_axis columns exist in data');
+                console.log('Available columns:', Object.keys(data[0]));
+                
+                // Try to use any numeric column as y-axis
+                const numericColumns = Object.keys(data[0]).filter(col => {
+                    if (col === config.x_axis) return false;
+                    const value = data[0][col];
+                    return typeof value === 'number' || !isNaN(parseFloat(value));
+                });
+                
+                if (numericColumns.length > 0) {
+                    config.y_axis = [numericColumns[0]];
+                    console.log(`Using alternative y-axis column: ${numericColumns[0]}`);
+                } else {
+                    if (chartElement) {
+                        chartElement.innerHTML = '<div class="alert alert-danger">No valid y-axis columns found in data</div>';
+                    }
+                    return null;
+                }
+            } else if (validYColumns.length !== config.y_axis.length) {
+                console.warn('Some y_axis columns do not exist in data, using only valid ones');
+                config.y_axis = validYColumns;
+            }
+            
+            return { config, data };
+        }
+        
+        // Global helper function to ensure x-axis is treated as categorical
+        function ensureCategoricalXAxis(layout, xValues) {
+            // Safety check: ensure layout exists
+            if (!layout) {
+                console.error('Invalid layout object provided to ensureCategoricalXAxis');
+                return;
+            }
+            
+            // Safety check: ensure layout.xaxis exists (not all charts have an x-axis, e.g., pie charts)
+            if (!layout.xaxis) {
+                console.log('No xaxis in layout, skipping categorical axis configuration');
+                return;
+            }
+            
+            // Safety check: ensure xValues is valid
+            if (!xValues || !Array.isArray(xValues)) {
+                console.log('Invalid xValues provided, skipping categorical axis configuration');
+                return;
+            }
+            
+            // Force x-axis to be truly categorical regardless of value type
+            layout.xaxis.type = 'category';
+            layout.xaxis.categoryorder = 'array';
+            layout.xaxis.categoryarray = xValues;
+            
+            // Ensure x-axis labels are displayed exactly as provided
+            layout.xaxis.tickmode = 'array';
+            layout.xaxis.tickvals = xValues;
+            layout.xaxis.ticktext = xValues;
+            
+            // Add extra settings to prevent continuous scaling
+            layout.xaxis.dtick = 1;
+            layout.xaxis.constrain = 'domain';
+            
+            // Angle labels for better readability if needed
+            if (xValues && xValues.length > 5) {
+                layout.xaxis.tickangle = -45;
+            }
+            
+            // No return needed - we're modifying the layout object directly
+        }
+        
+        function renderChart(chartRec, data, divId) {
+            console.log(`Attempting to render chart for ${divId}`, chartRec);
+            
+            // Validate inputs to prevent errors
+            if (!chartRec) {
+                console.error('Invalid chart recommendation: null or undefined');
+                throw new Error('Invalid chart recommendation');
+            }
+            
+            if (!data || data.length === 0) {
+                console.error('No data provided for chart rendering');
+                throw new Error('No data available for chart');
+            }
+            
+            // Handle different possible chart recommendation structures
+            // Normalize chartConfig to handle different formats that might come from the API
+            let chartConfig = {};
+            let explicitChartType = null;
+            
+            // First, try to extract the chart type directly from the recommendation
+            if (chartRec.chart_type) {
+                explicitChartType = chartRec.chart_type.toLowerCase();
+                console.log(`Found explicit chart_type at root level: ${explicitChartType}`);
+            }
+            
+            // Also check if there's a chart_type in the chart_config
+            if (chartRec.chart_config && chartRec.chart_config.chart_type) {
+                if (!explicitChartType) {
+                    explicitChartType = chartRec.chart_config.chart_type.toLowerCase();
+                    console.log(`Found chart_type in chart_config: ${explicitChartType}`);
+                }
+            }
+            
+            if (chartRec.chart_config) {
+                // Structure: { chart_config: { chart_type: '...', ... } }
+                chartConfig = chartRec.chart_config;
+                
+                // If we have an explicit chart type but chart_config doesn't have one, add it
+                if (explicitChartType && !chartConfig.chart_type) {
+                    chartConfig.chart_type = explicitChartType;
+                    console.log(`Applied explicit chart_type to chart_config: ${explicitChartType}`);
+                }
+            } else if (chartRec.chart_type) {
+                // Structure: { chart_type: '...', ... }
+                chartConfig = chartRec;
+            } else if (typeof chartRec === 'object') {
+                // Try to find chart type in the object
+                console.log('Attempting to infer chart configuration from object');
+                chartConfig = chartRec;
+            }
+            
+            // If no chart_type exists in chartConfig, look for alternatives
+            if (!chartConfig.chart_type) {
+                if (explicitChartType) {
+                    chartConfig.chart_type = explicitChartType;
+                } else if (chartConfig.type) {
+                    chartConfig.chart_type = chartConfig.type;
+                } else if (chartConfig.chartType) {
+                    chartConfig.chart_type = chartConfig.chartType;
+                } else if (chartConfig.visualization_type) {
+                    chartConfig.chart_type = chartConfig.visualization_type;
+                } else {
+                    chartConfig.chart_type = 'bar'; // Default to bar chart
+                }
+                console.log(`Set chart_type to: ${chartConfig.chart_type}`);
+            }
+            
+            // If no axes are specified, try to infer from other properties
+            if (!chartConfig.x_axis) {
+                if (chartConfig.x) chartConfig.x_axis = chartConfig.x;
+                else if (chartConfig.xAxis) chartConfig.x_axis = chartConfig.xAxis;
+                else if (chartConfig.categories) chartConfig.x_axis = chartConfig.categories;
+                else if (chartConfig.x_column) chartConfig.x_axis = chartConfig.x_column;
+            }
+            
+            if (!chartConfig.y_axis) {
+                if (chartConfig.y) chartConfig.y_axis = chartConfig.y;
+                else if (chartConfig.yAxis) chartConfig.y_axis = chartConfig.yAxis;
+                else if (chartConfig.values) chartConfig.y_axis = chartConfig.values;
+                else if (chartConfig.y_column) chartConfig.y_axis = chartConfig.y_column;
+                else if (chartConfig.y_columns) chartConfig.y_axis = chartConfig.y_columns;
+                else if (chartConfig.measure) chartConfig.y_axis = chartConfig.measure;
+                else if (chartConfig.series) {
+                    // Handle series configuration for mixed charts
+                    const seriesColumns = chartConfig.series.map(s => s.column);
+                    chartConfig.y_axis = seriesColumns;
+                    console.log(`Extracted y_axis from series configuration: ${seriesColumns}`);
+                }
+            }
+            
+            // Handle y_axis that could be a string, array, or undefined
+            if (typeof chartConfig.y_axis === 'string') {
+                // Convert single string to array for consistent handling
+                chartConfig.y_axis = [chartConfig.y_axis];
+                console.log(`Converted y_axis string to array: ${chartConfig.y_axis}`);
+            } else if (!chartConfig.y_axis && chartConfig.series && Array.isArray(chartConfig.series)) {
+                // Extract columns from series if y_axis is still not defined
+                chartConfig.y_axis = chartConfig.series.map(s => s.column);
+                console.log(`Extracted y_axis from series configuration: ${chartConfig.y_axis}`);
+            } else if (!chartConfig.y_axis || !Array.isArray(chartConfig.y_axis)) {
+                // If y_axis is still undefined or not an array, initialize as empty array
+                chartConfig.y_axis = [];
+                console.log('Initialized empty y_axis array');
+            }
+            
+            // Handle additional configuration options
+            if (!chartConfig.additional_config) {
+                chartConfig.additional_config = {};
+            }
+            
+            // Check for orientation
+            if (chartConfig.orientation) {
+                chartConfig.additional_config.orientation = chartConfig.orientation;
+            }
+            
+            // Check for stacked property
+            if (chartConfig.stacked) {
+                chartConfig.additional_config.stacked = chartConfig.stacked;
+            }
+            
+            // Special handling for mixed charts and line charts with multiple series
+            if (chartConfig.chart_type === 'mixed' || chartConfig.chart_type.includes('mix') || 
+                (chartConfig.chart_type === 'line' && chartConfig.y_axis && Array.isArray(chartConfig.y_axis) && chartConfig.y_axis.length > 1)) {
+                console.log('Processing mixed/multi-series chart configuration');
+                
+                // Always enable secondary axis for mixed charts
+                chartConfig.additional_config.use_secondary_axis = true;
+                
+                // If we have series configuration, ensure it's properly set up
+                if (chartConfig.series && Array.isArray(chartConfig.series)) {
+                    console.log('Processing chart series:', chartConfig.series);
+                    
+                    // First pass: collect data ranges for each column to determine appropriate axes
+                    const columnRanges = {};
+                    
+                    chartConfig.series.forEach(series => {
+                        const column = series.column;
+                        if (data && data.length > 0 && data[0].hasOwnProperty(column)) {
+                            // Find min and max values for this column
+                            const values = data.map(item => {
+                                const val = item[column];
+                                return typeof val === 'number' ? val : parseFloat(val);
+                            }).filter(val => !isNaN(val));
+                            
+                            if (values.length > 0) {
+                                const min = Math.min(...values);
+                                const max = Math.max(...values);
+                                const magnitude = Math.log10(max);
+                                
+                                columnRanges[column] = { min, max, magnitude };
+                                console.log(`Column ${column} range: ${min} to ${max}, magnitude: ${magnitude}`);
+                            }
+                        }
+                    });
+                    
+                    // Second pass: determine appropriate axes based on data ranges
+                    // Find the column with the largest magnitude difference
+                    let maxMagnitudeDiff = 0;
+                    let primaryMagnitude = null;
+                    
+                    // First, find the primary magnitude (usually the first column)
+                    for (const column in columnRanges) {
+                        if (primaryMagnitude === null) {
+                            primaryMagnitude = columnRanges[column].magnitude;
+                        } else {
+                            const diff = Math.abs(columnRanges[column].magnitude - primaryMagnitude);
+                            if (diff > maxMagnitudeDiff) {
+                                maxMagnitudeDiff = diff;
+                            }
+                        }
+                    }
+                    
+                    // If magnitude difference is significant (> 2), use secondary axis
+                    const useSecondaryAxis = maxMagnitudeDiff >= 2;
+                    console.log(`Max magnitude difference: ${maxMagnitudeDiff}, using secondary axis: ${useSecondaryAxis}`);
+                    
+                    // Process each series to ensure proper configuration
+                    chartConfig.series.forEach((series, idx) => {
+                        // Ensure we have a type property (might be called chart_type in some responses)
+                        if (!series.type && series.chart_type) {
+                            series.type = series.chart_type;
+                        }
+                        
+                        // Set default type if missing
+                        if (!series.type) {
+                            // For mixed charts, alternate between bar and line
+                            if (chartConfig.chart_type === 'mixed' || chartConfig.chart_type.includes('mix')) {
+                                series.type = idx === 0 ? 'bar' : 'line';
+                            } else {
+                                // For line charts, keep all as lines
+                                series.type = 'line';
+                            }
+                        }
+                        
+                        // Set axis based on column name and data magnitude if not already specified
+                        if (!series.axis) {
+                            const colName = series.column.toLowerCase();
+                            
+                            // Check column name patterns first
+                            const nameIndicatesSecondary = colName.includes('quantity') || colName.includes('count') || 
+                                                        colName.includes('number') || colName.includes('amount');
+                            
+                            // Check magnitude difference if we have the data
+                            const magnitudeIndicatesSecondary = columnRanges[series.column] && 
+                                                             primaryMagnitude !== null && 
+                                                             Math.abs(columnRanges[series.column].magnitude - primaryMagnitude) >= 2;
+                            
+                            // Use secondary axis if either condition suggests it
+                            if (nameIndicatesSecondary || magnitudeIndicatesSecondary) {
+                                series.axis = 'secondary';
+                            } else {
+                                series.axis = 'primary';
+                            }
+                            
+                            console.log(`Auto-assigned ${series.column} to ${series.axis} axis based on name/magnitude`);
+                        }
+                    });
+                }
+                // If no series configuration but we have y_axis as array, create series config
+                else if (chartConfig.y_axis && Array.isArray(chartConfig.y_axis) && chartConfig.y_axis.length > 1) {
+                    console.log('Creating series configuration from y_axis:', chartConfig.y_axis);
+                    
+                    // First, collect data ranges for each column
+                    const columnRanges = {};
+                    
+                    chartConfig.y_axis.forEach(column => {
+                        if (data && data.length > 0 && data[0].hasOwnProperty(column)) {
+                            // Find min and max values for this column
+                            const values = data.map(item => {
+                                const val = item[column];
+                                return typeof val === 'number' ? val : parseFloat(val);
+                            }).filter(val => !isNaN(val));
+                            
+                            if (values.length > 0) {
+                                const min = Math.min(...values);
+                                const max = Math.max(...values);
+                                const magnitude = Math.log10(max);
+                                
+                                columnRanges[column] = { min, max, magnitude };
+                                console.log(`Column ${column} range: ${min} to ${max}, magnitude: ${magnitude}`);
+                            }
+                        }
+                    });
+                    
+                    // Find the primary magnitude (first column)
+                    let primaryMagnitude = null;
+                    let maxMagnitudeDiff = 0;
+                    
+                    for (const column in columnRanges) {
+                        if (primaryMagnitude === null) {
+                            primaryMagnitude = columnRanges[column].magnitude;
+                        } else {
+                            const diff = Math.abs(columnRanges[column].magnitude - primaryMagnitude);
+                            if (diff > maxMagnitudeDiff) {
+                                maxMagnitudeDiff = diff;
+                            }
+                        }
+                    }
+                    
+                    // Create series config based on column names and data ranges
+                    chartConfig.series = chartConfig.y_axis.map((col, idx) => {
+                        // Determine if this column should use secondary axis
+                        const colName = col.toLowerCase();
+                        
+                        // Check column name patterns
+                        const nameIndicatesSecondary = colName.includes('quantity') || colName.includes('count') || 
+                                                    colName.includes('number') || colName.includes('amount');
+                        
+                        // Check magnitude difference
+                        const magnitudeIndicatesSecondary = columnRanges[col] && 
+                                                         primaryMagnitude !== null && 
+                                                         Math.abs(columnRanges[col].magnitude - primaryMagnitude) >= 2;
+                        
+                        // Use secondary axis if either condition suggests it
+                        const useSecondary = nameIndicatesSecondary || magnitudeIndicatesSecondary;
+                        
+                        // For mixed charts, alternate between bar and line
+                        // For line charts with secondary axis, keep as lines
+                        let chartType;
+                        if (chartConfig.chart_type === 'mixed' || chartConfig.chart_type.includes('mix')) {
+                            chartType = useSecondary ? 'line' : 'bar';
+                        } else {
+                            chartType = 'line';
+                        }
+                        
+                        return {
+                            column: col,
+                            type: chartType,
+                            axis: useSecondary ? 'secondary' : 'primary'
+                        };
+                    });
+                    
+                    console.log('Created intelligent series configuration:', chartConfig.series);
+                }
+            }
+            
+            // If we still don't have a chart type, default to bar
+            if (!chartConfig.chart_type) {
+                console.warn('No chart type specified, defaulting to bar chart');
+                chartConfig.chart_type = 'bar';
+            }
+            
+            // Validate and normalize data
+            if (!data) {
+                console.error('No data provided for chart rendering');
+                document.getElementById(divId).innerHTML = '<div class="alert alert-warning">No data available for chart</div>';
+                return;
+            }
+            
+            // Ensure data is an array
+            if (!Array.isArray(data)) {
+                try {
+                    // Try to convert to array if it's an object with numeric keys
+                    if (typeof data === 'object') {
+                        const dataArray = Object.values(data);
+                        if (dataArray.length > 0) {
+                            data = dataArray;
+                            console.log('Converted object data to array:', data);
+                        } else {
+                            throw new Error('Empty data object');
+                        }
+                    } else {
+                        throw new Error('Data is not an array or convertible object');
+                    }
+                } catch (error) {
+                    console.error('Failed to convert data to array:', error);
+                    document.getElementById(divId).innerHTML = '<div class="alert alert-warning">Invalid data format for chart</div>';
+                    return;
+                }
+            }
+            
+            if (data.length === 0) {
+                console.error('Empty data array provided for chart rendering');
+                document.getElementById(divId).innerHTML = '<div class="alert alert-warning">No data available for chart</div>';
+                return;
+            }
+            
+            // Validate chart data and configuration
+            const validatedData = validateChartData(chartConfig, data, divId);
+            if (!validatedData) return;
+            
+            // Use validated data and config
+            chartConfig = validatedData.config;
+            data = validatedData.data;
+            
+            // For debugging, display data structure
+            console.log('Data to be plotted:', data);
+            console.log('Available columns:', Object.keys(data[0]));
+            
+            const chartType = chartConfig.chart_type.toLowerCase();
+            console.log(`Rendering chart type: ${chartType}`);
+            
+            try {
+                // Normalize chart type to handle various naming conventions
+                let normalizedChartType = chartType;
+                
+                // For exact matches, prioritize them over partial matches
+                if (chartType === 'bar' || chartType === 'line' || chartType === 'pie' || 
+                    chartType === 'scatter' || chartType === 'area' || chartType === 'histogram' || 
+                    chartType === 'mixed') {
+                    normalizedChartType = chartType;
+                    console.log(`Exact match found for chart type: ${normalizedChartType}`);
+                }
+                // Handle variations in chart type naming with partial matches
+                else if (chartType.includes('bar')) normalizedChartType = 'bar';
+                else if (chartType.includes('line')) normalizedChartType = 'line';
+                else if (chartType.includes('pie') || chartType.includes('donut') || chartType.includes('doughnut')) normalizedChartType = 'pie';
+                else if (chartType.includes('scatter')) normalizedChartType = 'scatter';
+                else if (chartType.includes('area')) normalizedChartType = 'area';
+                else if (chartType.includes('histogram')) normalizedChartType = 'histogram';
+                else if (chartType.includes('mix') || chartType.includes('combo') || chartType.includes('dual')) normalizedChartType = 'mixed';
+                
+                console.log(`Normalized chart type: ${normalizedChartType} (from ${chartType})`);
+                
+                switch (normalizedChartType) {
+                    case 'bar':
+                        renderBarChart(chartConfig, data, divId);
+                        break;
+                    case 'pie':
+                        renderPieChart(chartConfig, data, divId);
+                        break;
+                    case 'line':
+                        renderLineChart(chartConfig, data, divId);
+                        break;
+                    case 'scatter':
+                        renderScatterChart(chartConfig, data, divId);
+                        break;
+                    case 'area':
+                        renderAreaChart(chartConfig, data, divId);
+                        break;
+                    case 'histogram':
+                        renderHistogramChart(chartConfig, data, divId);
+                        break;
+                    case 'mixed':
+                        renderMixedChart(chartConfig, data, divId);
+                        break;
+                    default:
+                        console.warn(`Chart type '${chartType}' not supported, defaulting to bar chart`);
+                        renderBarChart(chartConfig, data, divId);
+                }
+            } catch (error) {
+                console.error(`Error in chart rendering for ${chartType}:`, error);
+                throw new Error(`Failed to render ${chartType} chart: ${error.message}`);
+            }
+        }
+        
+        // Function moved to avoid duplication - see the complete renderBarChart implementation below
+        
+        function renderBubbleChart(config, data, divId) {
+            console.log(`Rendering bubble chart in ${divId} with config:`, config);
+            
+            if (!config || !config.x_axis || !config.y_axis) {
+                console.error('Invalid chart config:', config);
+                throw new Error('Invalid chart configuration: missing axis definitions');
+            }
+            
+            if (!data || data.length === 0) {
+                console.error('No data for chart rendering');
+                throw new Error('No data available for chart');
+            }
+            
+            // Check if data contains the required columns
+            if (!data[0].hasOwnProperty(config.x_axis) || !data[0].hasOwnProperty(config.y_axis)) {
+                console.error(`Data doesn't contain required columns: ${config.x_axis} or ${config.y_axis}`);
+                console.log('Available columns:', Object.keys(data[0]));
+                throw new Error(`Data doesn't contain required columns: ${config.x_axis} or ${config.y_axis}`);
+            }
+            
+            // Identify numerical columns that could be used for bubble size
+            const columns = Object.keys(data[0]);
+            let sizeColumn = null;
+            
+            // Find a numerical column that isn't x_axis or y_axis
+            columns.forEach(col => {
+                const sampleValue = data[0][col];
+                if (col !== config.x_axis && col !== config.y_axis && 
+                    !isNaN(parseFloat(sampleValue)) && typeof sampleValue !== 'boolean') {
+                    sizeColumn = col;
+                }
+            });
+            
+            console.log(`Using ${sizeColumn || 'no column'} for bubble size`); 
+            
+            // Prepare plot data based on color_by column if available
+            let plotData = [];
+            
+            if (config.color_by && data[0].hasOwnProperty(config.color_by)) {
+                // Group data by color_by column for multi-series chart
+                const uniqueColorValues = [...new Set(data.map(item => item[config.color_by]))];
+                const colorScale = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3', '#FF6692', '#B6E880'];
+                
+                uniqueColorValues.forEach((colorValue, index) => {
+                    const filteredData = data.filter(item => item[config.color_by] === colorValue);
+                    
+                    // Add this data series
+                    plotData.push({
+                        x: filteredData.map(item => item[config.x_axis]),
+                        y: filteredData.map(item => item[config.y_axis]),
+                        mode: 'markers',
+                        name: colorValue,
+                        text: filteredData.map(item => {
+                            // Create detailed hover text with all columns
+                            return Object.entries(item)
+                                .map(([key, value]) => `${key}: ${value}`)
+                                .join('<br>');
+                        }),
+                        hoverinfo: 'text',
+                        marker: {
+                            color: colorScale[index % colorScale.length],
+                            size: sizeColumn ? filteredData.map(item => {
+                                // Scale the values to a reasonable bubble size range (10-50)
+                                const val = parseFloat(item[sizeColumn]);
+                                // Use a relative scaling based on max value in the dataset
+                                const maxVal = Math.max(...data.map(d => parseFloat(d[sizeColumn]) || 0));
+                                return val ? Math.max(10, Math.min(50, (val / maxVal) * 40 + 10)) : 15;
+                            }) : 15,
+                            opacity: 0.7,
+                            line: {
+                                color: 'white',
+                                width: 1
+                            },
+                            sizemode: 'diameter'
+                        }
+                    });
+                });
+            } else {
+                // Simple bubble chart without color grouping
+                plotData = [{
+                    x: data.map(item => item[config.x_axis]),
+                    y: data.map(item => item[config.y_axis]),
+                    mode: 'markers',
+                    text: data.map(item => {
+                        // Create detailed hover text with all columns
+                        return Object.entries(item)
+                            .map(([key, value]) => `${key}: ${value}`)
+                            .join('<br>');
+                    }),
+                    hoverinfo: 'text',
+                    marker: {
+                        color: 'rgba(50, 171, 96, 0.7)',
+                        size: sizeColumn ? data.map(item => {
+                            // Scale the values to a reasonable bubble size range
+                            const val = parseFloat(item[sizeColumn]);
+                            // Use a relative scaling based on max value in the dataset
+                            const maxVal = Math.max(...data.map(d => parseFloat(d[sizeColumn]) || 0));
+                            return val ? Math.max(10, Math.min(50, (val / maxVal) * 40 + 10)) : 15;
+                        }) : 15,
+                        line: {
+                            color: 'white',
+                            width: 1
+                        },
+                        sizemode: 'diameter'
+                    }
+                }];
+            }
+            
+            // Create the layout
+            const layout = {
+                title: config.title || 'Bubble Chart',
+                xaxis: {
+                    title: config.x_axis
+                },
+                yaxis: {
+                    title: config.y_axis
+                },
+                showlegend: true,
+                hovermode: 'closest',
+                legend: {
+                    title: config.color_by ? { text: config.color_by } : null,
+                    orientation: 'h', 
+                    y: 1.1
+                },
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 80,
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            // Ensure x-axis is properly treated as categorical
+            ensureCategoricalXAxis(layout, data.map(item => item[config.x_axis]));
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        function renderPieChart(config, data, divId) {
+            console.log(`Rendering pie chart in ${divId} with config:`, config);
+            
+            if (!config || !config.x_axis || !config.y_axis) {
+                console.error('Invalid chart config:', config);
+                throw new Error('Invalid chart configuration: missing axis definitions');
+            }
+            
+            if (!data || data.length === 0) {
+                console.error('No data for chart rendering');
+                throw new Error('No data available for chart');
+            }
+            
+            // Check if data contains the required columns
+            if (!data[0].hasOwnProperty(config.x_axis) || !data[0].hasOwnProperty(config.y_axis)) {
+                console.error(`Data doesn't contain required columns: ${config.x_axis} or ${config.y_axis}`);
+                console.log('Available columns:', Object.keys(data[0]));
+                throw new Error(`Data doesn't contain required columns: ${config.x_axis} or ${config.y_axis}`);
+            }
+            
+            // Create richer labels by incorporating additional columns if available
+            let labels = [];
+            const values = data.map(item => item[config.y_axis]);
+            
+            // Create enhanced labels that can include multiple columns
+            if (config.color_by && data[0].hasOwnProperty(config.color_by) && config.color_by !== config.x_axis) {
+                // If we have a color_by column, we can create more informative labels
+                labels = data.map(item => `${item[config.x_axis]} (${item[config.color_by]})`);
+                console.log('Enhanced labels with color_by:', labels);
+            } else {
+                // Simple labels from x_axis only
+                labels = data.map(item => item[config.x_axis]);
+                console.log('Simple labels:', labels);
+            }
+            
+            // Check for a potential third dimension to include in hover info
+            let hoverTemplate = '';
+            const dataColumns = Object.keys(data[0]);
+            const additionalColumns = dataColumns.filter(col => 
+                col !== config.x_axis && 
+                col !== config.y_axis && 
+                (config.color_by ? col !== config.color_by : true));
+            
+            if (additionalColumns.length > 0) {
+                // Include the first additional column in hover info
+                const extraColumn = additionalColumns[0];
+                hoverTemplate = `%{label}<br>${extraColumn}: %{customdata}<br>Value: %{value}<br>Percentage: %{percent}%`;
+                console.log(`Including ${extraColumn} in hover template`);
+            }
+            
+            console.log('Labels:', labels);
+            console.log('Values:', values);
+            
+            const plotData = [{
+                type: 'pie',
+                labels: labels,
+                values: values,
+                textinfo: 'percent',
+                hoverinfo: 'label+value+percent',
+                customdata: additionalColumns.length > 0 ? data.map(item => item[additionalColumns[0]]) : undefined,
+                hovertemplate: hoverTemplate || undefined,
+                insidetextorientation: 'radial'
+            }];
+            
+            const layout = {
+                title: config.title || 'Pie Chart',
+                height: 400,
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 50,
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            // Ensure x-axis is properly treated as categorical
+            ensureCategoricalXAxis(layout, labels);
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        function renderBarChart(config, data, divId) {
+            console.log(`Rendering bar chart in ${divId} with config:`, config);
+            
+            // Validate chart data and configuration
+            const validatedData = validateChartData(config, data, divId);
+            if (!validatedData) return;
+            
+            // Use validated data and config
+            config = validatedData.config;
+            data = validatedData.data;
+            
+            // Extract x values for plotting
+            const xValues = data.map(item => item[config.x_axis]);
+            
+            // Get all numeric columns for potential y-axes (except the x-axis)
+            const numericColumns = Object.keys(data[0]).filter(col => {
+                // Skip the x-axis column
+                if (col === config.x_axis) return false;
+                
+                // Check if the column contains numeric data
+                const value = data[0][col];
+                return typeof value === 'number' || !isNaN(parseFloat(value));
+            });
+            
+            console.log('Potential y-axis columns for bar chart:', numericColumns);
+            
+            // Handle y_axis that could be a string or array
+            let yColumns = [];
+            if (config.y_axis) {
+                // If y_axis is already an array, use it directly
+                if (Array.isArray(config.y_axis)) {
+                    yColumns = config.y_axis;
+                    console.log(`Using provided y_axis array: ${yColumns}`);
+                } else {
+                    // If it's a string, convert to array
+                    yColumns = [config.y_axis];
+                    console.log(`Converted y_axis string to array: ${yColumns}`);
+                }
+            } else {
+                // Use all numeric columns if no y_axis is specified
+                yColumns = numericColumns;
+                console.log(`Using all numeric columns as y_axis: ${yColumns}`);
+            }
+            
+            // Determine if we should use a stacked bar chart
+            const isStacked = config.additional_config && config.additional_config.stacked === true;
+            const isHorizontal = config.additional_config && config.additional_config.orientation === 'horizontal';
+            
+            // Check if we should use a secondary axis
+            const useSecondaryAxis = config.additional_config && config.additional_config.use_secondary_axis === true;
+            const secondaryAxisColumns = config.additional_config && config.additional_config.secondary_axis_columns || [];
+            
+            // Create a trace for each y column
+            const plotData = yColumns.map((col, index) => {
+                // Check if this column exists in the data
+                if (!data[0].hasOwnProperty(col)) {
+                    console.warn(`Column ${col} not found in data, skipping`);
+                    return null;
+                }
+                
+                const yValues = data.map(item => {
+                    const val = item[col];
+                    return typeof val === 'number' ? val : parseFloat(val);
+                });
+                
+                const colors = ['rgba(17, 157, 255, 0.8)', 'rgba(255, 87, 34, 0.8)', 
+                               'rgba(76, 175, 80, 0.8)', 'rgba(156, 39, 176, 0.8)',
+                               'rgba(255, 193, 7, 0.8)'];
+                const color = colors[index % colors.length];
+                
+                const trace = {
+                    type: 'bar',
+                    name: col,
+                    marker: { color }
+                };
+                
+                // Set orientation based on config
+                if (isHorizontal) {
+                    trace.x = yValues;
+                    trace.y = xValues;
+                    trace.orientation = 'h';
+                } else {
+                    trace.x = xValues;
+                    trace.y = yValues;
+                }
+                
+                // If using secondary axis and this column should use it
+                if (useSecondaryAxis && secondaryAxisColumns.includes(col)) {
+                    trace.yaxis = 'y2';
+                    console.log(`Column ${col} will use secondary y-axis`);
+                }
+                
+                return trace;
+            }).filter(trace => trace !== null);  // Remove any null traces
+            
+            // Create the layout
+            const layout = {
+                title: config.title || 'Bar Chart',
+                barmode: isStacked ? 'stack' : 'group',
+                margin: {
+                    l: 50,
+                    r: useSecondaryAxis ? 70 : 50,  // More space on right if using secondary axis
+                    b: 100,  // Increased to accommodate legend
+                    t: 50,
+                    pad: 4
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                }
+            };
+            
+            // Set axis titles based on orientation
+            if (isHorizontal) {
+                layout.xaxis = {
+                    title: yColumns.length === 1 && !useSecondaryAxis ? yColumns[0] : 'Values'
+                };
+                layout.yaxis = {
+                    title: config.x_axis,
+                    titlefont: { color: 'rgba(17, 157, 255, 0.8)' },
+                    tickfont: { color: 'rgba(17, 157, 255, 0.8)' }
+                };
+            } else {
+                layout.xaxis = {
+                    title: config.x_axis,
+                    type: 'category',  // Force x-axis to be categorical
+                    tickmode: 'array',  // Use the exact values from data
+                    tickvals: xValues,  // Use actual data points
+                    ticktext: xValues   // Use actual text values
+                };
+                layout.yaxis = {
+                    title: yColumns.length === 1 && !useSecondaryAxis ? yColumns[0] : 'Values',
+                    titlefont: { color: 'rgba(17, 157, 255, 0.8)' },
+                    tickfont: { color: 'rgba(17, 157, 255, 0.8)' }
+                };
+            }
+            
+            // Add secondary y-axis if needed
+            if (useSecondaryAxis) {
+                layout.yaxis2 = {
+                    title: secondaryAxisColumns.length === 1 ? secondaryAxisColumns[0] : 'Secondary Values',
+                    titlefont: { color: 'rgba(255, 87, 34, 0.8)' },
+                    tickfont: { color: 'rgba(255, 87, 34, 0.8)' },
+                    overlaying: 'y',
+                    side: 'right'
+                };
+            }
+            
+            // Ensure x-axis is properly treated as categorical
+            ensureCategoricalXAxis(layout, xValues);
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        function renderLineChart(config, data, divId) {
+            console.log(`Rendering line chart in ${divId} with config:`, config);
+            
+            // Validate chart data and configuration
+            const validatedData = validateChartData(config, data, divId);
+            if (!validatedData) return;
+            
+            // Use validated data and config
+            config = validatedData.config;
+            data = validatedData.data;
+            
+            const xValues = data.map(item => item[config.x_axis]);
+            
+            // Get y-axis columns
+            let yColumns = [];
+            
+            if (Array.isArray(config.y_axis) && config.y_axis.length > 0) {
+                yColumns = config.y_axis;
+            } else if (typeof config.y_axis === 'string') {
+                yColumns = [config.y_axis];
+            } else {
+                // Find numeric columns for y-axis
+                yColumns = Object.keys(data[0]).filter(col => {
+                    if (col === config.x_axis) return false;
+                    const value = data[0][col];
+                    return typeof value === 'number' || !isNaN(parseFloat(value));
+                });
+                
+                if (yColumns.length === 0) {
+                    console.error('No numeric columns found for line chart');
+                    throw new Error('No numeric columns found for line chart');
+                }
+            }
+            
+            console.log(`Using columns for line chart: ${yColumns.join(', ')}`);
+            
+            // Check if we should use secondary y-axis
+            let useSecondaryAxis = config.additional_config && config.additional_config.use_secondary_axis;
+            let secondaryAxisColumns = [];
+            
+            // If we have multiple columns, analyze their scales to determine if we need a secondary axis
+            if (yColumns.length > 1) {
+                // Collect data ranges for each column
+                const columnRanges = {};
+                
+                yColumns.forEach(column => {
+                    if (data && data.length > 0 && data[0].hasOwnProperty(column)) {
+                        // Find min and max values for this column
+                        const values = data.map(item => {
+                            const val = item[column];
+                            return typeof val === 'number' ? val : parseFloat(val);
+                        }).filter(val => !isNaN(val));
+                        
+                        if (values.length > 0) {
+                            const min = Math.min(...values);
+                            const max = Math.max(...values);
+                            const magnitude = Math.log10(max);
+                            
+                            columnRanges[column] = { min, max, magnitude };
+                            console.log(`Column ${column} range: ${min} to ${max}, magnitude: ${magnitude}`);
+                        }
+                    }
+                });
+                
+                // Find the primary magnitude (first column)
+                let primaryMagnitude = null;
+                let maxMagnitudeDiff = 0;
+                
+                for (const column in columnRanges) {
+                    if (primaryMagnitude === null) {
+                        primaryMagnitude = columnRanges[column].magnitude;
+                    } else {
+                        const diff = Math.abs(columnRanges[column].magnitude - primaryMagnitude);
+                        if (diff > maxMagnitudeDiff) {
+                            maxMagnitudeDiff = diff;
+                        }
+                    }
+                }
+                
+                // If magnitude difference is significant (>= 2), use secondary axis
+                if (maxMagnitudeDiff >= 2) {
+                    useSecondaryAxis = true;
+                    console.log(`Enabling secondary axis due to magnitude difference: ${maxMagnitudeDiff}`);
+                    
+                    // Determine which columns should use secondary axis based on magnitude and name
+                    secondaryAxisColumns = yColumns.filter(col => {
+                        const colName = col.toLowerCase();
+                        const nameIndicatesSecondary = colName.includes('quantity') || colName.includes('count') || 
+                                                    colName.includes('number') || colName.includes('amount');
+                        
+                        const magnitudeIndicatesSecondary = columnRanges[col] && 
+                                                         primaryMagnitude !== null && 
+                                                         Math.abs(columnRanges[col].magnitude - primaryMagnitude) >= 2;
+                        
+                        return nameIndicatesSecondary || magnitudeIndicatesSecondary;
+                    });
+                    
+                    // If no columns were selected for secondary axis, use the second column
+                    if (secondaryAxisColumns.length === 0 && yColumns.length > 1) {
+                        secondaryAxisColumns = [yColumns[1]];
+                    }
+                    
+                    console.log(`Using secondary y-axis for columns: ${secondaryAxisColumns.join(', ')}`);
+                }
+            }
+            
+            // Generate colors for each series
+            const primaryColors = [
+                'rgba(17, 157, 255, 0.8)',   // Blue
+                'rgba(76, 175, 80, 0.8)'     // Green
+            ];
+            
+            const secondaryColors = [
+                'rgba(255, 87, 34, 0.8)',    // Orange/Red
+                'rgba(156, 39, 176, 0.8)',   // Purple
+                'rgba(255, 193, 7, 0.8)'     // Yellow/Amber
+            ];
+            
+            // Create a trace for each y-column
+            const plotData = yColumns.map((col, idx) => {
+                // Extract values for this column
+                const yValues = data.map(item => {
+                    const val = item[col];
+                    return typeof val === 'number' ? val : parseFloat(val);
+                });
+                
+                // Determine if this column should use secondary axis
+                const useSecondary = useSecondaryAxis && secondaryAxisColumns.includes(col);
+                
+                // Get color based on axis
+                const colorPalette = useSecondary ? secondaryColors : primaryColors;
+                const colorIdx = useSecondary ? 
+                    secondaryAxisColumns.indexOf(col) % secondaryColors.length : 
+                    (yColumns.indexOf(col) - secondaryAxisColumns.length) % primaryColors.length;
+                const color = colorPalette[colorIdx];
+                
+                const trace = {
+                    x: xValues,
+                    y: yValues,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: col,  // Use column name as series name
+                    marker: { color },
+                    line: { color, width: 3 }
+                };
+                
+                // If using secondary axis and this column should use it
+                if (useSecondary) {
+                    trace.yaxis = 'y2';
+                    console.log(`Column ${col} will use secondary y-axis`);
+                }
+                
+                return trace;
+            }).filter(trace => trace !== null);  // Remove any null traces
+            
+            // Determine axis titles
+            let primaryAxisTitle = 'Values';
+            let secondaryAxisTitle = 'Values';
+            
+            // Set primary axis title to first non-secondary column
+            const primaryColumns = yColumns.filter(col => !secondaryAxisColumns.includes(col));
+            if (primaryColumns.length > 0) {
+                primaryAxisTitle = primaryColumns[0];
+            }
+            
+            // Set secondary axis title to first secondary column
+            if (secondaryAxisColumns.length > 0) {
+                secondaryAxisTitle = secondaryAxisColumns[0];
+            }
+            
+            // Create layout with appropriate axes
+            const layout = {
+                title: config.title || 'Line Chart',
+                xaxis: {
+                    title: config.x_axis,
+                    type: 'category',  // Force x-axis to be categorical
+                    tickmode: 'array',  // Use the exact values from data
+                    tickvals: xValues,  // Use actual data points
+                    ticktext: xValues,   // Use actual text values
+                    tickangle: -45  // Angle the x-axis labels for better readability
+                },
+                yaxis: {
+                    title: primaryAxisTitle,
+                    titlefont: { color: 'rgb(17, 157, 255)' },
+                    tickfont: { color: 'rgb(17, 157, 255)' },
+                    tickformat: ',d',  // Format with commas
+                    hoverformat: ',.2f'
+                },
+                margin: {
+                    l: 70,  // More space for left y-axis with formatted numbers
+                    r: useSecondaryAxis ? 80 : 50,  // More space for secondary y-axis if needed
+                    b: 100,  // Increased to accommodate legend and angled x-axis labels
+                    t: 50
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                hoverlabel: {
+                    bgcolor: "white",
+                    font: { size: 12 }
+                },
+                // Improve the hover mode to show all data points at the same x-value
+                hovermode: 'x unified'
+            };
+            
+            // Format primary y-axis for large numbers if needed
+            if (primaryColumns.length > 0) {
+                const primaryColumn = primaryColumns[0];
+                if (data && data.length > 0 && data[0].hasOwnProperty(primaryColumn)) {
+                    const maxValue = Math.max(...data.map(item => {
+                        const val = item[primaryColumn];
+                        return typeof val === 'number' ? val : parseFloat(val);
+                    }).filter(val => !isNaN(val)));
+                    
+                    // For values over 1 million, use compact notation
+                    if (maxValue >= 1000000) {
+                        layout.yaxis.tickformat = '.3s'; // Use SI prefix (M for million, etc.)
+                    } else if (maxValue >= 1000) {
+                        layout.yaxis.tickformat = ',.0f'; // Use commas for thousands
+                    }
+                }
+            }
+            
+            // Add secondary y-axis if needed
+            if (useSecondaryAxis && secondaryAxisColumns.length > 0) {
+                layout.yaxis2 = {
+                    title: secondaryAxisTitle,
+                    titlefont: { color: 'rgb(255, 87, 34)' },
+                    tickfont: { color: 'rgb(255, 87, 34)' },
+                    overlaying: 'y',
+                    side: 'right',
+                    tickformat: ',d',  // Format with commas
+                    hoverformat: ',.2f'
+                };
+                
+                // Format secondary y-axis for large numbers if needed
+                const secondaryColumn = secondaryAxisColumns[0];
+                if (data && data.length > 0 && data[0].hasOwnProperty(secondaryColumn)) {
+                    const maxValue = Math.max(...data.map(item => {
+                        const val = item[secondaryColumn];
+                        return typeof val === 'number' ? val : parseFloat(val);
+                    }).filter(val => !isNaN(val)));
+                    
+                    // For values over 1 million, use compact notation
+                    if (maxValue >= 1000000) {
+                        layout.yaxis2.tickformat = '.3s'; // Use SI prefix (M for million, etc.)
+                    } else if (maxValue >= 1000) {
+                        layout.yaxis2.tickformat = ',.0f'; // Use commas for thousands
+                    }
+                }
+            }
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        function renderMixedChart(config, data, divId) {
+            console.log(`Rendering mixed chart in ${divId} with config:`, config);
+            
+            if (!config || !config.x_axis) {
+                console.error('Invalid chart config:', config);
+                throw new Error('Invalid chart configuration: missing axis definitions');
+            }
+            
+            if (!data || data.length === 0) {
+                console.error('No data for chart rendering');
+                throw new Error('No data available for chart');
+            }
+            
+            // Check if data contains the required x column
+            if (!data[0].hasOwnProperty(config.x_axis)) {
+                console.error(`Data doesn't contain required x column: ${config.x_axis}`);
+                console.log('Available columns:', Object.keys(data[0]));
+                throw new Error(`Data doesn't contain required x column: ${config.x_axis}`);
+            }
+            
+            const xValues = data.map(item => item[config.x_axis]);
+            
+            // Get all numeric columns for potential y-axes (except the x-axis)
+            const numericColumns = Object.keys(data[0]).filter(col => {
+                // Skip the x-axis column
+                if (col === config.x_axis) return false;
+                
+                // Check if the column contains numeric data
+                const value = data[0][col];
+                return typeof value === 'number' || !isNaN(parseFloat(value));
+            });
+            
+            console.log('Potential y-axis columns for mixed chart:', numericColumns);
+            
+            // Determine which columns to use and their chart types
+            let seriesConfig = [];
+            
+            // If series is defined in config, use it
+            if (config.series && Array.isArray(config.series) && config.series.length > 0) {
+                seriesConfig = config.series;
+                console.log('Using provided series configuration:', seriesConfig);
+            }
+            // If y_axis is defined as array but no series config, create default series config
+            else if (config.y_axis && Array.isArray(config.y_axis) && config.y_axis.length > 0) {
+                // First column as bar, others as lines
+                seriesConfig = config.y_axis.map((col, index) => ({
+                    column: col,
+                    type: index === 0 ? 'bar' : 'line',
+                    axis: index === 0 ? 'primary' : 'secondary'
+                }));
+                console.log('Created default series configuration:', seriesConfig);
+            }
+            // Fallback to all numeric columns
+            else {
+                seriesConfig = numericColumns.map((col, index) => ({
+                    column: col,
+                    type: index === 0 ? 'bar' : 'line',
+                    axis: index === 0 ? 'primary' : 'secondary'
+                }));
+                console.log('Using all numeric columns with default configuration:', seriesConfig);
+            }
+            
+            // Group series by axis to calculate appropriate scales
+            const primaryAxisSeries = seriesConfig.filter(s => s.axis !== 'secondary');
+            const secondaryAxisSeries = seriesConfig.filter(s => s.axis === 'secondary');
+            
+            // Always use secondary axis if we have any series configured for it
+            const useSecondaryAxis = secondaryAxisSeries.length > 0;
+            
+            // Extract column names for primary and secondary axes for titles
+            const primaryColumns = primaryAxisSeries.map(s => s.column);
+            const secondaryColumns = secondaryAxisSeries.map(s => s.column);
+            
+            // Determine axis titles
+            const primaryAxisTitle = primaryColumns.length > 0 ? 
+                (primaryColumns.length === 1 ? primaryColumns[0] : 'Value') : 'Value';
+            
+            const secondaryAxisTitle = secondaryColumns.length > 0 ? 
+                (secondaryColumns.length === 1 ? secondaryColumns[0] : 'Quantity') : 'Quantity';
+            
+            console.log(`Primary axis (${primaryAxisTitle}):`, primaryColumns);
+            console.log(`Secondary axis (${secondaryAxisTitle}):`, secondaryColumns);
+            
+            // Create a trace for each series
+            const plotData = seriesConfig.map((series, i) => {
+                const col = series.column;
+                
+                // Check if this column exists in the data
+                if (!data[0].hasOwnProperty(col)) {
+                    console.warn(`Column ${col} not found in data, skipping`);
+                    return null;
+                }
+                
+                const values = data.map(item => {
+                    const val = item[col];
+                    return typeof val === 'number' ? val : parseFloat(val);
+                });
+                
+                // Generate a color based on the index
+                const colors = ['rgba(17, 157, 255, 0.8)', 'rgba(76, 175, 80, 0.8)', 
+                               'rgba(255, 87, 34, 0.8)', 'rgba(156, 39, 176, 0.8)',
+                               'rgba(255, 193, 7, 0.8)'];
+                const color = colors[i % colors.length];
+                
+                // Create the trace based on the series type
+                return createTrace(col, series.type, series.axis === 'secondary', xValues, values, color);
+            }).filter(trace => trace !== null);  // Remove any null traces
+            
+            // Create layout with appropriate axes
+            const layout = {
+                title: config.title || 'Mixed Chart',
+                xaxis: {
+                    title: config.x_axis
+                },
+                yaxis: {
+                    title: primaryAxisTitle,
+                    titlefont: { color: 'rgb(17, 157, 255)' },
+                    tickfont: { color: 'rgb(17, 157, 255)' }
+                },
+                barmode: 'group',  // Group bars side by side
+                margin: {
+                    l: 50,
+                    r: useSecondaryAxis ? 70 : 50,  // More space on right if using secondary axis
+                    b: 100,  // Increased to accommodate legend
+                    t: 50
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                }
+            };
+            
+            // Add secondary y-axis if needed
+            if (useSecondaryAxis) {
+                layout.yaxis2 = {
+                    title: secondaryAxisTitle,
+                    titlefont: { color: 'rgb(255, 87, 34)' },
+                    tickfont: { color: 'rgb(255, 87, 34)' },
+                    overlaying: 'y',
+                    side: 'right'
+                };
+            }
+            
+            // Ensure x-axis is properly treated as categorical
+            ensureCategoricalXAxis(layout, xValues);
+            
+            Plotly.newPlot(divId, plotData, layout);
+        
+        // Helper function to create a trace based on type and axis
+        function createTrace(column, type, useSecondaryAxis, xValues, yValues, color) {
+                // Default to 'bar' if type is not specified
+                const chartType = (type || 'bar').toLowerCase();
+                
+                const trace = {
+                    x: xValues,
+                    y: yValues,
+                    name: column,
+                    marker: { color }
+                };
+                
+                // Set the trace type based on the series type
+                switch(chartType) {
+                    case 'bar':
+                        trace.type = 'bar';
+                        break;
+                    case 'line':
+                        trace.type = 'scatter';
+                        trace.mode = 'lines+markers';
+                        trace.line = { color, width: 3 };
+                        break;
+                    case 'scatter':
+                        trace.type = 'scatter';
+                        trace.mode = 'markers';
+                        break;
+                    case 'area':
+                        trace.type = 'scatter';
+                        trace.mode = 'lines';
+                        trace.fill = 'tozeroy';
+                        trace.line = { color, width: 2 };
+                        break;
+                    default:
+                        trace.type = 'bar';
+                }
+                
+                // If this series should use the secondary axis
+                if (useSecondaryAxis) {
+                    trace.yaxis = 'y2';
+                    console.log(`Series ${column} will use secondary y-axis`);
+                }
+                
+                return trace;
+            }
+        }
+        
+        function renderScatterChart(config, data, divId) {
+            console.log(`Rendering scatter chart in ${divId} with config:`, config);
+            
+            // Validate chart data and configuration
+            const validatedData = validateChartData(config, data, divId);
+            if (!validatedData) return;
+            
+            // Use validated data and config
+            config = validatedData.config;
+            data = validatedData.data;
+            
+            const xValues = data.map(item => item[config.x_axis]);
+            
+            // Get all numeric columns for potential y-axes (except the x-axis)
+            const numericColumns = Object.keys(data[0]).filter(col => {
+                // Skip the x-axis column
+                if (col === config.x_axis) return false;
+                
+                // Check if the column contains numeric data
+                const value = data[0][col];
+                return typeof value === 'number' || !isNaN(parseFloat(value));
+            });
+            
+            console.log('Potential y-axis columns for scatter chart:', numericColumns);
+            
+            // If y_axis is specified, prioritize it, otherwise use all numeric columns
+            const yColumns = config.y_axis ? [config.y_axis] : numericColumns;
+            
+            // Create a trace for each y column
+            const plotData = yColumns.map((col, index) => {
+                // Check if this column exists in the data
+                if (!data[0].hasOwnProperty(col)) {
+                    console.warn(`Column ${col} not found in data, skipping`);
+                    return null;
+                }
+                
+                const yValues = data.map(item => {
+                    const val = item[col];
+                    return typeof val === 'number' ? val : parseFloat(val);
+                });
+                
+                // Generate a color based on the index
+                const colors = ['rgba(17, 157, 255, 0.8)', 'rgba(255, 87, 34, 0.8)', 
+                               'rgba(76, 175, 80, 0.8)', 'rgba(156, 39, 176, 0.8)',
+                               'rgba(255, 193, 7, 0.8)'];
+                const color = colors[index % colors.length];
+                
+                return {
+                    x: xValues,
+                    y: yValues,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: col,  // Use column name as series name
+                    marker: {
+                        size: 10,
+                        color: color,
+                        line: {
+                            color: color.replace('0.8', '1'),
+                            width: 1
+                        }
+                    }
+                };
+            }).filter(trace => trace !== null);  // Remove any null traces
+            
+            const layout = {
+                title: config.title || 'Scatter Plot',
+                xaxis: {
+                    title: config.x_axis,
+                    type: 'category',  // Force x-axis to be categorical
+                    tickmode: 'array',  // Use the exact values from data
+                    tickvals: xValues,  // Use actual data points
+                    ticktext: xValues   // Use actual text values
+                },
+                yaxis: {
+                    title: yColumns.length === 1 ? yColumns[0] : 'Values'
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 100,  // Increased to accommodate legend
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        // Area Chart Implementation
+        function renderAreaChart(config, data, divId) {
+            console.log(`Rendering area chart in ${divId} with config:`, config);
+            
+            // Validate chart data and configuration
+            const validatedData = validateChartData(config, data, divId);
+            if (!validatedData) return;
+            
+            // Use validated data and config
+            config = validatedData.config;
+            data = validatedData.data;
+            
+            const xValues = data.map(item => item[config.x_axis]);
+            
+            // Get all numeric columns for potential y-axes (except the x-axis)
+            const numericColumns = Object.keys(data[0]).filter(col => {
+                // Skip the x-axis column
+                if (col === config.x_axis) return false;
+                
+                // Check if the column contains numeric data
+                const value = data[0][col];
+                return typeof value === 'number' || !isNaN(parseFloat(value));
+            });
+            
+            console.log('Potential y-axis columns for area chart:', numericColumns);
+            
+            // If y_axis is specified, prioritize it, otherwise use all numeric columns
+            const yColumns = config.y_axis ? [config.y_axis] : numericColumns;
+            
+            // Create a trace for each y column
+            const plotData = yColumns.map((col, index) => {
+                // Check if this column exists in the data
+                if (!data[0].hasOwnProperty(col)) {
+                    console.warn(`Column ${col} not found in data, skipping`);
+                    return null;
+                }
+                
+                const yValues = data.map(item => {
+                    const val = item[col];
+                    return typeof val === 'number' ? val : parseFloat(val);
+                });
+                
+                // Generate a color based on the index
+                const colors = ['rgba(17, 157, 255, 0.6)', 'rgba(255, 87, 34, 0.6)', 
+                               'rgba(76, 175, 80, 0.6)', 'rgba(156, 39, 176, 0.6)',
+                               'rgba(255, 193, 7, 0.6)'];
+                const color = colors[index % colors.length];
+                
+                return {
+                    x: xValues,
+                    y: yValues,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: col,  // Use column name as series name
+                    fill: 'tozeroy',
+                    fillcolor: color,
+                    line: { color: color.replace('0.6', '0.8') }
+                };
+            }).filter(trace => trace !== null);  // Remove any null traces
+            
+            const layout = {
+                title: config.title || 'Area Chart',
+                xaxis: {
+                    title: config.x_axis,
+                    type: 'category',  // Force x-axis to be categorical
+                    tickmode: 'array',  // Use the exact values from data
+                    tickvals: xValues,  // Use actual data points
+                    ticktext: xValues   // Use actual text values
+                },
+                yaxis: {
+                    title: yColumns.length === 1 ? yColumns[0] : 'Values'
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 100,  // Increased to accommodate legend
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        // Histogram Chart Implementation
+        function renderHistogramChart(config, data, divId) {
+            console.log(`Rendering histogram chart in ${divId} with config:`, config);
+            
+            // Validate chart data and configuration
+            const validatedData = validateChartData(config, data, divId);
+            if (!validatedData) return;
+            
+            // Use validated data and config
+            config = validatedData.config;
+            data = validatedData.data;
+            
+            // For histograms, we only need one column of numeric data
+            // If y_axis is specified, use that, otherwise find the first numeric column
+            let dataColumn = config.y_axis;
+            
+            if (!dataColumn || !data[0].hasOwnProperty(dataColumn)) {
+                // Find the first numeric column
+                dataColumn = Object.keys(data[0]).find(col => {
+                    const value = data[0][col];
+                    return typeof value === 'number' || !isNaN(parseFloat(value));
+                });
+                
+                if (!dataColumn) {
+                    console.error('No numeric column found for histogram');
+                    throw new Error('No numeric column found for histogram');
+                }
+            }
+            
+            console.log(`Using column ${dataColumn} for histogram data`);
+            
+            // Extract the values for the histogram
+            const values = data.map(item => {
+                const val = item[dataColumn];
+                return typeof val === 'number' ? val : parseFloat(val);
+            });
+            
+            const plotData = [{
+                x: values,
+                type: 'histogram',
+                marker: {
+                    color: 'rgba(17, 157, 255, 0.7)',
+                    line: {
+                        color: 'rgba(17, 157, 255, 1)',
+                        width: 1
+                    }
+                },
+                opacity: 0.75,
+                name: dataColumn
+            }];
+            
+            const layout = {
+                title: config.title || `Histogram of ${dataColumn}`,
+                xaxis: {
+                    title: dataColumn
+                },
+                yaxis: {
+                    title: 'Frequency'
+                },
+                bargap: 0.05,
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 50,
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        // Mixed Chart Implementation (Bar + Line with dual y-axes)
+        function renderMixedChart(config, data, divId) {
+            console.log(`Rendering mixed chart in ${divId} with config:`, config);
+            
+            // Validate chart data and configuration
+            const validatedData = validateChartData(config, data, divId);
+            if (!validatedData) return;
+            
+            // Use validated data and config
+            config = validatedData.config;
+            data = validatedData.data;
+            
+            const xValues = data.map(item => item[config.x_axis]);
+            
+            // Determine which columns to use and their chart types
+            let seriesConfig = [];
+            let primaryAxisTitle = 'Value';
+            let secondaryAxisTitle = 'Quantity';
+            
+            // If series is defined in config, use it
+            if (config.series && Array.isArray(config.series) && config.series.length > 0) {
+                seriesConfig = config.series;
+                console.log('Using provided series configuration:', seriesConfig);
+                
+                // Find primary and secondary axis titles
+                const primarySeries = seriesConfig.find(s => s.axis !== 'secondary');
+                const secondarySeries = seriesConfig.find(s => s.axis === 'secondary');
+                
+                if (primarySeries) primaryAxisTitle = primarySeries.column;
+                if (secondarySeries) secondaryAxisTitle = secondarySeries.column;
+            }
+            // If y_axis is defined as array but no series config, create default series config
+            else if (config.y_axis && Array.isArray(config.y_axis) && config.y_axis.length > 0) {
+                // Get all numeric columns for potential y-axes (except the x-axis)
+                const numericColumns = Object.keys(data[0]).filter(col => {
+                    // Skip the x-axis column
+                    if (col === config.x_axis) return false;
+                    
+                    // Check if the column contains numeric data
+                    const value = data[0][col];
+                    return typeof value === 'number' || !isNaN(parseFloat(value));
+                });
+                
+                console.log('Potential y-axis columns for mixed chart:', numericColumns);
+                
+                // Use the columns specified in y_axis
+                const columnsToUse = config.y_axis.filter(col => numericColumns.includes(col));
+                
+                if (columnsToUse.length < 1) {
+                    console.warn('No valid columns found for mixed chart, falling back to bar chart');
+                    return renderBarChart(config, data, divId);
+                }
+                
+                // Create series config based on column names
+                seriesConfig = columnsToUse.map((col, idx) => {
+                    // Determine if this column should use secondary axis based on name
+                    const colName = col.toLowerCase();
+                    const useSecondary = colName.includes('quantity') || colName.includes('count') || 
+                                       colName.includes('number') || colName.includes('amount');
+                    
+                    return {
+                        column: col,
+                        type: useSecondary ? 'line' : 'bar',
+                        axis: useSecondary ? 'secondary' : 'primary'
+                    };
+                });
+                
+                // Set axis titles
+                const primarySeries = seriesConfig.find(s => s.axis !== 'secondary');
+                const secondarySeries = seriesConfig.find(s => s.axis === 'secondary');
+                
+                if (primarySeries) primaryAxisTitle = primarySeries.column;
+                if (secondarySeries) secondaryAxisTitle = secondarySeries.column;
+                
+                console.log('Created series configuration:', seriesConfig);
+            }
+            // Fallback to all numeric columns
+            else {
+                // Get all numeric columns for potential y-axes (except the x-axis)
+                const numericColumns = Object.keys(data[0]).filter(col => {
+                    // Skip the x-axis column
+                    if (col === config.x_axis) return false;
+                    
+                    // Check if the column contains numeric data
+                    const value = data[0][col];
+                    return typeof value === 'number' || !isNaN(parseFloat(value));
+                });
+                
+                console.log('Potential y-axis columns for mixed chart:', numericColumns);
+                
+                // Need at least one numeric column
+                if (numericColumns.length < 1) {
+                    console.warn('No numeric columns found for mixed chart, falling back to bar chart');
+                    return renderBarChart(config, data, divId);
+                }
+                
+                // Create series config based on column names
+                seriesConfig = numericColumns.map((col, idx) => {
+                    // Determine if this column should use secondary axis based on name
+                    const colName = col.toLowerCase();
+                    const useSecondary = colName.includes('quantity') || colName.includes('count') || 
+                                       colName.includes('number') || colName.includes('amount');
+                    
+                    return {
+                        column: col,
+                        type: useSecondary ? 'line' : 'bar',
+                        axis: useSecondary ? 'secondary' : 'primary'
+                    };
+                });
+                
+                // Set axis titles
+                const primarySeries = seriesConfig.find(s => s.axis !== 'secondary');
+                const secondarySeries = seriesConfig.find(s => s.axis === 'secondary');
+                
+                if (primarySeries) primaryAxisTitle = primarySeries.column;
+                if (secondarySeries) secondaryAxisTitle = secondarySeries.column;
+                
+                console.log('Created default series configuration:', seriesConfig);
+            }
+            
+            // Create a trace for each series
+            const plotData = seriesConfig.map((series, idx) => {
+                const col = series.column;
+                
+                // Check if this column exists in the data
+                if (!data[0].hasOwnProperty(col)) {
+                    console.warn(`Column ${col} not found in data, skipping`);
+                    return null;
+                }
+                
+                // Extract values for this column
+                const values = data.map(item => {
+                    const val = item[col];
+                    return typeof val === 'number' ? val : parseFloat(val);
+                });
+                
+                // Generate a color based on the index
+                const primaryColors = ['rgba(17, 157, 255, 0.8)', 'rgba(76, 175, 80, 0.8)'];
+                const secondaryColors = ['rgba(255, 87, 34, 0.8)', 'rgba(156, 39, 176, 0.8)', 'rgba(255, 193, 7, 0.8)'];
+                
+                // Use different color palettes for primary and secondary axis
+                const isSecondary = series.axis === 'secondary';
+                const colorPalette = isSecondary ? secondaryColors : primaryColors;
+                const color = colorPalette[idx % colorPalette.length];
+                
+                // Create the trace based on the series type
+                const trace = {
+                    x: xValues,
+                    y: values,
+                    name: col,
+                    marker: { color }
+                };
+                
+                // Set the trace type based on the series type
+                switch(series.type.toLowerCase()) {
+                    case 'bar':
+                        trace.type = 'bar';
+                        break;
+                    case 'line':
+                        trace.type = 'scatter';
+                        trace.mode = 'lines+markers';
+                        trace.line = { color, width: 3 };
+                        break;
+                    case 'scatter':
+                        trace.type = 'scatter';
+                        trace.mode = 'markers';
+                        break;
+                    case 'area':
+                        trace.type = 'scatter';
+                        trace.mode = 'lines';
+                        trace.fill = 'tozeroy';
+                        trace.line = { color, width: 2 };
+                        break;
+                    default:
+                        trace.type = 'bar';
+                }
+                
+                // If this series should use the secondary axis
+                if (isSecondary) {
+                    trace.yaxis = 'y2';
+                    console.log(`Series ${col} will use secondary y-axis`);
+                }
+                
+                return trace;
+            }).filter(trace => trace !== null);  // Remove any null traces
+            
+            // Create layout with appropriate axes
+            const layout = {
+                title: config.title || 'Mixed Chart',
+                xaxis: {
+                    title: config.x_axis,
+                    tickangle: -45  // Angle the x-axis labels for better readability
+                },
+                yaxis: {
+                    title: primaryAxisTitle,
+                    titlefont: { color: 'rgb(17, 157, 255)' },
+                    tickfont: { color: 'rgb(17, 157, 255)' },
+                    // Format large numbers with commas and abbreviate if needed
+                    tickformat: ',d',
+                    hoverformat: ',.2f'
+                },
+                yaxis2: {
+                    title: secondaryAxisTitle,
+                    titlefont: { color: 'rgb(255, 87, 34)' },
+                    tickfont: { color: 'rgb(255, 87, 34)' },
+                    overlaying: 'y',
+                    side: 'right',
+                    // Format large numbers with commas and abbreviate if needed
+                    tickformat: ',d',
+                    hoverformat: ',.2f'
+                },
+                margin: {
+                    l: 70,  // More space for left y-axis with formatted numbers
+                    r: 80,  // More space on right for secondary y-axis
+                    b: 100,  // Increased to accommodate legend and angled x-axis labels
+                    t: 50
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                barmode: 'group',  // Group bars side by side
+                hoverlabel: {
+                    bgcolor: "white",
+                    font: { size: 12 }
+                },
+                // Improve the hover mode to show all data points at the same x-value
+                hovermode: 'x unified'
+            };
+            
+            // Determine if we need to format y-axes for large numbers
+            // Check for primary axis values
+            const primarySeries = seriesConfig.filter(s => s.axis !== 'secondary');
+            if (primarySeries.length > 0) {
+                const primaryColumn = primarySeries[0].column;
+                if (data && data.length > 0 && data[0].hasOwnProperty(primaryColumn)) {
+                    const maxValue = Math.max(...data.map(item => {
+                        const val = item[primaryColumn];
+                        return typeof val === 'number' ? val : parseFloat(val);
+                    }).filter(val => !isNaN(val)));
+                    
+                    // For values over 1 million, use compact notation
+                    if (maxValue >= 1000000) {
+                        layout.yaxis.tickformat = '.3s'; // Use SI prefix (M for million, etc.)
+                    } else if (maxValue >= 1000) {
+                        layout.yaxis.tickformat = ',.0f'; // Use commas for thousands
+                    }
+                }
+            }
+            
+            // Check for secondary axis values
+            const secondarySeries = seriesConfig.filter(s => s.axis === 'secondary');
+            if (secondarySeries.length > 0) {
+                const secondaryColumn = secondarySeries[0].column;
+                if (data && data.length > 0 && data[0].hasOwnProperty(secondaryColumn)) {
+                    const maxValue = Math.max(...data.map(item => {
+                        const val = item[secondaryColumn];
+                        return typeof val === 'number' ? val : parseFloat(val);
+                    }).filter(val => !isNaN(val)));
+                    
+                    // For values over 1 million, use compact notation
+                    if (maxValue >= 1000000) {
+                        layout.yaxis2.tickformat = '.3s'; // Use SI prefix (M for million, etc.)
+                    } else if (maxValue >= 1000) {
+                        layout.yaxis2.tickformat = ',.0f'; // Use commas for thousands
+                    }
+                }
+            }
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+    </script>
+</body>
+</html>

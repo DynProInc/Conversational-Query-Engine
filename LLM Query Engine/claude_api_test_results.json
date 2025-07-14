@@ -1,0 +1,150 @@
+{
+  "Claude with charts=true, execute=true": {
+    "prompt": "Show total sales, quantity sold, and profit for the top 3 products in 2024 for store 1",
+    "query": "SELECT 'No SQL query was successfully extracted' AS error_message LIMIT 100",
+    "query_output": [
+      {
+        "ERROR_MESSAGE": "No SQL query was successfully extracted"
+      }
+    ],
+    "model": "claude-3-5-sonnet-20241022",
+    "token_usage": {
+      "prompt_tokens": 3086,
+      "completion_tokens": 726,
+      "total_tokens": 3812
+    },
+    "success": true,
+    "error_message": null,
+    "execution_time_ms": 11840.069,
+    "user_hint": "LIMIT without ORDER BY may return unpredictable row order in result sets",
+    "chart_recommendations": [],
+    "chart_error": "Cannot generate charts: query returned only a single value"
+  },
+  "Claude with charts=true, execute=false": {
+    "prompt": "Show total sales, quantity sold, and profit for the top 3 products in 2024 for store 1",
+    "query": "SELECT 'No SQL query was successfully extracted' AS error_message",
+    "query_output": [],
+    "model": "claude-3-5-sonnet-20241022",
+    "token_usage": {
+      "prompt_tokens": 3086,
+      "completion_tokens": 713,
+      "total_tokens": 3799
+    },
+    "success": true,
+    "error_message": null,
+    "execution_time_ms": 10720.762999999999,
+    "user_hint": "String literals can be used in SELECT statements without referencing any tables",
+    "chart_recommendations": [],
+    "chart_error": "Cannot generate charts: query execution failed or returned invalid data"
+  },
+  "Unified Claude with charts=true, execute=true": {
+    "prompt": "Show total sales, quantity sold, and profit for the top 3 products in 2024 for store 1",
+    "query": "SELECT 'No SQL query was successfully extracted' AS error_message LIMIT 100",
+    "query_output": [
+      {
+        "ERROR_MESSAGE": "No SQL query was successfully extracted"
+      }
+    ],
+    "model": "claude-3-5-sonnet-20241022",
+    "token_usage": {
+      "prompt_tokens": 3086,
+      "completion_tokens": 742,
+      "total_tokens": 3828
+    },
+    "success": true,
+    "error_message": null,
+    "execution_time_ms": 15433.704,
+    "user_hint": "LIMIT without ORDER BY may return unpredictable row order in result sets",
+    "chart_recommendations": [],
+    "chart_error": "Cannot generate charts: query returned only a single value"
+  },
+  "OpenAI with charts=true, execute=true": {
+    "prompt": "Show total sales, quantity sold, and profit for the top 3 products in 2024 for store 1",
+    "query": "SELECT\n  ITEM_NUMBER,\n  ITEM_DESCRIPTION,\n  SUM(CAST(DAILY_SALES AS NUMERIC)) AS TOTAL_SALES,\n  SUM(CAST(QUANTITY AS NUMERIC)) AS TOTAL_QUANTITY_SOLD,\n  SUM(CAST(GROSS_PROFIT AS NUMERIC)) AS TOTAL_PROFIT\nFROM\n  REPORTING_UAT.GOLD_SALES.V_SMM_ITEM_DAILY_SALE\nWHERE\n  TRANSACTION_YEAR = '2024'\n  AND STORE_NUMBER = '1'\nGROUP BY\n  ITEM_NUMBER,\n  ITEM_DESCRIPTION\nORDER BY\n  TOTAL_SALES DESC\nLIMIT 3;",
+    "query_output": [
+      {
+        "ITEM_NUMBER": "248817",
+        "ITEM_DESCRIPTION": "BS R268 ECOPIA",
+        "TOTAL_SALES": 3747959,
+        "TOTAL_QUANTITY_SOLD": 5904,
+        "TOTAL_PROFIT": 160989
+      },
+      {
+        "ITEM_NUMBER": "7501118",
+        "ITEM_DESCRIPTION": "BANDAG ULTRA DRIVE",
+        "TOTAL_SALES": 3314000,
+        "TOTAL_QUANTITY_SOLD": 16203,
+        "TOTAL_PROFIT": 237891
+      },
+      {
+        "ITEM_NUMBER": "41082",
+        "ITEM_DESCRIPTION": "BS R213",
+        "TOTAL_SALES": 1793899,
+        "TOTAL_QUANTITY_SOLD": 2462,
+        "TOTAL_PROFIT": 66805
+      }
+    ],
+    "model": "openai",
+    "token_usage": {
+      "prompt_tokens": 2505,
+      "completion_tokens": 600,
+      "total_tokens": 3105
+    },
+    "success": true,
+    "error_message": null,
+    "execution_time_ms": null,
+    "user_hint": "Consider indexing columns used in WHERE clause to improve query performance",
+    "chart_recommendations": [
+      {
+        "chart_type": "bar",
+        "reasoning": "A bar chart is suitable for comparing the total sales, quantity sold, and profit for the top products, as it allows for easy comparison of these metrics across different products.",
+        "priority": 1,
+        "chart_config": {
+          "title": "Top 3 Products by Total Sales in 2024 for Store 1",
+          "x_axis": "ITEM_DESCRIPTION",
+          "y_axis": "TOTAL_SALES",
+          "color_by": "ITEM_DESCRIPTION",
+          "aggregate_function": "NONE",
+          "chart_library": "plotly",
+          "additional_config": {
+            "show_legend": true,
+            "orientation": "vertical"
+          }
+        }
+      },
+      {
+        "chart_type": "pie",
+        "reasoning": "A pie chart can effectively show the proportion of total sales contributed by each of the top products, providing a visual representation of their relative importance.",
+        "priority": 2,
+        "chart_config": {
+          "title": "Sales Distribution of Top 3 Products in 2024 for Store 1",
+          "x_axis": "ITEM_DESCRIPTION",
+          "y_axis": "TOTAL_SALES",
+          "color_by": "ITEM_DESCRIPTION",
+          "aggregate_function": "NONE",
+          "chart_library": "plotly",
+          "additional_config": {
+            "show_legend": true
+          }
+        }
+      },
+      {
+        "chart_type": "scatter",
+        "reasoning": "A scatter plot can be used to visualize the relationship between quantity sold and profit for the top products, helping to identify any correlations.",
+        "priority": 3,
+        "chart_config": {
+          "title": "Quantity Sold vs. Profit for Top 3 Products in 2024 for Store 1",
+          "x_axis": "TOTAL_QUANTITY_SOLD",
+          "y_axis": "TOTAL_PROFIT",
+          "color_by": "ITEM_DESCRIPTION",
+          "aggregate_function": "NONE",
+          "chart_library": "plotly",
+          "additional_config": {
+            "show_legend": true
+          }
+        }
+      }
+    ],
+    "chart_error": null
+  }
+}

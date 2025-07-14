@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Rendering Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        .chart-container {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .chart {
+            width: 100%;
+            height: 400px;
+        }
+        .debug-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chart Rendering Test</h1>
+        
+        <div class="chart-container">
+            <h2>Test Data</h2>
+            <pre id="test-data"></pre>
+        </div>
+        
+        <div class="chart-container">
+            <h2>Chart Recommendations</h2>
+            <pre id="chart-recommendations"></pre>
+        </div>
+        
+        <div class="chart-container">
+            <h2>Chart Results</h2>
+            <div id="charts-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load the test data
+        const testData = [{"quarter": "Q1", "sales": 120000, "units": 1500, "profit": 35000}, {"quarter": "Q2", "sales": 150000, "units": 1800, "profit": 42000}, {"quarter": "Q3", "sales": 180000, "units": 2100, "profit": 51000}, {"quarter": "Q4", "sales": 210000, "units": 2400, "profit": 63000}];
+        document.getElementById('test-data').textContent = JSON.stringify(testData, null, 2);
+        
+        // Load the chart recommendations
+        const chartRecommendations = [{"chart_type": "line", "chart_config": {"title": "Quarterly Sales Trend", "x_axis": "quarter"}, "reasoning": "Line chart is best for showing trends over time"}, {"chart_type": "bar", "chart_config": {"title": "Quarterly Sales Comparison", "x_axis": "quarter"}, "reasoning": "Bar chart is good for comparing values across categories"}, {"chart_type": "pie", "chart_config": {"title": "Profit Distribution by Quarter", "values": "profit", "labels": "quarter"}, "reasoning": "Pie chart shows the proportion of each category to the whole"}];
+        document.getElementById('chart-recommendations').textContent = JSON.stringify(chartRecommendations, null, 2);
+        
+        // Wait for the document to be fully loaded
+        $(document).ready(function() {
+            // Load the chart viewer script
+            $.getScript("static/chart_viewer.html", function() {
+                console.log("Chart viewer script loaded");
+                
+                // Create a mock query response
+                const mockResponse = {
+                    query_output: testData,
+                    chart_recommendations: chartRecommendations
+                };
+                
+                // Create charts container
+                const chartsContainer = document.getElementById('charts-container');
+                
+                // Process each chart recommendation
+                chartRecommendations.forEach((chartRec, index) => {
+                    try {
+                        // Create a container for this chart
+                        const chartDiv = document.createElement('div');
+                        chartDiv.className = 'chart-container';
+                        
+                        // Add a title
+                        const titleElem = document.createElement('h3');
+                        titleElem.textContent = chartRec.chart_config?.title || `Chart ${index + 1}`;
+                        chartDiv.appendChild(titleElem);
+                        
+                        // Add reasoning if available
+                        if (chartRec.reasoning) {
+                            const reasoningElem = document.createElement('p');
+                            reasoningElem.textContent = `Reasoning: ${chartRec.reasoning}`;
+                            chartDiv.appendChild(reasoningElem);
+                        }
+                        
+                        // Create a div for the plot
+                        const plotDiv = document.createElement('div');
+                        plotDiv.id = `chart-${index}`;
+                        plotDiv.className = 'chart';
+                        chartDiv.appendChild(plotDiv);
+                        
+                        // Add debug info
+                        const debugInfo = document.createElement('div');
+                        debugInfo.className = 'debug-info';
+                        debugInfo.textContent = `Chart type: ${chartRec.chart_type || 'unknown'}`;
+                        chartDiv.appendChild(debugInfo);
+                        
+                        chartsContainer.appendChild(chartDiv);
+                        
+                        // Ensure chart_type is correctly passed to chart_config
+                        if (chartRec.chart_type) {
+                            if (!chartRec.chart_config) {
+                                chartRec.chart_config = { chart_type: chartRec.chart_type };
+                            } else if (!chartRec.chart_config.chart_type) {
+                                chartRec.chart_config.chart_type = chartRec.chart_type;
+                            }
+                        }
+                        
+                        // Render the chart
+                        console.log(`Rendering chart ${index + 1}:`, chartRec);
+                        renderChart(chartRec, testData, plotDiv.id);
+                        
+                    } catch (error) {
+                        console.error(`Error rendering chart ${index + 1}:`, error);
+                        const errorDiv = document.createElement('div');
+                        errorDiv.style.color = 'red';
+                        errorDiv.textContent = `Error: ${error.message}`;
+                        chartsContainer.appendChild(errorDiv);
+                    }
+                });
+                
+            }).fail(function(jqxhr, settings, exception) {
+                console.error("Failed to load chart viewer script:", exception);
+                document.getElementById('charts-container').innerHTML = 
+                    "<p style='color:red'>Error loading chart viewer script. Make sure chart_viewer.html is in the static directory.</p>";
+            });
+        });
+    </script>
+</body>
+</html>
+    

@@ -1,0 +1,10 @@
+{
+  "model": "gpt-4o",
+  "prompt_tokens": 23,
+  "completion_tokens": 196,
+  "total_tokens": 219,
+  "timestamp": "2025-07-10T02:03:26.261542",
+  "sql": "To convert the question \"Show top 3 products by sales\" into an SQL query, you would typically need a table that contains information about products and their sales. Let's assume you have a table named `sales` with columns `product_id`, `product_name`, and `sales_amount`. The SQL query to find the top 3 products by sales would look like this:\n\n```sql\nSELECT product_name, SUM(sales_amount) AS total_sales\nFROM sales\nGROUP BY product_name\nORDER BY total_sales DESC\nLIMIT 3;\n```\n\nThis query does the following:\n- Selects the `product_name` and the sum of `sales_amount` for each product.\n- Groups the results by `product_name` to aggregate sales for each product.\n- Orders the results in descending order based on the total sales amount.\n- Limits the results to the top 3 products. \n\nMake sure to adjust the table name and column names according to your actual database schema.",
+  "chart_recommendations": null,
+  "chart_error": null
+}

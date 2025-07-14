@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Chart Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .chart-container {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .chart {
+            width: 100%;
+            height: 400px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .button-container {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Direct Chart Test</h1>
+        <p>This page tests each chart type directly using Plotly.js to verify they render correctly.</p>
+        
+        <div class="button-container">
+            <button onclick="testAllCharts()">Test All Charts</button>
+            <button onclick="testLineChart()">Test Line Chart</button>
+            <button onclick="testBarChart()">Test Bar Chart</button>
+            <button onclick="testScatterChart()">Test Scatter Chart</button>
+            <button onclick="testAreaChart()">Test Area Chart</button>
+            <button onclick="testMixedChart()">Test Mixed Chart</button>
+        </div>
+        
+        <div class="chart-container">
+            <h2 id="current-chart-title">Click a button above to test charts</h2>
+            <div id="chart-display" class="chart"></div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data for testing
+        const sampleData = [
+            { quarter: "Q1", sales: 120000, units: 1500, profit: 35000 },
+            { quarter: "Q2", sales: 150000, units: 1800, profit: 42000 },
+            { quarter: "Q3", sales: 180000, units: 2100, profit: 51000 },
+            { quarter: "Q4", sales: 210000, units: 2400, profit: 63000 }
+        ];
+        
+        function testLineChart() {
+            const chartDiv = document.getElementById('chart-container');
+            chartDiv.innerHTML = '<h2>Line Chart Test</h2><div id="test-chart" class="chart"></div><div id="debug-info" class="debug-info"></div>';
+            
+            const data = [
+                { month: "Jan", sales: 120000, units: 1500, profit: 35000 },
+                { month: "Feb", sales: 150000, units: 1800, profit: 42000 },
+                { month: "Mar", sales: 180000, units: 2100, profit: 51000 },
+                { month: "Apr", sales: 210000, units: 2400, profit: 63000 },
+                { month: "May", sales: 250000, units: 2700, profit: 75000 },
+                { month: "Jun", sales: 280000, units: 3000, profit: 84000 }
+            ];
+            
+            // Test the chart recommendation structure
+            const chartRecommendation = {
+                chart_type: "line",  // This is at the root level
+                chart_config: {
+                    // chart_type should be copied from root level
+                    title: "Monthly Sales, Units, and Profit",
+                    x_axis: "month"
+                },
+                reasoning: "Line chart is best for showing trends over time"
+            };
+            
+            // Display the chart recommendation
+            const debugInfo = document.getElementById('debug-info');
+            debugInfo.innerHTML = '<h3>Chart Recommendation:</h3><pre>' + 
+                                 JSON.stringify(chartRecommendation, null, 2) + '</pre>';
+            
+            // Simulate the renderChart function from chart_viewer.html
+            function renderChart(chartRec, data, divId) {
+                console.log(`Attempting to render chart for ${divId}`, chartRec);
+                
+                // Handle different possible chart recommendation structures
+                let chartConfig = {};
+                let explicitChartType = null;
+                
+                // First, try to extract the chart type directly from the recommendation
+                if (chartRec.chart_type) {
+                    explicitChartType = chartRec.chart_type.toLowerCase();
+                    console.log(`Found explicit chart_type at root level: ${explicitChartType}`);
+                }
+                
+                // Also check if there's a chart_type in the chart_config
+                if (chartRec.chart_config && chartRec.chart_config.chart_type) {
+                    if (!explicitChartType) {
+                        explicitChartType = chartRec.chart_config.chart_type.toLowerCase();
+                        console.log(`Found chart_type in chart_config: ${explicitChartType}`);
+                    }
+                }
+                
+                if (chartRec.chart_config) {
+                    chartConfig = chartRec.chart_config;
+                    
+                    // If chart_type is at the root level but not in chart_config, copy it
+                    if (explicitChartType && !chartConfig.chart_type) {
+                        chartConfig.chart_type = explicitChartType;
+                        console.log(`Copied chart_type from root level to chart_config: ${explicitChartType}`);
+                    }
+                } else {
+                    // If no chart_config, create one with the chart_type
+                    chartConfig = { chart_type: explicitChartType };
+                    console.log(`Created new chart_config with chart_type: ${explicitChartType}`);
+                }
+                
+                // If we still don't have a chart type, default to bar
+                if (!chartConfig.chart_type) {
+                    console.warn('No chart type specified, defaulting to bar chart');
+                    chartConfig.chart_type = 'bar';
+                }
+                
+                const chartType = chartConfig.chart_type.toLowerCase();
+                console.log(`Rendering chart type: ${chartType}`);
+                
+                // Normalize chart type to handle various naming conventions
+                let normalizedChartType = chartType;
+                
+                // For exact matches, prioritize them over partial matches
+                if (chartType === 'bar' || chartType === 'line' || chartType === 'pie' || 
+                    chartType === 'scatter' || chartType === 'area' || chartType === 'histogram' || 
+                    chartType === 'mixed') {
+                    normalizedChartType = chartType;
+                    console.log(`Exact match found for chart type: ${normalizedChartType}`);
+                }
+                // Handle variations in chart type naming with partial matches
+                else if (chartType.includes('bar')) normalizedChartType = 'bar';
+                else if (chartType.includes('line')) normalizedChartType = 'line';
+                else if (chartType.includes('pie') || chartType.includes('donut')) normalizedChartType = 'pie';
+                else if (chartType.includes('scatter')) normalizedChartType = 'scatter';
+                else if (chartType.includes('area')) normalizedChartType = 'area';
+                else if (chartType.includes('histogram')) normalizedChartType = 'histogram';
+                else if (chartType.includes('mix') || chartType.includes('combo')) normalizedChartType = 'mixed';
+                
+                console.log(`Normalized chart type: ${normalizedChartType} (from ${chartType})`);
+                
+                // Call the appropriate render function based on the normalized chart type
+                if (normalizedChartType === 'line') {
+                    renderLineChart(chartConfig, data, divId);
+                } else {
+                    console.warn(`Chart type '${normalizedChartType}' not implemented in this test`);
+                }
+            }
+            
+            // Define the renderLineChart function
+            function renderLineChart(config, data, divId) {
+                console.log(`Rendering line chart in ${divId} with config:`, config);
+                
+                const xValues = data.map(item => item[config.x_axis]);
+                
+                // Get all numeric columns for potential y-axes (except the x-axis)
+                const numericColumns = Object.keys(data[0]).filter(col => {
+                    if (col === config.x_axis) return false;
+                    const value = data[0][col];
+                    return typeof value === 'number' || !isNaN(parseFloat(value));
+                });
+                
+                // If y_axis is specified, prioritize it, otherwise use all numeric columns
+                const yColumns = config.y_axis ? [config.y_axis] : numericColumns;
+                
+                // Create a trace for each y column
+                const plotData = yColumns.map((col, index) => {
+                    // Generate a color based on the index
+                    const colors = ['rgba(17, 157, 255, 0.8)', 'rgba(255, 87, 34, 0.8)', 
+                                   'rgba(76, 175, 80, 0.8)', 'rgba(156, 39, 176, 0.8)',
+                                   'rgba(255, 193, 7, 0.8)'];
+                    const color = colors[index % colors.length];
+                    
+                    return {
+                        x: xValues,
+                        y: data.map(item => {
+                            const val = item[col];
+                            return typeof val === 'number' ? val : parseFloat(val);
+                        }),
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        name: col,
+                        marker: { color },
+                        line: { color }
+                    };
+                });
+                
+                const layout = {
+                    title: config.title || 'Line Chart',
+                    xaxis: { title: config.x_axis },
+                    yaxis: { title: yColumns.length === 1 ? yColumns[0] : 'Values' },
+                    margin: { l: 50, r: 50, b: 100, t: 50, pad: 4 },
+                    legend: { orientation: 'h', y: -0.2 }
+                };
+                
+                Plotly.newPlot(divId, plotData, layout);
+                
+                // Add debug info to show what was rendered
+                const debugInfo = document.getElementById('debug-info');
+                if (debugInfo) {
+                    const currentInfo = debugInfo.innerHTML;
+                    debugInfo.innerHTML = currentInfo + '<h3>Rendered Chart:</h3>' +
+                                         '<p>Type: Line Chart</p>' +
+                                         '<p>X-Axis: ' + config.x_axis + '</p>' +
+                                         '<p>Y-Columns: ' + yColumns.join(', ') + '</p>';
+                }
+            }
+            
+            // Render the line chart
+            renderChart(chartRecommendation, data, 'test-chart');
+        }
+        
+        function testBarChart() {
+            document.getElementById('current-chart-title').textContent = 'Bar Chart Test';
+            const divId = 'chart-display';
+            
+            // Extract data for plotting
+            const xValues = sampleData.map(item => item.quarter);
+            const yColumns = ['sales', 'units', 'profit'];
+            
+            // Create a trace for each y column
+            const plotData = yColumns.map((col, index) => {
+                const yValues = sampleData.map(item => item[col]);
+                
+                // Generate a color based on the index
+                const colors = ['rgba(17, 157, 255, 0.8)', 'rgba(255, 87, 34, 0.8)', 
+                               'rgba(76, 175, 80, 0.8)'];
+                const color = colors[index % colors.length];
+                
+                return {
+                    x: xValues,
+                    y: yValues,
+                    type: 'bar',
+                    name: col,
+                    marker: { color }
+                };
+            });
+            
+            const layout = {
+                title: 'Quarterly Sales, Units, and Profit',
+                barmode: 'group',
+                xaxis: {
+                    title: 'Quarter'
+                },
+                yaxis: {
+                    title: 'Values'
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 100,
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        function testScatterChart() {
+            document.getElementById('current-chart-title').textContent = 'Scatter Chart Test';
+            const divId = 'chart-display';
+            
+            // Extract data for plotting
+            const xValues = sampleData.map(item => item.quarter);
+            const yColumns = ['sales', 'units', 'profit'];
+            
+            // Create a trace for each y column
+            const plotData = yColumns.map((col, index) => {
+                const yValues = sampleData.map(item => item[col]);
+                
+                // Generate a color based on the index
+                const colors = ['rgba(17, 157, 255, 0.8)', 'rgba(255, 87, 34, 0.8)', 
+                               'rgba(76, 175, 80, 0.8)'];
+                const color = colors[index % colors.length];
+                
+                return {
+                    x: xValues,
+                    y: yValues,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: col,
+                    marker: {
+                        size: 12,
+                        color: color,
+                        line: {
+                            color: color.replace('0.8', '1'),
+                            width: 1
+                        }
+                    }
+                };
+            });
+            
+            const layout = {
+                title: 'Quarterly Sales, Units, and Profit',
+                xaxis: {
+                    title: 'Quarter'
+                },
+                yaxis: {
+                    title: 'Values'
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 100,
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        function testAreaChart() {
+            document.getElementById('current-chart-title').textContent = 'Area Chart Test';
+            const divId = 'chart-display';
+            
+            // Extract data for plotting
+            const xValues = sampleData.map(item => item.quarter);
+            const yColumns = ['sales', 'units', 'profit'];
+            
+            // Create a trace for each y column
+            const plotData = yColumns.map((col, index) => {
+                const yValues = sampleData.map(item => item[col]);
+                
+                // Generate a color based on the index
+                const colors = ['rgba(17, 157, 255, 0.6)', 'rgba(255, 87, 34, 0.6)', 
+                               'rgba(76, 175, 80, 0.6)'];
+                const color = colors[index % colors.length];
+                
+                return {
+                    x: xValues,
+                    y: yValues,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: col,
+                    fill: 'tozeroy',
+                    fillcolor: color,
+                    line: { 
+                        color: color.replace('0.6', '0.8'),
+                        width: 2
+                    }
+                };
+            });
+            
+            const layout = {
+                title: 'Quarterly Sales, Units, and Profit',
+                xaxis: {
+                    title: 'Quarter'
+                },
+                yaxis: {
+                    title: 'Values'
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 100,
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            Plotly.newPlot(divId, plotData, layout);
+        }
+        
+        function testMixedChart() {
+            document.getElementById('current-chart-title').textContent = 'Mixed Chart Test';
+            const divId = 'chart-display';
+            
+            // Extract data for plotting
+            const xValues = sampleData.map(item => item.quarter);
+            
+            // Create bar trace for sales
+            const salesTrace = {
+                x: xValues,
+                y: sampleData.map(item => item.sales),
+                type: 'bar',
+                name: 'Sales',
+                marker: { color: 'rgba(17, 157, 255, 0.8)' }
+            };
+            
+            // Create line trace for units
+            const unitsTrace = {
+                x: xValues,
+                y: sampleData.map(item => item.units),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Units',
+                marker: { color: 'rgba(255, 87, 34, 0.8)' },
+                line: { color: 'rgba(255, 87, 34, 0.8)' },
+                yaxis: 'y2'
+            };
+            
+            // Create line trace for profit
+            const profitTrace = {
+                x: xValues,
+                y: sampleData.map(item => item.profit),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Profit',
+                marker: { color: 'rgba(76, 175, 80, 0.8)' },
+                line: { color: 'rgba(76, 175, 80, 0.8)' },
+                yaxis: 'y2'
+            };
+            
+            const layout = {
+                title: 'Sales (Bars) and Units/Profit (Lines)',
+                xaxis: {
+                    title: 'Quarter'
+                },
+                yaxis: {
+                    title: 'Sales',
+                    titlefont: { color: 'rgba(17, 157, 255, 1)' },
+                    tickfont: { color: 'rgba(17, 157, 255, 1)' }
+                },
+                yaxis2: {
+                    title: 'Units/Profit',
+                    titlefont: { color: 'rgba(255, 87, 34, 1)' },
+                    tickfont: { color: 'rgba(255, 87, 34, 1)' },
+                    overlaying: 'y',
+                    side: 'right'
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                margin: {
+                    l: 50,
+                    r: 50,
+                    b: 100,
+                    t: 50,
+                    pad: 4
+                }
+            };
+            
+            Plotly.newPlot(divId, [salesTrace, unitsTrace, profitTrace], layout);
+        }
+        
+        function testAllCharts() {
+            // Create a sequence of tests with delays
+            setTimeout(testLineChart, 0);
+            setTimeout(testBarChart, 2000);
+            setTimeout(testScatterChart, 4000);
+            setTimeout(testAreaChart, 6000);
+            setTimeout(testMixedChart, 8000);
+        }
+    </script>
+</body>
+</html>

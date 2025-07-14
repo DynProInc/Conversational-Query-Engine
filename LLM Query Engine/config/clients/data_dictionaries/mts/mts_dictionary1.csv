@@ -1,0 +1,23 @@
+TABLE_NAME,COLUMN_NAME,DATA_TYPE,DESCRIPTION,BUSINESS_NAME,IS_PRIMARY_KEY,IS_FOREIGN_KEY,FOREIGN_KEY_TABLE,FOREIGN_KEY_COLUMN
+SALES,SALES_ID,NUMBER,Unique identifier for sales transaction,Sales ID,TRUE,FALSE,,
+SALES,TRANSACTION_DATE,DATE,Date of the sales transaction,Transaction Date,FALSE,FALSE,,
+SALES,STORE_ID,NUMBER,Store identifier,Store ID,FALSE,TRUE,STORE,STORE_ID
+SALES,PRODUCT_ID,NUMBER,Product identifier,Product ID,FALSE,TRUE,PRODUCT,PRODUCT_ID
+SALES,SALES_REP_ID,NUMBER,Sales representative identifier,Sales Rep ID,FALSE,TRUE,SALES_REP,SALES_REP_ID
+SALES,QUANTITY,NUMBER,Number of units sold,Quantity,FALSE,FALSE,,
+SALES,UNIT_PRICE,NUMBER,Price per unit,Unit Price,FALSE,FALSE,,
+SALES,TOTAL_AMOUNT,NUMBER,Total amount of the sale,Total Amount,FALSE,FALSE,,
+SALES,DISCOUNT_AMOUNT,NUMBER,Discount applied to the sale,Discount Amount,FALSE,FALSE,,
+SALES,YEAR,NUMBER,Year of the sales transaction,Year,FALSE,FALSE,,
+STORE,STORE_ID,NUMBER,Unique identifier for the store,Store ID,TRUE,FALSE,,
+STORE,STORE_NAME,VARCHAR,Name of the store,Store Name,FALSE,FALSE,,
+STORE,LOCATION,VARCHAR,Location of the store,Location,FALSE,FALSE,,
+STORE,REGION,VARCHAR,Region of the store,Region,FALSE,FALSE,,
+PRODUCT,PRODUCT_ID,NUMBER,Unique identifier for the product,Product ID,TRUE,FALSE,,
+PRODUCT,PRODUCT_NAME,VARCHAR,Name of the product,Product Name,FALSE,FALSE,,
+PRODUCT,CATEGORY,VARCHAR,Category of the product,Category,FALSE,FALSE,,
+PRODUCT,BRAND,VARCHAR,Brand of the product,Brand,FALSE,FALSE,,
+SALES_REP,SALES_REP_ID,NUMBER,Unique identifier for the sales representative,Sales Rep ID,TRUE,FALSE,,
+SALES_REP,SALES_REP_NAME,VARCHAR,Name of the sales representative,Sales Rep Name,FALSE,FALSE,,
+SALES_REP,EMAIL,VARCHAR,Email of the sales representative,Email,FALSE,FALSE,,
+SALES_REP,DEPARTMENT,VARCHAR,Department of the sales representative,Department,FALSE,FALSE,,

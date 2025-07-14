@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Client API Tester</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            font-weight: bold;
+            background-color: #f1f8ff;
+        }
+        #response {
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .json-key {
+            color: #0d6efd;
+        }
+        .json-string {
+            color: #198754;
+        }
+        .json-number {
+            color: #fd7e14;
+        }
+        .json-boolean {
+            color: #d63384;
+        }
+        .json-null {
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Multi-Client API Tester</h1>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Available Clients</div>
+                    <div class="card-body">
+                        <div id="clientsList" class="list-group">
+                            <!-- Clients will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Client Details</div>
+                    <div class="card-body">
+                        <div id="clientDetails">
+                            <p>Select a client to see details</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Test Query API</div>
+            <div class="card-body">
+                <form id="queryForm">
+                    <div class="mb-3">
+                        <label for="clientId" class="form-label">Client ID</label>
+                        <select id="clientId" class="form-select" required>
+                            <option value="">Select a client</option>
+                            <!-- Options will be populated from clients list -->
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="prompt" class="form-label">Prompt</label>
+                        <input type="text" class="form-control" id="prompt" required 
+                            placeholder="E.g., Show me sales by region as a bar chart">
+                    </div>
+                    <div class="mb-3">
+                        <label for="model" class="form-label">LLM Model</label>
+                        <select id="model" class="form-select" required>
+                            <option value="openai">OpenAI</option>
+                            <option value="claude">Claude</option>
+                            <option value="gemini">Gemini</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="limitRows" class="form-label">Limit Rows</label>
+                        <input type="number" class="form-control" id="limitRows" value="10">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="executeQuery" checked>
+                        <label class="form-check-label" for="executeQuery">Execute SQL Query</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="includeCharts" checked>
+                        <label class="form-check-label" for="includeCharts">Include Charts</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Send Query</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">Response</div>
+            <div class="card-body">
+                <div id="loading" class="d-none">
+                    <div class="d-flex justify-content-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <p class="text-center mt-2">Processing request...</p>
+                </div>
+                <div id="response" class="border rounded">
+                    Response will appear here
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to format JSON with syntax highlighting
+        function syntaxHighlight(json) {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, undefined, 2);
+            }
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        // Load clients when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fetch available clients
+            fetch('/clients')
+                .then(response => response.json())
+                .then(data => {
+                    const clientsList = document.getElementById('clientsList');
+                    const clientIdSelect = document.getElementById('clientId');
+                    
+                    if (data.success && data.clients && data.clients.length > 0) {
+                        data.clients.forEach(client => {
+                            // Add to clients list
+                            const clientItem = document.createElement('a');
+                            clientItem.href = '#';
+                            clientItem.className = 'list-group-item list-group-item-action';
+                            clientItem.innerHTML = `<strong>${client.name}</strong> (${client.id})`;
+                            clientItem.dataset.clientId = client.id;
+                            clientItem.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                loadClientDetails(client.id);
+                                
+                                // Mark this item as active
+                                document.querySelectorAll('#clientsList a').forEach(el => {
+                                    el.classList.remove('active');
+                                });
+                                this.classList.add('active');
+                            });
+                            clientsList.appendChild(clientItem);
+                            
+                            // Add to select dropdown
+                            const option = document.createElement('option');
+                            option.value = client.id;
+                            option.textContent = `${client.name} (${client.id})`;
+                            clientIdSelect.appendChild(option);
+                        });
+                        
+                        // Load the first client details by default
+                        loadClientDetails(data.clients[0].id);
+                        document.querySelector('#clientsList a').classList.add('active');
+                    } else {
+                        clientsList.innerHTML = '<div class="alert alert-warning">No clients found</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('clientsList').innerHTML = 
+                        '<div class="alert alert-danger">Error loading clients</div>';
+                });
+            
+            // Handle form submission
+            document.getElementById('queryForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                sendQuery();
+            });
+        });
+
+        function loadClientDetails(clientId) {
+            fetch(`/clients/${clientId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const clientDetails = document.getElementById('clientDetails');
+                    if (data.success && data.client) {
+                        const client = data.client;
+                        clientDetails.innerHTML = `
+                            <h4>${client.name}</h4>
+                            <p>${client.description}</p>
+                            <p><strong>Client ID:</strong> ${client.id}</p>
+                            <div class="alert alert-info">
+                                <strong>Environment:</strong><br>
+                                ${client.env_loaded ? 
+                                    'Client environment loaded successfully.' : 
+                                    'Warning: Client environment could not be loaded!'}
+                            </div>
+                        `;
+                    } else {
+                        clientDetails.innerHTML = `<div class="alert alert-warning">
+                            Client details not found
+                        </div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('clientDetails').innerHTML = 
+                        '<div class="alert alert-danger">Error loading client details</div>';
+                });
+        }
+
+        function sendQuery() {
+            const clientId = document.getElementById('clientId').value;
+            const prompt = document.getElementById('prompt').value;
+            const model = document.getElementById('model').value;
+            const limitRows = document.getElementById('limitRows').value;
+            const executeQuery = document.getElementById('executeQuery').checked;
+            const includeCharts = document.getElementById('includeCharts').checked;
+            
+            const requestBody = {
+                client_id: clientId,
+                prompt: prompt,
+                model: model,
+                limit_rows: parseInt(limitRows),
+                execute_query: executeQuery,
+                include_charts: includeCharts
+            };
+            
+            // Show loading indicator
+            document.getElementById('loading').classList.remove('d-none');
+            document.getElementById('response').innerHTML = '';
+            
+            fetch('/query/unified', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading indicator
+                document.getElementById('loading').classList.add('d-none');
+                
+                // Display formatted response
+                document.getElementById('response').innerHTML = syntaxHighlight(data);
+                
+                // If charts are included, display them
+                if (data.charts && data.charts.length > 0) {
+                    // Redirect to chart viewer
+                    window.open(`/static/chart_viewer.html?data=${encodeURIComponent(JSON.stringify(data.charts[0]))}`, '_blank');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loading').classList.add('d-none');
+                document.getElementById('response').innerHTML = 
+                    `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            });
+        }
+    </script>
+</body>
+</html>
