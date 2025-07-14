@@ -71,13 +71,23 @@ def nlq_to_snowflake_claude(question: str,
         print(sql)
         
         # Add LIMIT if not present and execute flag is True
+        # First check if the SQL already has a LIMIT clause
         if execute and limit_rows > 0 and "LIMIT" not in sql.upper():
+            # Import the extract_limit_from_query function to check if user specified a limit
+            from claude_query_generator import extract_limit_from_query
+            
+            # Check if user specified a limit in their query
+            user_limit = extract_limit_from_query(question)
+            
+            # Use user-specified limit if present, otherwise use default limit_rows
+            final_limit = user_limit if user_limit is not None else limit_rows
+            
             # Safely add LIMIT clause
             sql = sql.strip()
             if sql.endswith(';'):
                 sql = sql[:-1]
-            sql = f"{sql} LIMIT {limit_rows}"
-            print(f"\nAdded limit clause: LIMIT {limit_rows}")
+            sql = f"{sql} LIMIT {final_limit}"
+            print(f"\nAdded limit clause: LIMIT {final_limit}")
             claude_result["sql"] = sql  # Update the SQL in the result
         
         # Log token usage for both executed and non-executed queries

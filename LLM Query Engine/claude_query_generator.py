@@ -23,6 +23,82 @@ except ImportError:
     import anthropic
 
 
+def extract_limit_from_query(query: str) -> Optional[int]:
+    """
+    Extract numeric limit from user query like "top 5", "first 10", "top five", etc.
+    Handles both digit-based numbers (5) and word-based numbers (five).
+    
+    Args:
+        query: Natural language query
+        
+    Returns:
+        Extracted limit as integer or None if not found
+    """
+    import re
+    
+    # Dictionary to convert word numbers to digits
+    word_to_number = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+        'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+        'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
+        'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
+        'eighty': 80, 'ninety': 90, 'hundred': 100
+    }
+    
+    # Common patterns for digit-based limits in natural language queries
+    digit_patterns = [
+        r'top\s+(\d+)',              # "top 5"
+        r'first\s+(\d+)',            # "first 10"
+        r'(\d+)\s+(?:rows|results)', # "5 rows", "10 results"
+        r'limit\s+(?:to\s+)?(\d+)',  # "limit to 15", "limit 15"
+        r'show\s+(?:me\s+)?(\d+)',   # "show me 20", "show 20"
+        r'get\s+(?:me\s+)?(\d+)',    # "get me 25", "get 25"
+        r'return\s+(?:me\s+)?(\d+)'  # "return me 30", "return 30"
+    ]
+    
+    # Common patterns for word-based limits
+    word_patterns = [
+        r'top\s+(\w+)',              # "top five"
+        r'first\s+(\w+)',            # "first ten"
+        r'(\w+)\s+(?:rows|results)', # "five rows", "ten results"
+        r'limit\s+(?:to\s+)?(\w+)',  # "limit to fifteen", "limit fifteen"
+        r'show\s+(?:me\s+)?(\w+)',   # "show me twenty", "show twenty"
+        r'get\s+(?:me\s+)?(\w+)',    # "get me twenty-five", "get twenty-five"
+        r'return\s+(?:me\s+)?(\w+)'  # "return me thirty", "return thirty"
+    ]
+    
+    # Try digit-based patterns first
+    for pattern in digit_patterns:
+        matches = re.search(pattern, query.lower())
+        if matches:
+            try:
+                return int(matches.group(1))
+            except (ValueError, IndexError):
+                continue
+    
+    # Try word-based patterns
+    for pattern in word_patterns:
+        matches = re.search(pattern, query.lower())
+        if matches:
+            try:
+                word = matches.group(1).lower()
+                # Handle compound words like "twenty-five"
+                if '-' in word:
+                    parts = word.split('-')
+                    if len(parts) == 2 and parts[0] in word_to_number and parts[1] in word_to_number:
+                        # For words like "twenty-five"
+                        if parts[0] in ['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']:
+                            return word_to_number[parts[0]] + word_to_number[parts[1]]
+                
+                # Direct lookup for simple number words
+                if word in word_to_number:
+                    return word_to_number[word]
+            except (ValueError, IndexError, KeyError):
+                continue
+    
+    return None
+
 def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100) -> str:
     """
     Generate system prompt for Claude with table schema information
@@ -30,10 +106,14 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
     Args:
         tables: List of formatted table dictionaries
         query: Natural language query
+        limit_rows: Default row limit if not specified in query
         
     Returns:
         Formatted system prompt for Claude
     """
+    # Extract limit from query if present
+    extracted_limit = extract_limit_from_query(query)
+    
     # Format tables info into string
     tables_context = ""
     for table in tables:
@@ -64,13 +144,19 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         
         tables_context += "\n"
     
-    # Create prompt template for Claude
+    # Create prompt template for Claude with emphasis on respecting numeric limits
+    limit_instruction = ""
+    if extracted_limit:
+        limit_instruction = f"""
+\nCRITICAL INSTRUCTION: The user has requested {extracted_limit} results. You MUST include 'LIMIT {extracted_limit}' in your SQL query.
+"""
+    
     prompt = f"""You are an expert SQL query generator for Snowflake database.
 
 Your task is to convert natural language questions into valid SQL queries that can run on Snowflake.
 Use the following data dictionary to understand the database schema:
 
-{tables_context}
+{tables_context}{limit_instruction}
 
 When generating SQL:
 1. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)
@@ -79,9 +165,8 @@ When generating SQL:
 4. Only use tables and columns that exist in the provided schema
 5. Add helpful SQL comments to explain complex parts of the query
 6. Return ONLY the SQL code without any other text or explanations
-7. IMPORTANT: Prioritize row limits in this order:
-   a. If the user explicitly specifies a number of results in their query (e.g., "top 5", "first 10"), use that number
-   b. Otherwise, limit results to {limit_rows} rows
+7. EXTREMELY IMPORTANT: If the user specifies a number in their query (like "top 5", "first 10"), you MUST use that exact number in a LIMIT clause
+8. Only if the user does not specify a number, limit results to {limit_rows} rows
 
 Generate a SQL query for: {query}
 """
