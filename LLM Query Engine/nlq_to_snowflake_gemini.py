@@ -13,42 +13,41 @@ from dotenv import load_dotenv
 
 # Import our local modules
 from gemini_query_generator import natural_language_to_sql_gemini
-from snowflake_runner import execute_query
+from snowflake_runner import execute_query as run_snowflake_query
 from token_logger import TokenLogger
 
 # Load environment variables
 load_dotenv()
 
-def nlq_to_snowflake_gemini(question: str,
+def nlq_to_snowflake_gemini(prompt: str,
                      data_dictionary_path: Optional[str] = None,
-                     execute: bool = True,
+                     execute_query: bool = True,
                      limit_rows: int = 100,
-                     model: str = "models/gemini-1.5-flash-latest") -> Dict[str, Any]:
+                     model: str = None,
+                     include_charts: bool = False) -> Dict[str, Any]:
     """
-    End-to-end pipeline to convert natural language to SQL using Gemini and execute in Snowflake
-    Args:
-        question: Natural language question to convert to SQL
-        data_dictionary_path: Path to data dictionary CSV/Excel file
-        execute: Whether to execute the SQL in Snowflake (True) or just return SQL (False)
-        limit_rows: Maximum number of rows to return (adds LIMIT if not in query)
-        model: Gemini model name
-    Returns:
-        Dict with SQL, results, and metadata
+    End-to-end function to convert natural language to SQL using Gemini, then optionally execute in Snowflake.
+    Handles chart recommendations if include_charts is True and execute_query is True.
     """
-    # Set default data dictionary path if not provided
+    # Use environment variable if model not specified
+    if model is None:
+        model = os.environ.get("GEMINI_MODEL", "models/gemini-2.5-flash")
+    # Ensure dictionary path is provided
     if not data_dictionary_path:
-        data_dictionary_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data Dictionary", "mts.csv")
+        # Raise an error instead of silently falling back to MTS dictionary
+        raise ValueError("No dictionary path provided. Cannot proceed with Gemini.")
     print(f"Using model: {model}")
-    print(f"Converting: '{question}' to SQL using Gemini...")
+    print(f"Converting: '{prompt}' to SQL using Gemini...")
     start_time = pd.Timestamp.now()
     try:
         # Step 1: Use Gemini to generate SQL
         gemini_result = natural_language_to_sql_gemini(
-            query=question,
+            query=prompt,
             data_dictionary_path=data_dictionary_path,
             model=model,
             log_tokens=True,
-            limit_rows=limit_rows
+            limit_rows=limit_rows,
+            include_charts=include_charts
         )
         sql = gemini_result.get("sql", "")
         if not isinstance(sql, str):
@@ -59,23 +58,38 @@ def nlq_to_snowflake_gemini(question: str,
             gemini_result["sql"] = sql
         print("\nGenerated SQL:")
         print(sql)
-        # Add LIMIT if not present and execution is requested
-        if execute and limit_rows > 0 and "LIMIT" not in sql.upper():
+        # Handle LIMIT clause based on user preference and priority rules
+        if execute_query:
             sql = sql.strip()
             if sql.endswith(';'):
                 sql = sql[:-1]
-            sql = f"{sql} LIMIT {limit_rows}"
-            print(f"\nAdded limit clause: LIMIT {limit_rows}")
+                
+            # Check if a LIMIT clause already exists (user prompt limit takes first priority)
+            import re
+            limit_pattern = re.compile(r'LIMIT\s+\d+', re.IGNORECASE)
+            limit_match = limit_pattern.search(sql)
+            
+            if limit_match:
+                # A LIMIT already exists in the query - respect it as it's from the LLM following the user's prompt
+                # Extract the limit value for logging
+                limit_value = int(re.search(r'LIMIT\s+(\d+)', sql, re.IGNORECASE).group(1))
+                print(f"\nPreserving user-specified limit: LIMIT {limit_value}")
+            elif limit_rows > 0:
+                # No LIMIT clause found, add one using the limit_rows parameter (second priority)
+                sql = f"{sql} LIMIT {limit_rows}"
+                print(f"\nAdded limit clause: LIMIT {limit_rows}")
+            # If no limit in query and limit_rows is 0, don't add any limit
+                
             gemini_result["sql"] = sql
         # Log token usage for both executed and non-executed queries
         query_executed_value = None  # Default for non-executed queries
 
-        # Execute in Snowflake if requested
-        if execute:
+        # Execute query in Snowflake if requested
+        if execute_query:
             print("\nExecuting in Snowflake...")
             query_executed_successfully = False
             try:
-                df = execute_query(sql, print_results=True)
+                df = run_snowflake_query(sql, print_results=True)
                 gemini_result["results"] = df
                 gemini_result["success"] = True
                 gemini_result["row_count"] = len(df)
@@ -87,6 +101,8 @@ def nlq_to_snowflake_gemini(question: str,
                 gemini_result["success"] = False
                 query_executed_value = 0  # Failed execution
         else:
+            # Not executing query (execute_query=False)
+            print("\nSkipping execution (execute_query=False)")
             gemini_result["success"] = True  # No execution requested, so no execution error
             
         # Always log token usage with appropriate query_executed status
@@ -94,13 +110,13 @@ def nlq_to_snowflake_gemini(question: str,
             logger = TokenLogger()
             logger.log_usage(
                 model=model,
-                query=question,
+                query=prompt,
                 usage={
                     "prompt_tokens": gemini_result.get("prompt_tokens", 0),
                     "completion_tokens": gemini_result.get("completion_tokens", 0),
                     "total_tokens": gemini_result.get("total_tokens", 0)
                 },
-                prompt=question,
+                prompt=prompt,
                 sql_query=sql,
                 query_executed=query_executed_value  # 1=success, 0=failed, None=not executed
             )
@@ -108,6 +124,18 @@ def nlq_to_snowflake_gemini(question: str,
             print(f"Error logging token usage: {str(log_err)}")
             
         gemini_result["execution_time_ms"] = (pd.Timestamp.now() - start_time).total_seconds() * 1000
+        
+        # Handle chart recommendations based on execute_query parameter
+        # Only include chart recommendations when the query was actually executed
+        if include_charts:
+            if execute_query and gemini_result.get("success") and isinstance(gemini_result.get("results"), pd.DataFrame) and not gemini_result.get("results").empty:
+                # Add chart recommendations when include_charts=true AND query was executed successfully
+                gemini_result["chart_recommendations"] = gemini_result.get("chart_recommendations", [])
+                gemini_result["chart_error"] = None
+            else:
+                # No chart recommendations if query wasn't executed or failed
+                gemini_result["chart_recommendations"] = None
+                gemini_result["chart_error"] = "Cannot generate charts: " + ("query not executed" if not execute_query else "query execution failed or returned no results")
         return gemini_result
     except Exception as e:
         print(f"Error: {str(e)}")
@@ -115,16 +143,19 @@ def nlq_to_snowflake_gemini(question: str,
         traceback.print_exc()
         error_msg = str(e).replace("'", "''")
         return {
-            "sql": f"SELECT 'Error in SQL generation: {error_msg}' AS error_message",
+            "sql": "",  # Don't create a fake SQL query with the error message
             "model": model,
             "error": str(e),
+            "error_message": str(e),  # Explicitly include error_message
             "success": False,
-            "query": question,
+            "query": prompt,
             "data_dictionary": data_dictionary_path,
             "timestamp": pd.Timestamp.now().isoformat(),
             "prompt_tokens": 0,
             "completion_tokens": 0,
-            "total_tokens": 0
+            "total_tokens": 0,
+            "chart_recommendations": None,
+            "chart_error": f"Cannot generate charts: {error_msg}"
         }
 
 # Command line interface for testing

@@ -4,6 +4,7 @@ Gemini LLM Query Generator - A module to convert natural language to SQL using G
 import os
 import pandas as pd
 import datetime
+import json
 from typing import Dict, List, Any, Optional
 from token_logger import TokenLogger
 
@@ -25,7 +26,7 @@ except ImportError:
 # Reuse these functions from the OpenAI implementation
 from llm_query_generator import load_data_dictionary, format_data_dictionary
 
-def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100) -> str:
+def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100, include_charts: bool = False) -> str:
     """
     Generate system prompt for Gemini with table schema information
     """
@@ -48,12 +49,59 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
                 tables_context += f" [Business Name: {col['business_name']}]"
             tables_context += "\n"
         tables_context += "\n"
-    prompt = f"""You are an expert SQL query generator for Snowflake database.\n\nYour task is to convert natural language questions into valid SQL queries that can run on Snowflake.\nUse the following data dictionary to understand the database schema:\n\n{tables_context}\nWhen generating SQL:\n1. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)\n2. Include appropriate JOINs based on the data relationships or column name similarities\n3. Format the SQL code clearly with proper indentation and aliases\n4. Only use tables and columns that exist in the provided schema\n5. Return ONLY the SQL code, without any comments, explanations, or markdown\n6. IMPORTANT: Prioritize row limits in this order:
-   a. If the user explicitly specifies a number of results in their query (e.g., "top 5", "first 10"), use that number
-   b. Otherwise, limit results to {limit_rows} rows\n\nGenerate a SQL query for: {query}\n"""
+    # Create chart instructions if needed
+    chart_instructions = """
+
+After generating the SQL query, you must also recommend appropriate chart types for visualizing the results. Follow these rules for chart recommendations:
+
+1. Analyze the query structure to understand what data will be returned
+2. Recommend 1-3 appropriate chart types (bar, line, pie, scatter, etc.) based on the query's structure
+3. For each recommendation, provide:
+   - chart_type: The type of chart (bar, line, pie, scatter, etc.)
+   - reasoning: Brief explanation of why this chart type is appropriate
+   - priority: Importance ranking (1 = highest)
+   - chart_config: Detailed configuration including:
+     * title: Descriptive chart title
+     * x_axis: Column to use for x-axis
+     * y_axis: Column to use for y-axis
+     * color_by: Column to use for segmentation/colors (if applicable)
+     * aggregate_function: Any aggregation needed (SUM, AVG, etc.)
+     * chart_library: Recommended visualization library (plotly)
+     * additional_config: Other relevant settings like orientation, legend, etc.
+
+4. Also provide 2-4 data insights that would be valuable to highlight
+
+Your response must be a valid JSON object with the following structure:
+{
+  "sql": "YOUR SQL QUERY HERE",
+  "chart_recommendations": [
+    {
+      "chart_type": "bar|pie|line|scatter|etc",
+      "reasoning": "Why this chart is appropriate",
+      "priority": 1,
+      "chart_config": {
+        "title": "Chart title",
+        "x_axis": "column_name",
+        "y_axis": "column_name",
+        "color_by": "column_name",
+        "aggregate_function": "NONE|SUM|AVG|etc",
+        "chart_library": "plotly",
+        "additional_config": {
+          "show_legend": true,
+          "orientation": "vertical|horizontal"
+        }
+      }
+    }
+  ],
+  }
+""" if include_charts else """
+Return ONLY the SQL code without any other text or explanations.
+"""
+
+    prompt = f"""You are an expert SQL query generator for Snowflake database.\n\nYour task is to convert natural language questions into valid SQL queries that can run on Snowflake.\nUse the following data dictionary to understand the database schema:\n\n{tables_context}\nWhen generating SQL:\n1. Only generate SELECT queries.\n2. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)\n3. For column selections:\n   - Always list columns individually (never concatenate or combine columns till user not asking in prompt)\n   - Use consistent column casing - uppercase for all column names\n   - Format each column on a separate line with proper indentation\n4. Include appropriate JOINs based only on the relationships defined in the schema metadata.\n5. Only use tables and columns that exist in the provided schema.\n6. For numeric values:\n   - Use standard CAST() function for type conversions (e.g., CAST(field AS DECIMAL) or CAST(field AS NUMERIC))\n   - When using GROUP BY, always apply aggregate functions (SUM, AVG, etc.) to non-grouped numeric fields\n   - Example: SUM(CAST(SALES_AMOUNT AS NUMERIC)) AS TOTAL_SALES\n   - ALWAYS use NULLIF() for divisions to prevent division by zero errors:\n     * For percentage calculations: (new_value - old_value) / NULLIF(old_value, 0) * 100\n     * For ratios: numerator / NULLIF(denominator, 0)\n   - For sensitive calculations that must return specific values on zero division:\n     * Use CASE: CASE WHEN denominator = 0 THEN NULL ELSE numerator/denominator END\n7. Format results with consistent column naming:\n   - For aggregations, use uppercase names (e.g., SUM(sales) AS TOTAL_SALES)\n   - For regular columns, maintain original casing\n8. CRITICAL: Follow these row limit rules EXACTLY:\n   a. If the user explicitly specifies a number in their query (e.g., "top 5", "first 10"), use EXACTLY that number in the LIMIT clause\n   b. Otherwise, limit results to {limit_rows} rows\n   c. NEVER override a user-specified limit with a different number\n\nGenerate a SQL query for: {query}{chart_instructions}\n"""
     return prompt
 
-def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/gemini-1.5-flash-latest", query_text: str = "", log_tokens: bool = True) -> Dict[str, Any]:
+def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/gemini-1.5-flash-latest", query_text: str = "", log_tokens: bool = True, include_charts: bool = False) -> Dict[str, Any]:
     """
     Generate SQL query using Google Gemini API (OpenAI-compatible result dict)
     """
@@ -77,7 +125,7 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
         genai.configure(api_key=api_key)
         generation_config = {
             "temperature": 0.1,
-            "max_output_tokens": 1000
+            "max_output_tokens": 4000
         }
         model_obj = genai.GenerativeModel(model)
         response = model_obj.generate_content(prompt, generation_config=generation_config)
@@ -95,24 +143,137 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
                     "success": False,
                     "results": None,
                     "row_count": 0,
+                    "chart_recommendations": None,
+                    "chart_error": None,
                     "error_execution": "Empty response from Gemini",
                     "execution_time_ms": (datetime.datetime.now() - start_time).total_seconds() * 1000
                 }
-            # Extract SQL from code blocks if present
+            
+            # Extract SQL based on whether charts are requested
             import re
-            sql_candidate = full_text
-            # Prefer to extract from code blocks, but fallback to raw text
-            if "```" in full_text:
-                sql_blocks = re.findall(r'```(?:sql|SQL)?([\s\S]*?)```', full_text)
-                if sql_blocks and sql_blocks[0]:
-                    sql_candidate = sql_blocks[0].strip()
-                else:
-                    code_blocks = re.findall(r'```([\s\S]*?)```', full_text)
-                    if code_blocks and code_blocks[0]:
-                        sql_candidate = code_blocks[0].strip()
-            # Remove comments and markdown from SQL (lines starting with -- or #, and code block markers)
-            sql_lines = [line for line in sql_candidate.splitlines() if not line.strip().startswith('--') and not line.strip().startswith('#') and not line.strip().startswith('```')]
-            sql_query = '\n'.join(sql_lines).strip()
+            import json
+            
+            # Initialize chart_recommendations and chart_error
+            chart_recommendations = None
+            chart_error = None
+            
+            # Print debug info about the raw response
+            print("\n==== GEMINI RAW RESPONSE ====")
+            print(full_text[:500] + "..." if len(full_text) > 500 else full_text)
+            print("=============================")
+            
+            if include_charts:
+                # Try to parse the JSON response with SQL and chart recommendations
+                try:
+                    # Remove code blocks if present
+                    cleaned_text = full_text
+                    if cleaned_text.startswith("```json") and cleaned_text.endswith("```"):
+                        cleaned_text = cleaned_text[7:-3].strip()
+                    elif cleaned_text.startswith("```") and cleaned_text.endswith("```"):
+                        cleaned_text = cleaned_text[3:-3].strip()
+                    
+                    # Look for JSON object markers
+                    json_start = cleaned_text.find('{')
+                    json_end = cleaned_text.rfind('}')
+                    
+                    if json_start >= 0 and json_end > json_start:
+                        json_content = cleaned_text[json_start:json_end+1]
+                        print("Found JSON content between { and }")
+                    else:
+                        json_content = cleaned_text
+                        print("No JSON markers found, using cleaned text")
+                    
+                    # Parse the JSON response
+                    json_data = json.loads(json_content)
+                    print(f"Successfully parsed JSON with keys: {list(json_data.keys())}")
+                    
+                    # Extract SQL query and chart recommendations
+                    sql_query = json_data.get("sql", "")
+                    chart_recommendations = json_data.get("chart_recommendations", [])
+                    
+                    # If chart_recommendations exists but is empty, try looking for other formats
+                    if not chart_recommendations and "charts" in json_data:
+                        chart_recommendations = json_data.get("charts", [])
+                    
+                    print(f"Found chart recommendations: {len(chart_recommendations) if chart_recommendations else 0} items")
+                    
+                except json.JSONDecodeError as e:
+                    # Fallback if JSON parsing fails
+                    print(f"Error parsing JSON response from Gemini: {str(e)}")
+                    
+                    # Try to find chart recommendations in a non-JSON format
+                    # Many LLMs mention chart recommendations in prose even if JSON parsing fails
+                    chart_section_match = re.search(r'(?:chart recommendations|recommended charts|chart suggestions)(?:[\s\S]*?)(?:1\.|\*|-)([\s\S]*?)(?:$|\n\n)', full_text, re.IGNORECASE)
+                    
+                    if chart_section_match:
+                        chart_text = chart_section_match.group(1).strip()
+                        print(f"Found potential chart text section: {chart_text[:100]}...")
+                        
+                        # Try to identify chart types from the text
+                        chart_types = []
+                        for chart_type in ['bar', 'line', 'pie', 'scatter', 'area', 'mixed']:
+                            if chart_type in chart_text.lower():
+                                chart_types.append(chart_type)
+                        
+                        if chart_types:
+                            print(f"Identified chart types from text: {chart_types}")
+                            # Create basic chart recommendations from the identified types
+                            chart_recommendations = []
+                            for i, chart_type in enumerate(chart_types[:3]):  # Limit to 3
+                                chart_recommendations.append({
+                                    "chart_type": chart_type,
+                                    "reasoning": f"Auto-detected {chart_type} chart from Gemini response",
+                                    "priority": i+1,
+                                    "chart_config": {
+                                        "title": f"Auto-generated {chart_type.capitalize()} Chart",
+                                        "chart_library": "plotly"
+                                    }
+                                })
+                    
+                    # First, try to extract just the SQL query from JSON if possible
+                    # This handles cases where the response is malformed JSON but contains a proper SQL field
+                    # Try to match SQL inside JSON object with multiline support
+                    sql_json_match = re.search(r'"sql"\s*:\s*"(.+?)(?=",|"})', cleaned_text, re.DOTALL)
+                    if sql_json_match:
+                        sql_candidate = sql_json_match.group(1)
+                        print(f"Extracted SQL from partial JSON: {sql_candidate[:50]}...")
+                    else:
+                        # Extract SQL using the regular approach
+                        sql_candidate = full_text
+                        # Prefer to extract from code blocks, but fallback to raw text
+                        if "```" in full_text:
+                            sql_blocks = re.findall(r'```(?:sql|SQL)?([\s\S]*?)```', full_text)
+                            if sql_blocks and sql_blocks[0]:
+                                sql_candidate = sql_blocks[0].strip()
+                            else:
+                                code_blocks = re.findall(r'```([\s\S]*?)```', full_text)
+                                if code_blocks and code_blocks[0]:
+                                    sql_candidate = code_blocks[0].strip()
+                    
+                    # Remove comments and markdown from SQL
+                    sql_lines = [line for line in sql_candidate.splitlines() if not line.strip().startswith('--') and not line.strip().startswith('#') and not line.strip().startswith('```')]
+                    sql_query = '\n'.join(sql_lines).strip()
+                    
+                    # Set chart error if we couldn't extract any charts
+                    if not chart_recommendations:
+                        chart_error = "Cannot generate charts: error in JSON parsing"
+            else:
+                # Just extract SQL without chart parsing
+                sql_candidate = full_text
+                # Prefer to extract from code blocks, but fallback to raw text
+                if "```" in full_text:
+                    sql_blocks = re.findall(r'```(?:sql|SQL)?([\s\S]*?)```', full_text)
+                    if sql_blocks and sql_blocks[0]:
+                        sql_candidate = sql_blocks[0].strip()
+                    else:
+                        code_blocks = re.findall(r'```([\s\S]*?)```', full_text)
+                        if code_blocks and code_blocks[0]:
+                            sql_candidate = code_blocks[0].strip()
+                
+                # Remove comments and markdown from SQL
+                sql_lines = [line for line in sql_candidate.splitlines() if not line.strip().startswith('--') and not line.strip().startswith('#') and not line.strip().startswith('```')]
+                sql_query = '\n'.join(sql_lines).strip()
+            
             # If nothing left, fallback to error
             if not sql_query or not sql_query.strip():
                 sql_query = "SELECT 'Empty SQL query extracted' AS error_message"
@@ -144,6 +305,11 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
                 print(f"Gemini token count - Prompt: {prompt_tokens}, Completion: {completion_tokens}, Total: {total_tokens}")
             except Exception as token_err:
                 print(f"Warning: Could not count tokens for Gemini: {str(token_err)}")
+                # Fallback to estimate
+                prompt_tokens = len(prompt) // 4
+                completion_tokens = len(sql_query) // 4
+                total_tokens = prompt_tokens + completion_tokens
+                print(f"Gemini token ESTIMATE - Prompt: ~{prompt_tokens}, Completion: ~{completion_tokens}, Total: ~{total_tokens}")
         else:
             # Estimate tokens if counter not available (approx 4 chars per token for Gemini)
             prompt_tokens = len(prompt) // 4
@@ -153,31 +319,40 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
             print("Note: This is an approximation. Install latest google-generativeai for accurate counts.")
             # Continue with estimated values if token counter isn't available
         
+        # Print chart recommendations debug info before returning
+        if chart_recommendations:
+            print(f"\nReturning {len(chart_recommendations)} chart recommendations:")
+            for i, chart in enumerate(chart_recommendations):
+                print(f"Chart {i+1}: {chart.get('chart_type')}")
+        else:
+            print("\nNo chart recommendations to return")
+        
+        # Return the result dictionary with chart recommendations
         return {
             "sql": sql_query,
             "model": model,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
-            "success": True,
-            "results": None,
-            "row_count": 0,
-            "error_execution": None,
+            "chart_recommendations": chart_recommendations,
+            "chart_error": chart_error,
             "execution_time_ms": execution_time_ms
         }
     except Exception as e:
         execution_time_ms = (datetime.datetime.now() - start_time).total_seconds() * 1000
         return {
-            "sql": f"SELECT 'Error in SQL generation: {str(e).replace("'", "''")}' AS error_message",
+            "sql": f"SELECT 'Error in SQL generation: {str(e).replace("'", "''")}'  AS error_message",
             "model": model,
             "error": str(e),
+            "chart_recommendations": None,
+            "chart_error": f"Chart generation failed: {str(e)}",
             "prompt_tokens": prompt_tokens if 'prompt_tokens' in locals() else 0,
             "completion_tokens": completion_tokens if 'completion_tokens' in locals() else 0,
             "total_tokens": total_tokens if 'total_tokens' in locals() else 0,
             "execution_time_ms": execution_time_ms
         }
 
-def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[str] = None, api_key: Optional[str] = None, model: str = "models/gemini-1.5-flash-latest", log_tokens: bool = True, limit_rows: int = 100) -> Dict[str, Any]:
+def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[str] = None, api_key: Optional[str] = None, model: str = None, log_tokens: bool = True, limit_rows: int = 100, include_charts: bool = False) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Gemini, matching OpenAI logic for data dictionary and prompt construction.
     If data_dictionary_path is not provided, use the default 'data_dictionary.csv' in the current directory.
@@ -186,6 +361,8 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
     import datetime
     if api_key is None:
         api_key = os.environ.get("GEMINI_API_KEY")
+    if model is None:
+        model = os.environ.get("GEMINI_MODEL", "models/gemini-2.5-flash")
     if not api_key:
         return {
             "sql": "SELECT 'Gemini API key not provided' AS error_message",
@@ -207,13 +384,14 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
         if df.empty:
             raise ValueError("Data dictionary loaded but is empty. Please check your file.")
         tables = format_data_dictionary(df)
-        prompt = generate_sql_prompt(tables, query, limit_rows=limit_rows)
+        prompt = generate_sql_prompt(tables, query, limit_rows=limit_rows, include_charts=include_charts)
         result = generate_sql_query_gemini(
             api_key=api_key,
             prompt=prompt,
             model=model,
             query_text=query,
-            log_tokens=log_tokens
+            log_tokens=log_tokens,
+            include_charts=include_charts
         )
         # Ensure 'sql' key always exists and is a string
         if 'sql' not in result or result['sql'] is None or not isinstance(result['sql'], str):
@@ -238,6 +416,8 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "total_tokens": 0,
+            "chart_recommendations": None,
+            "chart_error": str(e),
             "execution_time_ms": execution_time_ms
         }
 

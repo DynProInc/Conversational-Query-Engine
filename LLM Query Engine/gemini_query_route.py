@@ -34,7 +34,7 @@ def generate_sql_query_gemini(request: GeminiQueryRequest):
     """
     Generate SQL from natural language using Google Gemini and return as JSON.
     """
-    model = request.model or "models/gemini-1.5-flash-latest"
+    model = request.model or os.environ.get("GEMINI_MODEL", "models/gemini-2.5-flash")
     api_key = os.environ.get("GEMINI_API_KEY")
     result = natural_language_to_sql_gemini(
         query=request.prompt,
@@ -67,6 +67,7 @@ class QueryRequest(BaseModel):
     data_dictionary_path: Optional[str] = None
     execute_query: bool = True
     model: Optional[str] = None
+    include_charts: bool = False
 
 class QueryResponse(BaseModel):
     prompt: str
@@ -77,6 +78,8 @@ class QueryResponse(BaseModel):
     success: bool = True
     error_message: Optional[str] = None
     execution_time_ms: Optional[float] = None
+    chart_recommendations: Optional[List[Dict[str, Any]]] = None
+    chart_error: Optional[str] = None
 
 @router.post("/query/gemini/execute", response_model=QueryResponse)
 def generate_sql_query_gemini_execute(request: QueryRequest):
@@ -86,11 +89,12 @@ def generate_sql_query_gemini_execute(request: QueryRequest):
     """
     try:
         result = nlq_to_snowflake_gemini(
-            question=request.prompt,
+            prompt=request.prompt,
             data_dictionary_path=request.data_dictionary_path,
-            execute=request.execute_query,
+            execute_query=request.execute_query,
             limit_rows=request.limit_rows,
-            model=request.model or "models/gemini-1.5-flash-latest"
+            model=request.model or os.environ.get("GEMINI_MODEL", "models/gemini-2.5-flash"),
+            include_charts=request.include_charts
         )
         # Convert DataFrame results to list of dicts
         query_output = []
@@ -114,7 +118,9 @@ def generate_sql_query_gemini_execute(request: QueryRequest):
                 token_usage=token_usage,
                 success=False,
                 error_message=result.get("error") or result.get("error_execution", "Unknown error"),
-                execution_time_ms=result.get("execution_time_ms")
+                execution_time_ms=result.get("execution_time_ms"),
+                chart_recommendations=result.get("chart_recommendations"),
+                chart_error=result.get("chart_error")
             )
         return QueryResponse(
             prompt=request.prompt,
@@ -124,7 +130,9 @@ def generate_sql_query_gemini_execute(request: QueryRequest):
             token_usage=token_usage,
             success=True,
             error_message=None,
-            execution_time_ms=result.get("execution_time_ms")
+            execution_time_ms=result.get("execution_time_ms"),
+            chart_recommendations=result.get("chart_recommendations"),
+            chart_error=result.get("chart_error")
         )
     except Exception as e:
         import traceback

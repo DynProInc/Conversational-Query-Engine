@@ -1,6 +1,6 @@
 # LLM Query Engine
 
-A powerful conversational query engine that converts natural language questions into SQL queries and executes them against Snowflake databases. Supports multiple LLM providers: OpenAI, Anthropic Claude, and Google Gemini.
+A powerful conversational query engine that converts natural language questions into SQL queries and executes them against Snowflake databases. Supports multiple LLM providers (OpenAI, Anthropic Claude, and Google Gemini) and multiple clients with isolated configurations.
 
 ## Overview
 
@@ -12,14 +12,15 @@ This system allows users to query data in Snowflake databases using natural lang
 
 ## Architecture
 
-The codebase follows a modular architecture to support multiple LLM providers:
+The codebase follows a modular architecture to support multiple LLM providers and multiple clients:
 
 ### Core Components
 
 1. **API Server** (`api_server.py`): FastAPI server that exposes endpoints for:
    - Converting natural language to SQL
    - Executing SQL against Snowflake
-   - Health checks and model listings
+   - Client-specific and system-wide health checks
+   - Model and client listings
 
 2. **LLM Query Generators**:
    - OpenAI implementation (`llm_query_generator.py`)
@@ -44,8 +45,14 @@ The codebase follows a modular architecture to support multiple LLM providers:
 ### Supporting Components
 
 1. **Health Checks** (`health_check_utils.py`):
-   - Verifies connectivity to LLM APIs
-   - Checks Snowflake connection status
+   - Verifies connectivity to LLM APIs with client-specific API keys
+   - Checks Snowflake connection status with client-specific credentials
+   - Supports both global and client-specific health monitoring
+
+2. **Client Manager** (`config/client_manager.py`):
+   - Manages multiple client configurations
+   - Loads client-specific environment variables
+   - Enforces strict client-specific API key validation
 
 2. **Query History** (`prompt_query_history_api.py` & `prompt_query_history_route.py`):
    - Maintains history of user queries
@@ -87,23 +94,41 @@ Token usage is logged to `token_usage.csv` with metrics including:
 
 ### Requirements
 
-The application requires the following packages (see `requirements.txt`):
+The application requires Python 3.13.3 and the following packages (see `requirements.txt`):
+
 ```
-openai>=1.0.0
-pandas>=1.5.0
-openpyxl>=3.1.0
-python-dotenv>=1.0.0
-snowflake-connector-python>=3.0.0
-fastapi>=0.100.0
-uvicorn>=0.22.0
-pydantic>=2.0.0
-google-generativeai>=0.3.0
-anthropic>=0.5.0
+# API framework
+fastapi==0.115.14
+uvicorn==0.35.0
+pydantic==2.11.7
+pydantic_core==2.33.2
+starlette==0.46.2
+
+# LLM providers
+openai==1.93.0
+anthropic==0.56.0
+google-generativeai==0.8.5
+
+# Data processing
+pandas==2.3.0
+openpyxl==3.1.5
+numpy==2.2.6
+
+# Database
+snowflake-connector-python==3.15.0
+
+# Configuration and environment
+python-dotenv==1.1.0
+
+# Additional dependencies
+# See full requirements.txt for complete list
 ```
 
 ### Environment Variables
 
-Create a `.env` file with the following variables:
+#### Global Environment Variables
+
+Create a `.env` file with the following variables for system-wide settings:
 ```
 OPENAI_API_KEY=your_openai_key
 CLAUDE_API_KEY=your_claude_key
@@ -117,6 +142,34 @@ SNOWFLAKE_DATABASE=your_snowflake_database
 SNOWFLAKE_SCHEMA=your_snowflake_schema
 ```
 
+#### Client-Specific Environment Variables
+
+Create client-specific environment files in `config/clients/env/{client_id}.env` with the following naming convention:
+
+```
+# Client-specific Snowflake credentials
+CLIENT_{CLIENT_ID}_SNOWFLAKE_USER=client_specific_user
+CLIENT_{CLIENT_ID}_SNOWFLAKE_PASSWORD=client_specific_password
+CLIENT_{CLIENT_ID}_SNOWFLAKE_ACCOUNT=client_specific_account
+CLIENT_{CLIENT_ID}_SNOWFLAKE_WAREHOUSE=client_specific_warehouse
+CLIENT_{CLIENT_ID}_SNOWFLAKE_DATABASE=client_specific_database
+CLIENT_{CLIENT_ID}_SNOWFLAKE_SCHEMA=client_specific_schema
+
+# Client-specific OpenAI configuration
+CLIENT_{CLIENT_ID}_OPENAI_API_KEY=client_specific_openai_key
+CLIENT_{CLIENT_ID}_OPENAI_MODEL=gpt-4o
+
+# Client-specific Anthropic configuration
+CLIENT_{CLIENT_ID}_ANTHROPIC_API_KEY=client_specific_anthropic_key
+CLIENT_{CLIENT_ID}_ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+
+# Client-specific Gemini configuration
+CLIENT_{CLIENT_ID}_GEMINI_API_KEY=client_specific_gemini_key
+CLIENT_{CLIENT_ID}_GEMINI_MODEL=models/gemini-2.5-flash
+```
+
+The system enforces strict client-specific API key validation with no automatic fallbacks between clients.
+
 ## Running the Application
 
 Start the API server:
@@ -128,7 +181,72 @@ The server will be available at `http://localhost:8000` with the following endpo
 
 ### API Endpoints and Examples
 
-#### `/query/openai` - OpenAI SQL Generation
+#### Health Check Endpoints
+
+##### `/health` - System-wide Health Check
+
+```
+GET /health
+```
+
+Checks the system-wide health status using default API keys and connections.
+
+##### `/health/client/{client_id}` - Client-specific Health Check
+
+```
+GET /health/client/penguin
+```
+
+Verifies the specific client's API keys and configuration, returning detailed status for:
+- OpenAI API connection
+- Claude API connection
+- Gemini API connection
+- Snowflake connection
+
+Response example:
+```json
+{
+  "client_id": "penguin",
+  "status": "healthy",
+  "models": ["openai", "claude", "gemini"],
+  "details": {
+    "openai": {"ok": true, "msg": "Connected to OpenAI API"},
+    "claude": {"ok": true, "msg": "Connected to Claude API"},
+    "gemini": {"ok": true, "msg": "Connected to Gemini API"},
+    "snowflake": {"ok": true, "msg": "Connected to Snowflake"}
+  },
+  "timestamp": "2025-07-14T15:58:40.700514"
+}
+```
+
+##### `/health/client` - All Clients Health Check
+
+```
+GET /health/client
+```
+
+Checks the health status of all configured clients, returning a consolidated report with:
+- Overall system health status
+- Individual client status details
+- Client count
+- Timestamp
+
+Response example:
+```json
+{
+  "status": "degraded",
+  "timestamp": "2025-07-14T16:28:15.392871",
+  "client_count": 2,
+  "clients": {
+    "penguin": { /* client health details */ },
+    "mts": { /* client health details */ }
+  }
+}
+```
+
+#### Query Endpoints
+
+##### `/query/openai` - OpenAI SQL Generation
 
 ```json
 POST /query/openai
@@ -187,7 +305,7 @@ Content-Type: application/json
 }
 ```
 
-#### `/query` - Unified Endpoint
+#### `/query/unified` - Unified Endpoint
 
 ```json
 POST /query/unified
@@ -196,11 +314,18 @@ Content-Type: application/json
 {
   "prompt": "Show me the top 6 stores with highest sales in year 2024",
   "limit_rows": 100,
+  "client_id": "penguin",
   "data_dictionary_path": null,
   "execute_query": true,
-  "model": "openai"  // or "claude", "gemini", "gpt-4o", etc.
+  "model": "openai"  // or "claude", "gemini", "all", etc.
 }
 ```
+
+The unified endpoint supports:
+- Client-specific routing using `client_id`
+- Strict client-specific API key validation
+- Using "all" as a model parameter to compare results across all available models
+- Client-specific data dictionaries
 
 #### `/health` - Health Check Endpoint
 

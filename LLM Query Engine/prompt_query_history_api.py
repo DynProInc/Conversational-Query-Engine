@@ -5,14 +5,17 @@ import os
 import csv
 import datetime
 from typing import List, Dict, Any
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from fastapi.responses import JSONResponse
 
-app = FastAPI()
+# Create router for better integration with main API
+router = APIRouter()
+app = FastAPI()  # Keep for standalone usage
 
 TOKEN_USAGE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'token_usage.csv')
 
-@app.get("/prompt_query_history")
+@router.get("/prompt_query_history")
+@app.get("/prompt_query_history")  # Keep for standalone usage
 def prompt_query_history() -> JSONResponse:
     """
     Returns the last 30 days of prompt/query history from token_usage.csv as JSON.
@@ -24,23 +27,46 @@ def prompt_query_history() -> JSONResponse:
     if not os.path.exists(TOKEN_USAGE_FILE):
         return JSONResponse(content={"error": "token_usage.csv not found"}, status_code=404)
 
-    with open(TOKEN_USAGE_FILE, 'r', newline='', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            # Expecting 'timestamp' field in ISO format
-            timestamp_str = row.get('timestamp')
-            if not timestamp_str:
-                continue
-            try:
-                timestamp = datetime.datetime.fromisoformat(timestamp_str)
-            except Exception:
-                continue
-            if timestamp >= cutoff:
-                results.append(row)
+    # Try with different encodings since the file might have mixed encodings
+    results = []
+    try:
+        with open(TOKEN_USAGE_FILE, 'r', newline='', encoding='utf-8-sig') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                # Expecting 'timestamp' field in ISO format
+                timestamp_str = row.get('timestamp')
+                if not timestamp_str:
+                    continue
+                try:
+                    timestamp = datetime.datetime.fromisoformat(timestamp_str)
+                except Exception:
+                    continue
+                if timestamp >= cutoff:
+                    results.append(row)
+    except UnicodeDecodeError:
+        # Try with latin-1 encoding which is more forgiving
+        try:
+            with open(TOKEN_USAGE_FILE, 'r', newline='', encoding='latin-1') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    timestamp_str = row.get('timestamp')
+                    if not timestamp_str:
+                        continue
+                    try:
+                        timestamp = datetime.datetime.fromisoformat(timestamp_str)
+                    except Exception:
+                        continue
+                    if timestamp >= cutoff:
+                        results.append(row)
+        except Exception as e:
+            return JSONResponse(content={"error": f"Error reading token_usage.csv: {str(e)}"}, status_code=500)
 
     # Sort by timestamp descending (most recent first)
     results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
     return JSONResponse(content=results)
+
+# Include router in app for standalone usage
+app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn

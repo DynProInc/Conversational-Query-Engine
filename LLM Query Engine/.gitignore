@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Client credential files
+config/clients/env/
+config/clients/*.csv
+*.env
+
 # C extensions
 *.so
 
@@ -101,7 +106,8 @@ Thumbs.db
 # Ignore Data Dictionary outputs
 # Data Dictionary/*.csv
 
-# Ignore Requirements outputs
+# Ignore
+ Requirements outputs
 # Requirements/*.sql
 # Requirements/*.txt
 
