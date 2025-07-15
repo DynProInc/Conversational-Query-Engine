@@ -428,8 +428,9 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('results').style.display = 'block';
                 
-                // Display SQL query
-                document.getElementById('sql-query').textContent = data.query;
+                // Display SQL query with formatting
+                const formattedSQL = formatSQLQuery(data.query);
+                document.getElementById('sql-query').innerHTML = formattedSQL;
                 
                 // Display query results
                 document.getElementById('query-results').textContent = JSON.stringify(data.query_output, null, 2);
@@ -2740,6 +2741,70 @@
             }
             
             Plotly.newPlot(divId, plotData, layout);
+        }
+        // Function to format SQL queries with proper structure and highlighting
+        function formatSQLQuery(sql) {
+            if (!sql) return '';
+            
+            // Clean the SQL first
+            sql = sql.trim();
+            
+            // Replace SQL keywords with highlighted versions and add line breaks
+            const keywords = ['SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'OUTER JOIN', 'ON', 'AND', 'OR', 'AS', 'WITH', 'UNION', 'ALL'];
+            
+            // First pass: add line breaks before major clauses
+            let formattedSql = sql;
+            for (const keyword of keywords) {
+                // Don't match parts of words, only whole keywords
+                const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+                
+                // Different formatting for different keywords
+                if (['SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'WITH'].includes(keyword.toUpperCase())) {
+                    // Major clauses get a new line with no indent
+                    formattedSql = formattedSql.replace(regex, `\n${keyword}`);
+                } else if (['JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'OUTER JOIN'].includes(keyword.toUpperCase())) {
+                    // Joins get a new line with indent
+                    formattedSql = formattedSql.replace(regex, `\n    ${keyword}`);
+                } else if (['ON', 'AND', 'OR'].includes(keyword.toUpperCase())) {
+                    // Conditions get a new line with more indent
+                    formattedSql = formattedSql.replace(regex, `\n      ${keyword}`);
+                }
+            }
+            
+            // Second pass: add line breaks after commas in SELECT clause
+            const selectPattern = /SELECT([\s\S]*?)FROM/i;
+            const selectMatch = formattedSql.match(selectPattern);
+            
+            if (selectMatch && selectMatch[1]) {
+                let selectClause = selectMatch[1];
+                // Replace commas with comma + newline + indent, but ignore commas inside functions
+                let inFunction = 0;
+                let newSelectClause = '';
+                
+                for (let i = 0; i < selectClause.length; i++) {
+                    const char = selectClause[i];
+                    if (char === '(') inFunction++;
+                    else if (char === ')') inFunction--;
+                    
+                    if (char === ',' && inFunction === 0) {
+                        newSelectClause += ',\n    ';
+                    } else {
+                        newSelectClause += char;
+                    }
+                }
+                
+                formattedSql = formattedSql.replace(selectClause, newSelectClause);
+            }
+            
+            // Add syntax highlighting
+            const coloredSql = formattedSql
+                .replace(/\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|JOIN|LEFT JOIN|RIGHT JOIN|INNER JOIN|OUTER JOIN|ON|AND|OR|AS|WITH|UNION|ALL)\b/gi, '<span style="color: blue;">$1</span>')
+                .replace(/('.*?')/g, '<span style="color: green;">$1</span>')
+                .replace(/(\d+)/g, '<span style="color: #ff7000;">$1</span>')
+                .replace(/\b(SUM|AVG|COUNT|MAX|MIN|CAST|AS|NUMERIC|DECIMAL|DATE|TIMESTAMP)\b/gi, '<span style="color: purple;">$1</span>');
+                
+            // Convert to HTML with <pre> to preserve formatting
+            return `<pre style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap;">${coloredSql}</pre>`;
         }
     </script>
 </body>
