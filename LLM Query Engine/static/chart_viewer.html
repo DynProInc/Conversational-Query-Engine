@@ -17,12 +17,47 @@
         }
         
         .chart-card {
-            background-color: white;
             margin-bottom: 20px;
             padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* KPI Card Styles */
+        .kpi-card {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            padding: 20px 25px;
+            background-color: #f8f9ff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            min-height: 100px;
+            width: 100%;
+            margin-bottom: 20px;
+            border-left: 4px solid #4285f4;
+        }
+        
+        .kpi-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .kpi-label {
+            font-weight: 500;
+            font-size: 16px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+        
+        .kpi-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #333;
+            line-height: 1.2;
         }
         
         .chart-card h3 {
@@ -479,96 +514,8 @@
                     }
                 }
                 
-                // Only create a fallback chart if NO chart recommendations are provided
-                if (!data.chart_recommendations || data.chart_recommendations.length === 0) {
-                    console.log('No chart recommendations provided but we have data. Creating a fallback bar chart.');
-                    
-                    // Create a container for the fallback chart
-                    const fallbackChartDiv = document.createElement('div');
-                    fallbackChartDiv.className = 'chart-card';
-                    
-                    const chartTitle = document.createElement('h3');
-                    chartTitle.textContent = 'Auto-generated Visualization';
-                    fallbackChartDiv.appendChild(chartTitle);
-                    
-                    const chartDescription = document.createElement('p');
-                    chartDescription.textContent = 'This chart was automatically generated based on your query results.';
-                    fallbackChartDiv.appendChild(chartDescription);
-                    
-                    const plotDiv = document.createElement('div');
-                    plotDiv.className = 'chart';
-                    plotDiv.id = 'fallback-chart';
-                    plotDiv.style.width = '100%';
-                    plotDiv.style.height = '400px';
-                    fallbackChartDiv.appendChild(plotDiv);
-                    
-                    chartsContainer.appendChild(fallbackChartDiv);
-                    
-                    try {
-                        // Auto-detect the first numeric column for Y-axis
-                        const columns = Object.keys(data.query_output[0]);
-                        let xColumn = columns[0]; // Default to first column for X-axis
-                        let yColumn = null;
-                        
-                        // Find the first numeric column for Y-axis
-                        for (const col of columns) {
-                            const sampleValue = data.query_output[0][col];
-                            if (!isNaN(parseFloat(sampleValue)) && isFinite(sampleValue)) {
-                                yColumn = col;
-                                break;
-                            }
-                        }
-                        
-                        // If no numeric column found, use the second column if available
-                        if (!yColumn && columns.length > 1) {
-                            yColumn = columns[1];
-                        } else if (!yColumn) {
-                            yColumn = columns[0];
-                        }
-                        
-                        // Create a simple chart config
-                        const fallbackConfig = {
-                            chart_type: 'bar',
-                            x_axis: xColumn,
-                            y_axis: yColumn,
-                            title: `${yColumn} by ${xColumn}`
-                        };
-                        
-                        console.log('Rendering fallback chart with config:', fallbackConfig);
-                        
-                        // Render the fallback chart
-                        renderBarChart(fallbackConfig, data.query_output, 'fallback-chart');
-                        
-                        // Safely switch to the charts tab if the function exists
-                        if (typeof showTab === 'function') {
-                            console.log('Switching to charts tab after fallback chart creation');
-                            // Make sure the tab content element exists before trying to show it
-                            if (document.getElementById('charts-content')) {
-                                showTab('charts-content');
-                            } else {
-                                console.warn('charts-content element not found, cannot switch tab');
-                            }
-                        } else {
-                            console.warn('showTab function not available, cannot switch tab');
-                        }
-                    } catch (error) {
-                        console.error('Error creating fallback chart:', error);
-                        const errorMsg = document.createElement('p');
-                        errorMsg.style.color = 'red';
-                        errorMsg.textContent = `Could not create fallback chart: ${error.message}`;
-                        fallbackChartDiv.appendChild(errorMsg);
-                        
-                        // Add more detailed error information for debugging
-                        const errorDetails = document.createElement('details');
-                        const errorSummary = document.createElement('summary');
-                        errorSummary.textContent = 'Error details';
-                        const errorStack = document.createElement('pre');
-                        errorStack.textContent = error.stack || 'No stack trace available';
-                        errorDetails.appendChild(errorSummary);
-                        errorDetails.appendChild(errorStack);
-                        fallbackChartDiv.appendChild(errorDetails);
-                    }
-                }
+                // Do not create fallback charts - only show charts if recommendations exist
+                // We've removed the fallback chart generation code per user request
                 
                 if (data.chart_recommendations && data.chart_recommendations.length > 0) {
                     console.log(`Found ${data.chart_recommendations.length} chart recommendations to render`);
@@ -646,17 +593,27 @@
                                         series.type = idx === 0 ? 'bar' : 'line';
                                     }
                                     
-                                    // Set default axis if missing
+                                    // Set axis based on column name and data magnitude if not already specified
                                     if (!series.axis) {
-                                        // For monetary values (sales, profit), use primary axis
-                                        // For quantity values, use secondary axis
                                         const colName = series.column.toLowerCase();
-                                        if (colName.includes('quantity') || colName.includes('count') || 
-                                            colName.includes('number') || colName.includes('amount')) {
+                                        
+                                        // Check column name patterns first
+                                        const nameIndicatesSecondary = colName.includes('quantity') || colName.includes('count') || 
+                                                                        colName.includes('number') || colName.includes('amount');
+                                        
+                                        // Check magnitude difference if we have the data
+                                        const magnitudeIndicatesSecondary = columnRanges[series.column] && 
+                                                                           primaryMagnitude !== null && 
+                                                                           Math.abs(columnRanges[series.column].magnitude - primaryMagnitude) >= 2;
+                                        
+                                        // Use secondary axis if either condition suggests it
+                                        if (nameIndicatesSecondary || magnitudeIndicatesSecondary) {
                                             series.axis = 'secondary';
                                         } else {
                                             series.axis = 'primary';
                                         }
+                                        
+                                        console.log(`Auto-assigned ${series.column} to ${series.axis} axis based on name/magnitude`);
                                     }
                                 });
                             }
@@ -901,6 +858,116 @@
             // No return needed - we're modifying the layout object directly
         }
         
+        // Function to render a KPI Card for single value metrics
+        function renderKpiCard(config, data, divId) {
+            console.log('Rendering KPI Card', config);
+            
+            const chartElement = document.getElementById(divId);
+            if (!chartElement) {
+                console.error(`Element with ID ${divId} not found`);
+                return;
+            }
+            
+            // Clear any existing content
+            chartElement.innerHTML = '';
+            
+            // Create KPI card container
+            const kpiCard = document.createElement('div');
+            kpiCard.className = 'kpi-card';
+            
+            try {
+                // Determine which field to use as value
+                let valueField = config.y_axis;
+                let labelText = config.title || 'Key Metric';
+                
+                // If y_axis is not specified or doesn't exist in data, find a numeric field
+                if (!valueField || !data[0][valueField]) {
+                    // Look for any numeric field
+                    for (const key in data[0]) {
+                        const value = data[0][key];
+                        if (!isNaN(parseFloat(value)) && isFinite(value)) {
+                            valueField = key;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!valueField) {
+                    throw new Error('No suitable numeric field found for KPI Card');
+                }
+                
+                // Extract the value (use first row if multiple rows exist)
+                let value = data[0][valueField];
+                
+                // Try to parse as number for formatting
+                const numericValue = parseFloat(value);
+                if (!isNaN(numericValue)) {
+                    // Format large numbers with commas
+                    if (Math.abs(numericValue) >= 1000) {
+                        value = numericValue.toLocaleString();
+                    }
+                    
+                    // Add currency symbol if the field name suggests money
+                    // Make sure valueField is a string before calling toLowerCase()
+                    if (valueField && typeof valueField === 'string') {
+                        const fieldLower = valueField.toLowerCase();
+                        if (fieldLower.includes('revenue') || 
+                            fieldLower.includes('sales') || 
+                            fieldLower.includes('price') || 
+                            fieldLower.includes('cost') || 
+                            fieldLower.includes('margin') ||
+                            fieldLower.includes('profit')) {
+                            value = '$' + value;
+                        }
+                        
+                        // Format percentages
+                        if (fieldLower.includes('percent') || fieldLower.includes('ratio') || 
+                            fieldLower.includes('rate')) {
+                            // If the value doesn't already have % symbol, add it
+                            if (!value.toString().includes('%')) {
+                                value = value + '%';
+                            }
+                        }
+                    }
+                    
+                    // Check if the value includes % character regardless of field name
+                    if (value.toString().includes('%')) {
+                        // Already has percentage - no need to add
+                    }
+                }
+                
+                // Create content container
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'kpi-content';
+                
+                // Create label element
+                const label = document.createElement('div');
+                label.className = 'kpi-label';
+                label.textContent = labelText;
+                contentDiv.appendChild(label);
+                
+                // Create value element
+                const valueElement = document.createElement('div');
+                valueElement.className = 'kpi-value';
+                valueElement.textContent = value;
+                contentDiv.appendChild(valueElement);
+                
+                // Add content to card
+                kpiCard.appendChild(contentDiv);
+                
+                // Add to chart element
+                chartElement.appendChild(kpiCard);
+                
+            } catch (error) {
+                console.error('Error rendering KPI Card:', error);
+                chartElement.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error rendering KPI Card: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
         function renderChart(chartRec, data, divId) {
             console.log(`Attempting to render chart for ${divId}`, chartRec);
             
@@ -942,6 +1009,16 @@
                 if (explicitChartType && !chartConfig.chart_type) {
                     chartConfig.chart_type = explicitChartType;
                     console.log(`Applied explicit chart_type to chart_config: ${explicitChartType}`);
+                }
+                
+                // Handle KPI Card type (normalize different possible names)
+                if (chartConfig.chart_type && 
+                    (chartConfig.chart_type.toLowerCase() === 'kpi' || 
+                     chartConfig.chart_type.toLowerCase() === 'kpi card' ||
+                     chartConfig.chart_type.toLowerCase() === 'card' ||
+                     /kpi/i.test(chartConfig.chart_type))) {
+                    chartConfig.chart_type = 'kpi_card';
+                    console.log('Normalized chart type to kpi_card');
                 }
             } else if (chartRec.chart_type) {
                 // Structure: { chart_type: '...', ... }
@@ -1250,10 +1327,18 @@
             console.log('Data to be plotted:', data);
             console.log('Available columns:', Object.keys(data[0]));
             
-            const chartType = chartConfig.chart_type.toLowerCase();
-            console.log(`Rendering chart type: ${chartType}`);
+            const chartType = chartConfig.chart_type ? chartConfig.chart_type.toLowerCase() : 'bar';
+            console.log(`Chart type determined as: ${chartType}`);
             
             try {
+                // Handle KPI Card visualization - expanded matching to catch more variations
+                if (chartType === 'kpi_card' || chartType === 'kpi' || chartType === 'card' || 
+                    chartType.includes('kpi') || chartType.includes('card')) {
+                    console.log('KPI Card visualization detected - rendering KPI Card');
+                    renderKpiCard(chartConfig, data, divId);
+                    return;
+                }
+                
                 // Normalize chart type to handle various naming conventions
                 let normalizedChartType = chartType;
                 

@@ -42,6 +42,12 @@ def execute_query(query: str, print_results: bool = True) -> pd.DataFrame:
     try:
         # Execute query and fetch results
         cursor = conn.cursor()
+        # Debug print: Show the SQL to be executed and its repr
+        print("[Snowflake Runner] About to execute SQL:")
+        print(query)
+        print("[Snowflake Runner] repr of SQL:")
+        print(repr(query))
+        # Execute query
         cursor.execute(query)
         
         # Get column names

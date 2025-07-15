@@ -248,10 +248,13 @@ Histogram: 1 numeric column, shows value distribution
 Box Plot: 1 numeric column + optional grouping, shows statistical spread
 Table View: For purely categorical data or complex data
 
+For single numeric values KPI Card: 
+   Display as minimal cards with bold label at top, large formatted number below, no icons, clean white background, centered text only.
+
 For purely categorical data (no numeric columns): Recommend a table view and suggest query modifications
 
 For each of the 2 chart recommendations, provide:
-   - chart_type: The type of chart (pie, bar, line, scatter, area, histogram, boxplot, table, suggestion)
+   - chart_type: The type of chart (pie, bar, line, scatter, area, histogram, boxplot, table, suggestion,KPI Card)
    - reasoning: Brief explanation of why this chart type is appropriate based on the rules
    - priority: Importance ranking (1 = highest)
    - chart_config: Detailed configuration including:
@@ -484,6 +487,24 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
             # Set chart fields to null when charts aren't requested
             result["chart_recommendations"] = None
             result["chart_error"] = None
+            
+        # FINAL CLEANUP: Remove json prefix, comments and blank lines from extracted SQL
+        if "sql" in result and result["sql"]:
+            sql_query = result["sql"]
+            # Remove 'json' prefix if present 
+            if sql_query.strip().startswith('json'):
+                sql_query = sql_query[4:].strip()
+            
+            # Remove comment lines (both -- and #) and blank lines
+            lines = [line for line in sql_query.splitlines() 
+                    if line.strip() and not line.strip().startswith("--") and not line.strip().startswith("#")]
+            sql_query_cleaned = "\n".join(lines)
+            
+            if not sql_query_cleaned:
+                sql_query_cleaned = "SELECT 'No valid SQL extracted' AS error_message"
+                
+            # Final strip to remove any leading/trailing whitespace
+            result["sql"] = sql_query_cleaned.strip()
         
         # Only log token usage for non-OpenAI models here
         # For OpenAI, token logging is handled in nlq_to_snowflake.py to avoid duplicate logs

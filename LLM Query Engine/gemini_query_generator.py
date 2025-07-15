@@ -55,9 +55,12 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
 After generating the SQL query, you must also recommend appropriate chart types for visualizing the results. Follow these rules for chart recommendations:
 
 1. Analyze the query structure to understand what data will be returned
-2. Recommend 1-3 appropriate chart types (bar, line, pie, scatter, etc.) based on the query's structure
+2.For single numeric values KPI_CARD: 
+   Display as minimal cards with bold label at top, large formatted number below, no icons, clean white background, centered text only.
+8.For purely categorical data with no numeric measures, recommend a table visualization.
+2. Recommend 1-3 appropriate chart types (bar, line, pie, scatter,KPI_CARD,MIX etc.) based on the query's structure
 3. For each recommendation, provide:
-   - chart_type: The type of chart (bar, line, pie, scatter, etc.)
+   - chart_type: The type of chart (bar, line, pie, scatter,mix, etc.)
    - reasoning: Brief explanation of why this chart type is appropriate
    - priority: Importance ranking (1 = highest)
    - chart_config: Detailed configuration including:
@@ -76,7 +79,7 @@ Your response must be a valid JSON object with the following structure:
   "sql": "YOUR SQL QUERY HERE",
   "chart_recommendations": [
     {
-      "chart_type": "bar|pie|line|scatter|etc",
+      "chart_type": "bar|pie|line|scatter|mix|kpi_card|table|etc",
       "reasoning": "Why this chart is appropriate",
       "priority": 1,
       "chart_config": {
@@ -270,7 +273,12 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
                         if code_blocks and code_blocks[0]:
                             sql_candidate = code_blocks[0].strip()
                 
-                # Remove comments and markdown from SQL
+                # Remove json prefix, comments and markdown from SQL
+                sql_candidate = sql_candidate.strip()
+                # Handle 'json' prefix if present
+                if sql_candidate.startswith('json'):
+                    sql_candidate = sql_candidate[4:].strip()
+                    
                 sql_lines = [line for line in sql_candidate.splitlines() if not line.strip().startswith('--') and not line.strip().startswith('#') and not line.strip().startswith('```')]
                 sql_query = '\n'.join(sql_lines).strip()
             

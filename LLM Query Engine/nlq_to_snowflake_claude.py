@@ -190,8 +190,8 @@ def nlq_to_snowflake_claude(prompt: str,
             sql = sql.strip()
             if sql.endswith(';'):
                 sql = sql[:-1]
-            sql = f"{sql} LIMIT {final_limit}"
-            print(f"\nAdded limit clause: LIMIT {final_limit}")
+            sql = f"{sql} LIMIT {limit_rows}"
+            print(f"\nAdded limit clause: LIMIT {limit_rows}")
             claude_result["sql"] = sql  # Update the SQL in the result
         
         # Log token usage for both executed and non-executed queries

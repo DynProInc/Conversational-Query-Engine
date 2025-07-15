@@ -34,12 +34,11 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         tables: List of formatted table dictionaries
         query: Natural language query
         limit_rows: Default row limit if not specified in query
+        include_charts: Whether to include chart recommendations
         
     Returns:
         Formatted system prompt for Claude
     """
-    # Extract limit from query if present
-    extracted_limit = extract_limit_from_query(query)
     
     # Format tables info into string
     tables_context = ""
@@ -110,7 +109,9 @@ After generating the SQL query, recommend appropriate chart types for visualizin
    - Required: One shared axis and multiple measures that may have different scales
    - Best for: Multi-measure comparisons with different scales
 
-For purely categorical data with no numeric measures, recommend a table visualization.
+7.For single numeric values: 
+   Display as minimal cards with bold label at top, large formatted number below, no icons, clean white background, centered text only.
+8.For purely categorical data with no numeric measures, recommend a table visualization.
 
 Scale Detection and Secondary Axis:
 - When two measures have significantly different scales (100x+ difference), use a secondary Y-axis
@@ -122,7 +123,7 @@ Your response MUST be a valid JSON object with the following structure:
   "sql": "YOUR SQL QUERY HERE",
   "chart_recommendations": [
     {
-      "chart_type": "bar|pie|line|scatter|histogram|area|combo|mixed|table|suggestion",
+      "chart_type": "bar|pie|line|scatter|histogram|area|combo|mixed|table|suggestion|KPI Card",
       "reasoning": "Why this chart is appropriate",
       "priority": 1,
       "chart_config": {
@@ -171,7 +172,11 @@ Example with scale detection:
 
 IMPORTANT: DO NOT include any explanations, code blocks, or markdown formatting outside the JSON. Your entire response must be valid JSON that can be parsed directly.
 """ if include_charts else """
-Return ONLY the SQL code without any other text or explanations.
+Return ONLY the SQL code wrapped in triple backticks with the sql tag like this:
+```sql
+SELECT column FROM table WHERE condition;
+```
+Do not include any explanations, text, or other content before or after the SQL code block.
 """
 
     prompt = f"""You are an expert SQL query generator for Snowflake database.
@@ -179,7 +184,7 @@ Return ONLY the SQL code without any other text or explanations.
 Your task is to convert natural language questions into valid SQL queries that can run on Snowflake.
 Use the following data dictionary to understand the database schema:
 
-{tables_context}{limit_instruction}
+{tables_context}
 
 When generating SQL:
 1. Only generate SELECT queries.
@@ -320,7 +325,32 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                             extracted_code = code_blocks[0].strip()
                             if extracted_code:  # Only update if we got something meaningful
                                 sql_query = extracted_code
-                
+                else:
+                    # Fallback: If no code blocks found, try to identify SQL by common SQL keywords
+                    # This helps when Claude returns raw SQL without code blocks
+                    sql_pattern = re.search(r'(?:SELECT|WITH)\s+[\s\S]*?(?:;|$)', full_text, re.IGNORECASE)
+                    if sql_pattern:
+                        extracted_sql = sql_pattern.group(0).strip()
+                        if extracted_sql:  # Only update if we got something meaningful
+                            sql_query = extracted_sql
+
+                # Clean up SQL by removing comment lines, blank lines, and json prefix
+                if sql_query:
+                    # Remove 'json' prefix if present (happens in some responses)
+                    if sql_query.strip().startswith('json'):
+                        sql_query = sql_query[4:].strip()
+                        
+                    # Remove any comment lines (both -- and #) and blank lines
+                    sql_query = '\n'.join([line for line in sql_query.splitlines() 
+                                          if line.strip() and not line.strip().startswith('--') and not line.strip().startswith('#')])
+                    
+                    # Final cleanup
+                    sql_query = sql_query.strip()
+
+                # Debug print
+                print("[Claude SQL Extraction] Final SQL to execute:\n", sql_query)
+                print("[Claude SQL Extraction] repr of SQL:\n", repr(sql_query))
+
                 # For chart recommendations, try to parse JSON - exactly matching OpenAI implementation
                 chart_recommendations = []
                 chart_error = None
@@ -543,8 +573,20 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                 # Final check to ensure sql_query is a string
                 if sql_query is None:
                     sql_query = "SELECT 'SQL extraction resulted in None' AS error_message"
-                elif not isinstance(sql_query, str):
-                    sql_query = str(sql_query)
+                # FINAL CLEANUP: Remove json prefix, comments and blank lines from extracted SQL
+                # First, check if SQL starts with 'json' prefix (happens with some Claude responses)
+                if sql_query.strip().startswith('json'):
+                    sql_query = sql_query[4:].strip()
+                
+                # Remove comment lines (both -- and #) and blank lines
+                lines = [line for line in sql_query.splitlines() 
+                         if line.strip() and not line.strip().startswith("--") and not line.strip().startswith("#")]
+                sql_query_cleaned = "\n".join(lines)
+                
+                if not sql_query_cleaned:
+                    sql_query_cleaned = "SELECT 'No valid SQL extracted' AS error_message"
+                    
+                sql_query = sql_query_cleaned.strip()  # Final strip to remove any leading/trailing whitespace
                 
                 # Ensure SQL is not empty
                 if not sql_query.strip():
