@@ -73,6 +73,11 @@ celerybeat-schedule
 .env.bak
 .envrc
 
+# Client-specific environment files
+mts.env
+penguin.env
+*.env
+
 # Spyder project settings
 .spyderproject
 .spyproject

@@ -21,6 +21,40 @@ from nlq_to_snowflake_claude import nlq_to_snowflake_claude
 # Load environment variables
 load_dotenv()
 
+def load_client_env(client: Optional[str] = None):
+    """
+    Load client-specific environment variables based on client selection.
+    
+    Args:
+        client: Client name ('mts' or 'penguin')
+        
+    Returns:
+        data_dictionary_path: Path to the client-specific data dictionary
+    """
+    # Default to the standard .env file if no client specified
+    env_file = ".env"
+    data_dictionary_path = os.path.join("Data Dictionary", "mts.csv")
+    
+    if client:
+        client = client.lower()
+        if client == "mts":
+            env_file = "mts.env"
+            data_dictionary_path = os.path.join("Data Dictionary", "mts.csv")
+            print(f"Loading MTS environment from {env_file}")
+        elif client == "penguin":
+            env_file = "penguin.env"
+            data_dictionary_path = os.path.join("Data Dictionary", "penguin.csv")
+            print(f"Loading Penguin environment from {env_file}")
+    
+    # Load the client-specific environment variables
+    if os.path.exists(env_file):
+        load_dotenv(dotenv_path=env_file, override=True)
+        print(f"Loaded environment variables from {env_file}")
+    else:
+        print(f"Warning: Environment file {env_file} not found, using default environment")
+    
+    return data_dictionary_path
+
 # Initialize FastAPI app
 app = FastAPI(
     title="LLM SQL Query Engine API",
@@ -43,6 +77,7 @@ class QueryRequest(BaseModel):
     data_dictionary_path: Optional[str] = None
     execute_query: bool = True
     model: Optional[str] = None  # For specifying a specific model
+    client: Optional[str] = None  # For specifying client (mts or penguin)
 
 class QueryResponse(BaseModel):
     prompt: str
@@ -78,6 +113,16 @@ async def generate_sql_query(request: QueryRequest):
     token_usage = None
     result = None
     try:
+        # Handle client selection if specified
+        if request.client:
+            # Load client-specific environment and get the data dictionary path
+            client_data_dict_path = load_client_env(request.client)
+            
+            # Only override data_dictionary_path if not explicitly provided in the request
+            if not request.data_dictionary_path:
+                request.data_dictionary_path = client_data_dict_path
+                print(f"Using client-specific data dictionary: {client_data_dict_path}")
+        
         # Use our existing functionality to process the query
         # Set the model in environment variable if specified
         if request.model:
@@ -210,6 +255,16 @@ async def generate_sql_query(request: QueryRequest):
 async def generate_sql_query_claude(request: QueryRequest):
     """Generate SQL from natural language using Claude and optionally execute against Snowflake"""
     try:
+        # Handle client selection if specified
+        if request.client:
+            # Load client-specific environment and get the data dictionary path
+            client_data_dict_path = load_client_env(request.client)
+            
+            # Only override data_dictionary_path if not explicitly provided in the request
+            if not request.data_dictionary_path:
+                request.data_dictionary_path = client_data_dict_path
+                print(f"Using client-specific data dictionary: {client_data_dict_path}")
+        
         # Use our modular Claude implementation
         claude_model = request.model if request.model else "claude-3-5-sonnet-20241022"
             
@@ -305,6 +360,16 @@ async def generate_sql_query_gemini(request: QueryRequest):
     
     print("\n-------------- GEMINI API ENDPOINT CALLED --------------")
     print(f"Processing request: '{request.prompt}'")
+    
+    # Handle client selection if specified
+    if request.client:
+        # Load client-specific environment and get the data dictionary path
+        client_data_dict_path = load_client_env(request.client)
+        
+        # Only override data_dictionary_path if not explicitly provided in the request
+        if not request.data_dictionary_path:
+            request.data_dictionary_path = client_data_dict_path
+            print(f"Using client-specific data dictionary: {client_data_dict_path}")
     
     # Get model name
     gemini_model = request.model if request.model else "models/gemini-1.5-flash-latest"
@@ -516,12 +581,23 @@ async def generate_sql_query_gemini(request: QueryRequest):
             user_hint=user_hint
         )
 
-
 @app.post("/query/compare", response_model=ComparisonResponse)
 async def compare_models(request: QueryRequest):
-    """Generate SQL using OpenAI, Claude, and Gemini and compare results"""
     # Import the copy module for deep copying
     import copy
+    """Generate SQL using OpenAI, Claude, and Gemini and compare results"""
+    print("\n-------------- COMPARE MODELS ENDPOINT CALLED --------------")
+    print(f"Processing request: '{request.prompt}'")
+    
+    # Handle client selection if specified
+    if request.client:
+        # Load client-specific environment and get the data dictionary path
+        client_data_dict_path = load_client_env(request.client)
+        
+        # Only override data_dictionary_path if not explicitly provided in the request
+        if not request.data_dictionary_path:
+            request.data_dictionary_path = client_data_dict_path
+            print(f"Using client-specific data dictionary: {client_data_dict_path}")
     
     # Store original model selection
     original_model = request.model
@@ -787,14 +863,25 @@ async def unified_query_endpoint(request: QueryRequest):
     Parameters:
         request: The query request with model parameter that specifies which model to use.
         Model can be a specific model name or a simple provider name like "openai", "claude", "gemini".
+        Client can be specified as "mts" or "penguin" to use client-specific data dictionary and credentials.
         
     Returns:
         QueryResponse: The query response from the selected model
     """
+    # Handle client selection first to load appropriate environment variables
+    if request.client:
+        # Load client-specific environment and get the data dictionary path
+        client_data_dict_path = load_client_env(request.client)
+        
+        # Only override data_dictionary_path if not explicitly provided in the request
+        if not request.data_dictionary_path:
+            request.data_dictionary_path = client_data_dict_path
+            print(f"Using client-specific data dictionary: {client_data_dict_path}")
+    
     # Extract the model from the request
     model = request.model.lower() if request.model else ""
     
-    print(f"\nUnified API: Routing request with model = {model}")
+    print(f"\nUnified API: Routing request with model = {model}, client = {request.client or 'default'}")
     
     # Check for simple provider names first
     if model == "claude" or "claude" in model:
