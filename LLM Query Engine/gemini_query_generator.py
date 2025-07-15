@@ -79,7 +79,7 @@ Your response must be a valid JSON object with the following structure:
   "sql": "YOUR SQL QUERY HERE",
   "chart_recommendations": [
     {
-      "chart_type": "bar|pie|line|scatter|etc",
+      "chart_type": "bar|pie|line|scatter|mix|kpi_card|table|etc",
       "reasoning": "Why this chart is appropriate",
       "priority": 1,
       "chart_config": {
