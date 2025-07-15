@@ -11,6 +11,7 @@ LLM Query Engine/token_usage.csv
 # Data folders
 LLM Query Engine/RAG_Data/
 LLM Query Engine/data/
+LLM Query Engine/token_usage.csv
 
 # Python cache files
 __pycache__/
