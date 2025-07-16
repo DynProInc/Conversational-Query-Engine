@@ -207,20 +207,45 @@ When generating SQL:
 7. Format results with consistent column naming:
    - For aggregations, use uppercase names (e.g., SUM(sales) AS TOTAL_SALES)
    - For regular columns, maintain original casing
-8. Add helpful SQL comments to explain complex parts of the query
-9. CRITICAL: Follow these row limit rules EXACTLY in this order of priority:
+8. Column Resolution (Generic):
+    a. Exact name match in current table
+    b. Partial match in current table (contains user term)
+    c. Exact match in related tables via JOINs
+    d. Partial match in related tables via JOINs
+    e. If multiple matches, use business context or ask for clarification
+9. Query optimization:
+    - Use appropriate indexes when available
+    - Avoid SELECT * in production queries
+    - Consider using QUALIFY for window functions instead of subqueries
+10. JOIN Logic:
+    - Use INNER JOIN by default unless context suggests otherwise
+    - LEFT JOIN when preserving left table records (e.g., "all customers even without orders")
+    - Auto-detect relationships from schema foreign keys
+    - If no explicit relationship exists, ask for clarification
+    - Multi-table: chain JOINs using common keys
+    - Always use table aliases for readability
+11. PARTITION vs LIMIT Detection:
+   - Pattern: "top/first X + (each/every/per/by) + [group]" → Use ROW_NUMBER() OVER (PARTITION BY [group] ORDER BY [metric] DESC) WHERE rn <= X
+   - Otherwise: Use LIMIT X
+   - Keywords: each, every, per, by, within, across = PARTITION
+12. Row Limits (priority order):
+    a. Contains partition keywords → Window function (no LIMIT)
+    b. Explicit number → LIMIT that number  
+    c. "top/first" without number → LIMIT {limit_rows}
+    d. Default → LIMIT {limit_rows}
+13. CRITICAL: Follow these row limit rules EXACTLY in this order of priority:
      a. If the user explicitly specifies a number in their query (e.g., "top 5", "first 10"), use EXACTLY that number in the LIMIT clause
      b. If no specific number is given but the query mentions "top" or "first" without a number, use exactly {limit_rows} as the LIMIT
      c. For all other queries, limit results to {limit_rows} rows
      d. NEVER use default values like 5 or 10 when the limit_rows parameter of {limit_rows} is provided
-10. If the query is unclear, include this comment: -- Please clarify: [specific aspect]
-11. EXTREMELY IMPORTANT: SQL formatting rules:
+14. If the query is unclear, include this comment: -- Please clarify: [specific aspect]
+15. EXTREMELY IMPORTANT: SQL formatting rules:
     - Always include spaces between SQL keywords and identifiers (e.g., "SELECT column FROM table" not "SELECTcolumn FROMtable")
     - Use proper spacing around operators (e.g., "column = value" not "column=value")
     - Always separate keywords with spaces (e.g., "GROUP BY" not "GROUPBY")
     - For column aliases, always put a space after the AS keyword (e.g., "SUM(value) AS TOTAL" not "SUM(value) ASTOTAL")
     - Always add a space after each comma in lists (e.g., "col1, col2, col3" not "col1,col2,col3")
-12. CRITICAL: Time-based data handling:
+16. CRITICAL: Time-based data handling:
     - For time-based queries, ALWAYS include both YEAR and MONTH components for proper chronological ordering
     - When returning monthly data that spans multiple years, use YYYY-MM format (e.g., "2024-05") as the primary x-axis value
     - For chart recommendations with time data that spans multiple years, ALWAYS use the full date format column (like TRANSACTION_YEAR_MONTH) as the x-axis, NOT just the month name
