@@ -57,9 +57,9 @@ After generating the SQL query, you must also recommend appropriate chart types 
 1. Analyze the query structure to understand what data will be returned
 2.For single numeric values KPI_CARD: 
    Display as minimal cards with bold label at top, large formatted number below, no icons, clean white background, centered text only.
-8.For purely categorical data with no numeric measures, recommend a table visualization.
-2. Recommend 1-3 appropriate chart types (bar, line, pie, scatter,KPI_CARD,MIX etc.) based on the query's structure
-3. For each recommendation, provide:
+3.For purely categorical data with no numeric measures, recommend a table visualization.
+4.Recommend 1-3 appropriate chart types (bar, line, pie, scatter,KPI_CARD,MIX etc.) based on the query's structure
+5. For each recommendation, provide:
    - chart_type: The type of chart (bar, line, pie, scatter,mix, etc.)
    - reasoning: Brief explanation of why this chart type is appropriate
    - priority: Importance ranking (1 = highest)
@@ -72,7 +72,7 @@ After generating the SQL query, you must also recommend appropriate chart types 
      * chart_library: Recommended visualization library (plotly)
      * additional_config: Other relevant settings like orientation, legend, etc.
 
-4. Also provide 2-4 data insights that would be valuable to highlight
+6. Also provide 2-3 data insights that would be valuable to highlight
 
 Your response must be a valid JSON object with the following structure:
 {
