@@ -576,6 +576,22 @@
                                 }
                             }
                             
+                            // Initialize additional_config if it doesn't exist
+                            if (!chartRec.chart_config.additional_config) {
+                                chartRec.chart_config.additional_config = {};
+                            }
+                            
+                            // Check for any secondary_axis settings at the root level and migrate them
+                            if (chartRec.use_secondary_axis === true) {
+                                chartRec.chart_config.additional_config.use_secondary_axis = true;
+                                console.log('Migrated use_secondary_axis from root to additional_config');
+                            }
+                            
+                            if (chartRec.secondary_axis_columns) {
+                                chartRec.chart_config.additional_config.secondary_axis_columns = chartRec.secondary_axis_columns;
+                                console.log('Migrated secondary_axis_columns from root to additional_config');
+                            }
+                            
                             // For mixed charts, ensure we have proper series configuration
                             if ((chartRec.chart_type === 'mixed' || (chartRec.chart_config && chartRec.chart_config.chart_type === 'mixed')) && 
                                 chartRec.chart_config && chartRec.chart_config.series) {
@@ -1665,8 +1681,24 @@
             const isHorizontal = config.additional_config && config.additional_config.orientation === 'horizontal';
             
             // Check if we should use a secondary axis
-            const useSecondaryAxis = config.additional_config && config.additional_config.use_secondary_axis === true;
-            const secondaryAxisColumns = config.additional_config && config.additional_config.secondary_axis_columns || [];
+            // Look for secondary axis config in multiple possible locations
+            const useSecondaryAxis = 
+                (config.additional_config && config.additional_config.use_secondary_axis === true) || 
+                config.use_secondary_axis === true;
+            
+            // Get secondary axis columns from any potential location
+            let secondaryAxisColumns = [];
+            if (config.additional_config && Array.isArray(config.additional_config.secondary_axis_columns)) {
+                secondaryAxisColumns = config.additional_config.secondary_axis_columns;
+            } else if (Array.isArray(config.secondary_axis_columns)) {
+                secondaryAxisColumns = config.secondary_axis_columns;
+            }
+            
+            // For line charts with multiple y columns, automatically use secondary axis for second column if none specified
+            if (secondaryAxisColumns.length === 0 && yColumns.length > 1 && useSecondaryAxis) {
+                secondaryAxisColumns = [yColumns[1]];
+                console.log('Automatically using second column for secondary axis:', secondaryAxisColumns);
+            }
             
             // Create a trace for each y column
             const plotData = yColumns.map((col, index) => {
@@ -1807,8 +1839,18 @@
             console.log(`Using columns for line chart: ${yColumns.join(', ')}`);
             
             // Check if we should use secondary y-axis
-            let useSecondaryAxis = config.additional_config && config.additional_config.use_secondary_axis;
+            // Look for secondary axis config in multiple possible locations
+            let useSecondaryAxis = 
+                (config.additional_config && config.additional_config.use_secondary_axis === true) || 
+                config.use_secondary_axis === true;
+                
+            // Get secondary axis columns from any potential location
             let secondaryAxisColumns = [];
+            if (config.additional_config && Array.isArray(config.additional_config.secondary_axis_columns)) {
+                secondaryAxisColumns = config.additional_config.secondary_axis_columns;
+            } else if (Array.isArray(config.secondary_axis_columns)) {
+                secondaryAxisColumns = config.secondary_axis_columns;
+            }
             
             // If we have multiple columns, analyze their scales to determine if we need a secondary axis
             if (yColumns.length > 1) {
