@@ -101,7 +101,46 @@ Your response must be a valid JSON object with the following structure:
 Return ONLY the SQL code without any other text or explanations.
 """
 
-    prompt = f"""You are an expert SQL query generator for Snowflake database.\n\nYour task is to convert natural language questions into valid SQL queries that can run on Snowflake.\nUse the following data dictionary to understand the database schema:\n\n{tables_context}\nWhen generating SQL:\n1. Only generate SELECT queries.\n2. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)\n3. For column selections:\n   - Always list columns individually (never concatenate or combine columns till user not asking in prompt)\n   - Use consistent column casing - uppercase for all column names\n   - Format each column on a separate line with proper indentation\n4. Include appropriate JOINs based only on the relationships defined in the schema metadata.\n5. Only use tables and columns that exist in the provided schema.\n6. For numeric values:\n   - Use standard CAST() function for type conversions (e.g., CAST(field AS DECIMAL) or CAST(field AS NUMERIC))\n   - When using GROUP BY, always apply aggregate functions (SUM, AVG, etc.) to non-grouped numeric fields\n   - Example: SUM(CAST(SALES_AMOUNT AS NUMERIC)) AS TOTAL_SALES\n   - ALWAYS use NULLIF() for divisions to prevent division by zero errors:\n     * For percentage calculations: (new_value - old_value) / NULLIF(old_value, 0) * 100\n     * For ratios: numerator / NULLIF(denominator, 0)\n   - For sensitive calculations that must return specific values on zero division:\n     * Use CASE: CASE WHEN denominator = 0 THEN NULL ELSE numerator/denominator END\n7. Format results with consistent column naming:\n   - For aggregations, use uppercase names (e.g., SUM(sales) AS TOTAL_SALES)\n   - For regular columns, maintain original casing\n8. CRITICAL: Follow these row limit rules EXACTLY:\n   a. If the user explicitly specifies a number in their query (e.g., "top 5", "first 10"), use EXACTLY that number in the LIMIT clause\n   b. Otherwise, limit results to {limit_rows} rows\n   c. NEVER override a user-specified limit with a different number\n\nGenerate a SQL query for: {query}{chart_instructions}\n"""
+    prompt = f"""You are an expert SQL query generator for Snowflake database.
+
+Your task is to convert natural language questions into valid SQL queries that can run on Snowflake.
+Use the following data dictionary to understand the database schema:
+
+{tables_context}
+
+When generating SQL:
+1. Only generate SELECT queries.
+2. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)
+3. For column selections:
+   - Always list columns individually (never concatenate or combine columns till user not asking in prompt)
+   - Use consistent column casing - uppercase for all column names
+   - Format each column on a separate line with proper indentation
+4. Include appropriate JOINs based only on the relationships defined in the schema metadata.
+5. Only use tables and columns that exist in the provided schema.
+6. For numeric values:
+   - Use standard CAST() function for type conversions (e.g., CAST(field AS DECIMAL) or CAST(field AS NUMERIC))
+   - When using GROUP BY, always apply aggregate functions (SUM, AVG, etc.) to non-grouped numeric fields
+   - Example: SUM(CAST(SALES_AMOUNT AS NUMERIC)) AS TOTAL_SALES
+   - ALWAYS use NULLIF() for divisions to prevent division by zero errors:
+     * For percentage calculations: (new_value - old_value) / NULLIF(old_value, 0) * 100
+     * For ratios: numerator / NULLIF(denominator, 0)
+   - For sensitive calculations that must return specific values on zero division:
+     * Use CASE: CASE WHEN denominator = 0 THEN NULL ELSE numerator/denominator END
+7. Format results with consistent column naming:
+   - For aggregations, use uppercase names (e.g., SUM(sales) AS TOTAL_SALES)
+   - For regular columns, maintain original casing
+8. CRITICAL: Follow these row limit rules EXACTLY:
+   a. If the user explicitly specifies a number in their query (e.g., "top 5", "first 10"), use EXACTLY that number in the LIMIT clause
+   b. Otherwise, limit results to {limit_rows} rows
+   c. NEVER override a user-specified limit with a different number
+9. SUPERLATIVE QUERY HANDLING:
+   a. CRITICAL: For PLURAL nouns in queries like "which sales representatives sold most" - NEVER add LIMIT 1, return MULTIPLE results
+   b. For SINGULAR nouns in queries like "which sales rep sold most" - ALWAYS add `ORDER BY [relevant_metric] DESC LIMIT 1`
+   c. Explicitly check if words like "representatives", "products", "customers" (plural) are used
+   d. Examples: "which sales rep sold most" → ONE result (LIMIT 1), "which sales representatives sold most" → MULTIPLE results (NO LIMIT 1)
+
+Generate a SQL query for: {query}{chart_instructions}
+"""
     return prompt
 
 def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/gemini-1.5-flash-latest", query_text: str = "", log_tokens: bool = True, include_charts: bool = False) -> Dict[str, Any]:

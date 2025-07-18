@@ -140,10 +140,11 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         - Use QUALIFY for window functions instead of subqueries
         - Apply appropriate indexes when available
 
-        ### Superlative Query Handling
-        - For "Which [entity] has the [highest/lowest/best/worst]..." questions
-        - Automatically add `ORDER BY [metric] ASC/DESC LIMIT 1`
-        - Return only the specific entity, not all entities with values
+        ### SUPERLATIVE QUERY HANDLING:
+        1. CRITICAL: For PLURAL nouns in queries like "which sales representatives sold most" - NEVER add LIMIT 1, return MULTIPLE results
+        2. For SINGULAR nouns in queries like "which sales rep sold most" - ALWAYS add `ORDER BY [relevant_metric] DESC LIMIT 1`
+        3. Explicitly check if words like "representatives", "products", "customers" (plural) are used
+        4. Examples: "which sales rep sold most" → ONE result (LIMIT 1), "which sales representatives sold most" → MULTIPLE results (NO LIMIT 1)
 
         ## PHASE 2: CHART RECOMMENDATIONS
 

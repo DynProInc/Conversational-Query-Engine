@@ -375,10 +375,15 @@ When generating SQL:
    - For regular columns, maintain original casing
 8. Add helpful SQL comments to explain complex parts of the query
 9. CRITICAL: Follow these row limit rules EXACTLY:
-    a. If the user explicitly specifies a number in their query (e.g., "top 5", "first 10"), use EXACTLY that number in the LIMIT clause
-    b. Otherwise, limit results to {limit_rows} rows
-    c. NEVER override a user-specified limit with a different number
-10. If the query is unclear, include this comment: -- Please clarify: [specific aspect]
+     a. If the user explicitly specifies a number in their query (e.g., "top 5", "first 10"), use EXACTLY that number in the LIMIT clause
+     b. Otherwise, limit results to {limit_rows} rows
+     c. NEVER override a user-specified limit with a different number
+10. SUPERLATIVE QUERY HANDLING:
+     a. CRITICAL: For PLURAL nouns in queries like "which sales representatives sold most" - NEVER add LIMIT 1, return MULTIPLE results
+     b. For SINGULAR nouns in queries like "which sales rep sold most" - ALWAYS add `ORDER BY [relevant_metric] DESC LIMIT 1`
+     c. Explicitly check if words like "representatives", "products", "customers" (plural) are used
+     d. Examples: "which sales rep sold most" → ONE result (LIMIT 1), "which sales representatives sold most" → MULTIPLE results (NO LIMIT 1)
+11. If the query is unclear, include this comment: -- Please clarify: [specific aspect]
 
 Generate a SQL query for: {query}{chart_instructions}
 """
