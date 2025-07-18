@@ -71,188 +71,243 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         tables_context += "\n"
     
     # Create prompt template for Claude - matching OpenAI's detailed chart instructions
+    prompt = f"""
+        You are an expert SQL query generator for Snowflake database.
+
+        Your task is to convert natural language questions into valid SQL queries that can run on Snowflake, and then recommend appropriate chart types for visualizing the results.
+
+        Use the following data dictionary to understand the database schema:
+
+        {tables_context}
+
+        ## CORE RULES (Apply to Both SQL and Charts)
+
+        ### Column-Table Validation Framework
+        1. **Single Table Queries**: Verify ALL columns exist in selected table before query generation
+        2. **Multi-Table Queries**: Identify table for each column, ensure proper JOIN relationships exist
+        3. **Error Handling**: Format as `-- ERROR: Column '[name]' not found in table '[table_name]'`
+        4. **Resolution Process**: 
+        - Select primary table based on query intent
+        - Find alternative columns in same table if missing
+        - Add JOINs for cross-table column access
+        - Use business context for disambiguation
+
+        ### Time-Based Data Handling (Universal)
+        - **Multi-year data**: ALWAYS use YYYY-MM format (e.g., "2024-05") for proper chronological ordering
+        - **SQL**: Create/use year-month columns from date fields for time-based queries
+        - **Charts**: Use full date format column as x-axis, NOT month names alone
+        - **Examples**: TRANSACTION_YEAR_MONTH, DATE_TRUNC('month', date_column)
+
+        ### Row Limits and Partitioning
+        **Priority Order**:
+        1. **Explicit number** (e.g., "top 5") → LIMIT that exact number
+        2. **Partition keywords** ("each", "every", "per", "by") → ROW_NUMBER() OVER (PARTITION BY [group] ORDER BY [metric]) WHERE rn <= X
+        3. **"Top/first" without number** → LIMIT {limit_rows}
+        4. **Default** → LIMIT {limit_rows}
+
+        ### JOIN Logic
+        - **Default**: INNER JOIN unless context suggests otherwise
+        - **Preservation**: LEFT JOIN for "all X even without Y" scenarios
+        - **Auto-detection**: Use schema foreign keys for relationships
+        - **Multi-table**: Chain JOINs using common keys with table aliases
+
+        ## PHASE 1: SQL GENERATION
+
+        ### Basic Requirements
+        1. Only SELECT queries with proper Snowflake syntax
+        2. Fully qualified table names (SCHEMA.TABLE_NAME)
+        3. Uppercase column names, individual column listing
+        4. Proper indentation and formatting
+        5. end qu
+
+        ### Numeric Value Handling
+        - **Type conversion**: CAST(field AS DECIMAL) or CAST(field AS NUMERIC)
+        - **Aggregations**: Always use SUM, AVG, etc. with GROUP BY
+        - **Division safety**: Use NULLIF() to prevent division by zero
+        - Percentages: `(new_value - old_value) / NULLIF(old_value, 0) * 100`
+        - Ratios: `numerator / NULLIF(denominator, 0)`
+        - **Naming**: Uppercase for aggregations (TOTAL_SALES), original casing for regular columns
+
+        ### SQL Formatting Standards
+        - Spaces between keywords and identifiers: `SELECT column FROM table`
+        - Spaces around operators: `column = value`
+        - Spaces after commas: `col1, col2, col3`
+        - Spaces after AS keyword: `SUM(value) AS TOTAL`
+        - Separate keywords with spaces: `GROUP BY`
+
+        ### Query Optimization
+        - Avoid SELECT * in production
+        - Use QUALIFY for window functions instead of subqueries
+        - Apply appropriate indexes when available
+
+        ### Superlative Query Handling
+        - For "Which [entity] has the [highest/lowest/best/worst]..." questions
+        - Automatically add `ORDER BY [metric] ASC/DESC LIMIT 1`
+        - Return only the specific entity, not all entities with values
+
+        ## PHASE 2: CHART RECOMMENDATIONS
+
+        ### Chart Selection Rules
+        1. Analyze SQL output structure (columns, data types, aggregations)
+        2. Provide EXACTLY 2 chart recommendations ordered by priority
+        3. Match chart type to data structure using rules below
+
+        ### Chart Type Framework
+        Each chart type follows this structure:
+        - **Required Data**: Specific column types and count needed
+        - **Best Use Cases**: When to recommend this chart type
+        - **Scale Considerations**: How to handle multiple measures
+
+        Generate a SQL query and chart recommendations for: {query}
+        """
+
     chart_instructions = """
+        ### Chart Type Definitions
 
-After generating the SQL query, recommend appropriate chart types for visualizing the results. Follow these rules:
+        **Bar Charts**: Categorical comparisons (≤15 categories)
+        - Required: 1 categorical column + 1+ numeric measures
+        - Best for: Category comparisons, time periods
+        - Multi-scale: Convert to mixed chart if needed
 
-1. Analyze the query to determine if it returns numeric columns or only categorical data
-2. IMPORTANT: Provide EXACTLY the top 2 chart recommendations that best visualize the data, ordered by priority.
-3. Recommend charts that match the data structure based on these rules:
+        **Line Charts**: Trends over continuous ranges
+        - Required: 1 continuous axis + 1+ numeric measures  
+        - Best for: Time trends, continuous data
+        - Multi-scale: Use dual Y-axis configuration
 
-**CRITICAL: Time-Based Data Handling for Charts:**
-- For time-based data spanning multiple years, ALWAYS use the column with full date information (YYYY-MM format) as the x-axis
-- Multi-year data: Use YYYY-MM column for x-axis, not month names
+        **Pie Charts**: Composition/parts of whole (≤7 categories)
+        - Required: 1 categorical column (≤7 values) + 1 numeric measure
+        - Best for: Proportions, part-to-whole relationships
+        - Multi-scale: Not applicable
 
-1. Bar charts: For comparing categorical data or time periods. Suitable for up to ~15 categories.
-   - Required: One categorical column and at least one numeric measure
-   - Best for: Comparisons across categories
+        **Scatter Plots**: Relationships between variables
+        - Required: 2+ numeric measures
+        - Best for: Correlation analysis, distribution patterns
+        - Multi-scale: Use different axis scales
 
-2. Line charts: For showing trends over a continuous range (usually time).
-   - Required: One continuous axis (usually time) and at least one numeric measure
-   - Best for: Trends over time, continuous data
-   - IMPORTANT: For time series across multiple years, ALWAYS use the column containing year+month format
+        **Area Charts**: Cumulative totals over time/categories
+        - Required: 1 continuous axis + 1+ numeric measures
+        - Best for: Cumulative trends, stacked compositions
+        - Multi-scale: Convert to mixed chart if needed
 
-3. Pie charts: For showing composition or parts of a whole (limited to 7 or fewer categories).
-   - Required: One categorical column with 7 or fewer categories and one numeric measure
-   - Best for: Part-to-whole relationships, proportions
+        **Mixed/Combo Charts**: Multi-measure comparisons
+        - Required: 1 shared axis + multiple measures (different scales)
+        - Best for: Different but related metrics
+        - Multi-scale: Primary purpose of this chart type
 
-4. Scatter plots: For showing relationships between two numeric variables.
-   - Required: Two numeric measures
-   - Best for: Correlation analysis, distribution patterns
+        **KPI Cards**: Single numeric values
+        - Required: 1 numeric measure
+        - Best for: Key metrics, minimal display
+        - Multi-scale: Not applicable
 
-5. Area charts: For showing cumulative totals over time or categories.
-   - Required: One continuous axis (usually time) and at least one numeric measure
-   - Best for: Cumulative trends, stacked compositions over time
-   - IMPORTANT: For time series across multiple years, ALWAYS use the column containing year+month format
+        **Tables**: Categorical data without numeric measures
+        - Required: Multiple categorical columns
+        - Best for: Detailed data display
+        - Multi-scale: Not applicable
 
-6. Mixed/Combo charts: For comparing different but related metrics with appropriate visualizations.
-   - Required: One shared axis and multiple measures that may have different scales
-   - Best for: Multi-measure comparisons with different scales
+        ### Multi-Scale Detection (All Chart Types)
+        **Scale Detection Rules**:
+        - Trigger: Scale ratio ≥ 100x (larger_value / smaller_value ≥ 100)
+        - Examples: Sales $50K vs Orders 25 (2000x ratio → secondary axis)
+        - Action: Use secondary Y-axis or convert to mixed chart
+        - if required Use normalization to bring scales together
 
-7.For single numeric values: 
-   Display as minimal cards with bold label at top, large formatted number below, no icons, clean white background, centered text only.
-8.For purely categorical data with no numeric measures, recommend a table visualization.
+        **Chart-Specific Scale Handling**:
+        - **Bar/Line/Area**: Convert to mixed chart or use dual Y-axis
+        - **Mixed**: Assign measures to appropriate axes
+        - **Configuration**: Always include scale detection parameters
 
-Scale Detection and Secondary Axis:
-- When two measures have significantly different scales (100x+ difference), use a secondary Y-axis
-- For mixed charts, specify which series should use the secondary axis
-- Include scale_detection: true and scale_threshold: 2 in the additional_config
-
-Your response MUST be a valid JSON object with the following structure:
-{
-  "sql": "YOUR SQL QUERY HERE",
-  "chart_recommendations": [
-    {
-      "chart_type": "bar|pie|line|scatter|histogram|area|combo|mixed|table|suggestion|KPI Card",
-      "reasoning": "Why this chart is appropriate",
-      "priority": 1,
-      "chart_config": {
-        "title": "Chart title",
-        "x_axis": "column_name",
-        "y_axis": ["column_name1", "column_name2"],
-        "color_by": "column_name",
-        "aggregate_function": "NONE|SUM|AVG|etc",
-        "chart_library": "plotly",
+        ### Enhanced Configuration
+        All charts with multiple measures must include:
+        ```json
         "additional_config": {
-          "show_legend": true,
-          "orientation": "vertical|horizontal",
-          "use_secondary_axis": true,
-          "secondary_axis_columns": ["column_name2"],
-          "scale_detection": true,
-          "scale_threshold": 2
-        }
-      }
-    }
-  ]
-}
-
-Example with scale detection:
-{
-  "sql": "SELECT MONTH_NAME, SUM(SALES) AS TOTAL_SALES, COUNT(ORDER_ID) AS ORDER_COUNT FROM ORDERS GROUP BY MONTH_NAME ORDER BY MONTH_NUMBER;",
-  "chart_recommendations": [{
-    "chart_type": "mixed",
-    "reasoning": "TOTAL_SALES and ORDER_COUNT have different scales",
-    "priority": 1,
-    "chart_config": {
-      "title": "Monthly Sales and Orders",
-      "x_axis": "MONTH_NAME",
-      "series": [
-        { "column": "TOTAL_SALES", "type": "bar", "axis": "primary" },
-        { "column": "ORDER_COUNT", "type": "line", "axis": "secondary" }
-      ],
-      "additional_config": {
-        "use_secondary_axis": true,
-        "secondary_axis_columns": ["ORDER_COUNT"],
+        "show_legend": true,
+        "orientation": "vertical|horizontal",
         "scale_detection": true,
-        "scale_threshold": 2
-      }
-    }
-  }]
-}
+        "scale_threshold": 2,
+        "use_secondary_axis": true,
+        "secondary_axis_columns": ["column_name"],
+        "primary_axis_label": "Primary Metric Unit",
+        "secondary_axis_label": "Secondary Metric Unit",
+        "axis_assignment_reasoning": "Brief explanation"
+        }
+        ```
 
-IMPORTANT: DO NOT include any explanations, code blocks, or markdown formatting outside the JSON. Your entire response must be valid JSON that can be parsed directly.
-""" if include_charts else """
-Return ONLY the SQL code wrapped in triple backticks with the sql tag like this:
-```sql
-SELECT column FROM table WHERE condition;
-```
-Do not include any explanations, text, or other content before or after the SQL code block.
-"""
+        ## OUTPUT FORMAT
 
-    prompt = f"""You are an expert SQL query generator for Snowflake database.
+        Your response MUST be a valid JSON object with the following structure:
+             {
+        "sql": "YOUR SQL QUERY HERE",
+        "chart_recommendations": [
+            {
+            "chart_type": "bar|pie|line|scatter|histogram|area|combo|mixed|table|KPI Card",
+            "reasoning": "Why this chart is appropriate",
+            "priority": 1,
+            "chart_config": {
+                "title": "Chart title",
+                "x_axis": "column_name",
+                "y_axis": ["column_name1", "column_name2"],
+                "color_by": "column_name",
+                "aggregate_function": "NONE|SUM|AVG|etc",
+                "chart_library": "plotly",
+                "additional_config": {
+                "show_legend": true,
+                "orientation": "vertical|horizontal",
+                "scale_detection": true,
+                "scale_threshold": 2,
+                "use_secondary_axis": true,
+                "secondary_axis_columns": ["column_name2"],
+                "primary_axis_label": "Primary Metric Unit",
+                "secondary_axis_label": "Secondary Metric Unit",
+                "axis_assignment_reasoning": "Brief explanation"
+                }
+            }
+            }
+        ]
+        }
 
-Your task is to convert natural language questions into valid SQL queries that can run on Snowflake.
-Use the following data dictionary to understand the database schema:
+        **Example with Multi-Scale Detection**:
+        {
+        "sql": "SELECT MONTH_NAME, SUM(SALES) AS TOTAL_SALES, COUNT(ORDER_ID) AS ORDER_COUNT FROM ORDERS GROUP BY MONTH_NAME ORDER BY MONTH_NUMBER;",
+        "chart_recommendations": [{
+            "chart_type": "mixed",
+            "reasoning": "TOTAL_SALES and ORDER_COUNT have different scales requiring secondary axis",
+            "priority": 1,
+            "chart_config": {
+            "title": "Monthly Sales and Orders",
+            "x_axis": "MONTH_NAME",
+            "series": [
+                { "column": "TOTAL_SALES", "type": "bar", "axis": "primary" },
+                { "column": "ORDER_COUNT", "type": "line", "axis": "secondary" },
+                            { "column": "PROFIT_MARGIN", "type": "scatter", "axis": "primary", "scale": "normalized" }
+            ],
+            "additional_config": {
+                "scale_detection": true,
+                "scale_threshold": 2,
+                "use_secondary_axis": true,
+                "secondary_axis_columns": ["ORDER_COUNT"],
+                "primary_axis_label": "Sales Amount ($)",
+                "secondary_axis_label": "Order Count",
+                "axis_assignment_reasoning": "Sales values are 1000x larger than order counts"
+            }
+            }
+        }]
+        }
 
-{tables_context}
+        
 
-When generating SQL:
-1. Only generate SELECT queries.
-2. Use proper Snowflake SQL syntax with fully qualified table names including schema (e.g., SCHEMA.TABLE_NAME)
-3. For column selections:
-   - Always list columns individually (never concatenate or combine columns till user not asking in prompt)
-   - Use consistent column casing - uppercase for all column names
-   - Format each column on a separate line with proper indentation
-4. Include appropriate JOINs based only on the relationships defined in the schema metadata.
-5. Only use tables and columns that exist in the provided schema.
-6. For numeric values:
-   - Use standard CAST() function for type conversions (e.g., CAST(field AS DECIMAL) or CAST(field AS NUMERIC))
-   - When using GROUP BY, always apply aggregate functions (SUM, AVG, etc.) to non-grouped numeric fields
-   - Example: SUM(CAST(SALES_AMOUNT AS NUMERIC)) AS TOTAL_SALES
-   - ALWAYS use NULLIF() for divisions to prevent division by zero errors:
-     * For percentage calculations: (new_value - old_value) / NULLIF(old_value, 0) * 100
-     * For ratios: numerator / NULLIF(denominator, 0)
-   - For sensitive calculations that must return specific values on zero division:
-     * Use CASE: CASE WHEN denominator = 0 THEN NULL ELSE numerator/denominator END
-7. Format results with consistent column naming:
-   - For aggregations, use uppercase names (e.g., SUM(sales) AS TOTAL_SALES)
-   - For regular columns, maintain original casing
-8. Column Resolution (Generic):
-    a. Exact name match in current table
-    b. Partial match in current table (contains user term)
-    c. Exact match in related tables via JOINs
-    d. Partial match in related tables via JOINs
-    e. If multiple matches, use business context or ask for clarification
-9. Query optimization:
-    - Use appropriate indexes when available
-    - Avoid SELECT * in production queries
-    - Consider using QUALIFY for window functions instead of subqueries
-10. JOIN Logic:
-    - Use INNER JOIN by default unless context suggests otherwise
-    - LEFT JOIN when preserving left table records (e.g., "all customers even without orders")
-    - Auto-detect relationships from schema foreign keys
-    - If no explicit relationship exists, ask for clarification
-    - Multi-table: chain JOINs using common keys
-    - Always use table aliases for readability
-11. PARTITION vs LIMIT Detection:
-   - Pattern: "top/first X + (each/every/per/by) + [group]" → Use ROW_NUMBER() OVER (PARTITION BY [group] ORDER BY [metric] DESC) WHERE rn <= X
-   - Otherwise: Use LIMIT X
-   - Keywords: each, every, per, by, within, across = PARTITION
-12. Row Limits (priority order):
-    a. Contains partition keywords → Window function (no LIMIT)
-    b. Explicit number → LIMIT that number  
-    c. "top/first" without number → LIMIT {limit_rows}
-    d. Default → LIMIT {limit_rows}
-13. CRITICAL: Follow these row limit rules EXACTLY in this order of priority:
-     a. If the user explicitly specifies a number in their query (e.g., "top 5", "first 10"), use EXACTLY that number in the LIMIT clause
-     b. If no specific number is given but the query mentions "top" or "first" without a number, use exactly {limit_rows} as the LIMIT
-     c. For all other queries, limit results to {limit_rows} rows
-     d. NEVER use default values like 5 or 10 when the limit_rows parameter of {limit_rows} is provided
-14. If the query is unclear, include this comment: -- Please clarify: [specific aspect]
-15. EXTREMELY IMPORTANT: SQL formatting rules:
-    - Always include spaces between SQL keywords and identifiers (e.g., "SELECT column FROM table" not "SELECTcolumn FROMtable")
-    - Use proper spacing around operators (e.g., "column = value" not "column=value")
-    - Always separate keywords with spaces (e.g., "GROUP BY" not "GROUPBY")
-    - For column aliases, always put a space after the AS keyword (e.g., "SUM(value) AS TOTAL" not "SUM(value) ASTOTAL")
-    - Always add a space after each comma in lists (e.g., "col1, col2, col3" not "col1,col2,col3")
-16. CRITICAL: Time-based data handling:
-    - For time-based queries, ALWAYS include both YEAR and MONTH components for proper chronological ordering
-    - When returning monthly data that spans multiple years, use YYYY-MM format (e.g., "2024-05") as the primary x-axis value
-    - For chart recommendations with time data that spans multiple years, ALWAYS use the full date format column (like TRANSACTION_YEAR_MONTH) as the x-axis, NOT just the month name
-    - If month names are included (Jan, Feb, etc.), they should be supplementary and not the primary x-axis for charts
-
-Generate a SQL query for: {query}{chart_instructions}
-"""
+        IMPORTANT: DO NOT include any explanations, code blocks, or markdown formatting outside the JSON. Your entire response must be valid JSON that can be parsed directly.IMPORTANT: DO NOT include any explanations, code blocks, or markdown formatting outside the JSON. Your entire response must be valid JSON that can be parsed directly.
+        
+        """
+    if include_charts:
+        prompt += chart_instructions
+    else:
+        prompt += """
+        Return ONLY the SQL code wrapped in triple backticks with the sql tag like this:
+        ```sql
+        SELECT column FROM table WHERE condition;
+        ```
+        Do not include any explanations, text, or other content before or after the SQL code block.
+        """
     return prompt
 
 
