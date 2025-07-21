@@ -1,14 +1,15 @@
 # LLM Query Engine
 
-A powerful conversational query engine that converts natural language questions into SQL queries and executes them against Snowflake databases. Supports multiple LLM providers (OpenAI, Anthropic Claude, and Google Gemini) and multiple clients with isolated configurations.
+A powerful conversational query engine that converts natural language questions into SQL queries and executes them against Snowflake databases. Supports multiple LLM providers (OpenAI, Anthropic Claude, and Google Gemini) with strict client isolation and dynamic configuration.
 
 ## Overview
 
 This system allows users to query data in Snowflake databases using natural language. The engine:
 - Converts natural language questions to SQL using state-of-the-art LLMs
 - Executes the generated SQL against Snowflake
-- Returns the query results in a structured format
+- Returns the query results in a structured format with interactive visualizations
 - Tracks token usage and costs for all LLM interactions
+- Supports multiple clients with isolated configurations and API keys
 
 ## Architecture
 
@@ -21,6 +22,7 @@ The codebase follows a modular architecture to support multiple LLM providers an
    - Executing SQL against Snowflake
    - Client-specific and system-wide health checks
    - Model and client listings
+   - Unified query endpoint with support for all models simultaneously
 
 2. **LLM Query Generators**:
    - OpenAI implementation (`llm_query_generator.py`)
@@ -33,7 +35,7 @@ The codebase follows a modular architecture to support multiple LLM providers an
    - Gemini: `nlq_to_snowflake_gemini.py`
 
 4. **Database Connector** (`snowflake_runner.py`):
-   - Handles Snowflake connectivity
+   - Handles Snowflake connectivity with client-specific credentials
    - Automatically activates the specified warehouse before query execution
    - Executes SQL queries
    - Returns results as pandas DataFrames
@@ -46,25 +48,35 @@ The codebase follows a modular architecture to support multiple LLM providers an
 ### Supporting Components
 
 1. **Health Checks** (`health_check_utils.py`):
-   - Verifies connectivity to LLM APIs with client-specific API keys
-   - Checks Snowflake connection status with client-specific credentials
-   - Supports both global and client-specific health monitoring
+   - System-wide health endpoint (`/health`)
+   - Client-specific health checks (`/health/client/{client_id}`)
+   - Comprehensive client health dashboard (`/health/client`)
+   - Verifies API keys, model configurations, and Snowflake connections
+   - Returns detailed health status with timestamps
 
 2. **Client Manager** (`config/client_manager.py`):
    - Manages multiple client configurations
    - Loads client-specific environment variables
-   - Enforces strict client-specific API key validation
+   - Enforces strict client-specific API key validation with no automatic fallbacks
+   - Provides client-specific data dictionary paths
 
-2. **Query History** (`prompt_query_history_api.py` & `prompt_query_history_route.py`):
+3. **Query History** (`prompt_query_history_api.py` & `prompt_query_history_route.py`):
    - Maintains history of user queries
    - Provides context for subsequent queries
 
-3. **Error Handling** (`error_hint_utils.py`):
+4. **Error Handling** (`error_hint_utils.py`):
    - Provides user-friendly error messages
    - Suggests fixes for common issues
+   - Consistent error messaging format across all providers
 
-4. **Reporting** (`generate_query_report.py`):
+5. **Reporting** (`generate_query_report.py`):
    - Generates usage reports from token logs
+
+6. **Chart Rendering** (`static/chart_viewer.html`):
+   - Interactive data visualizations
+   - Supports multiple chart types (line, bar, scatter, pie, area, mixed)
+   - Proper handling of categorical X-axis values
+   - Smart scale detection and secondary axis support
 
 ## Data Flow
 
@@ -247,6 +259,27 @@ Response example:
 
 #### Query Endpoints
 
+##### `/unified_query` - Multi-Model Support
+
+```json
+POST /unified_query
+Content-Type: application/json
+
+{
+  "prompt": "Show me the top 6 stores with highest sales in year 2024",
+  "limit_rows": 100,
+  "client_id": "penguin",
+  "execute_query": true,
+  "model": "openai"
+}
+```
+
+The unified endpoint supports:
+- All LLM providers through a single interface
+- Client-specific configurations and data dictionaries
+- Using `all` as a model parameter to compare results from all models simultaneously
+enai- Specific model selection (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`, `models/gemini-2.5-flash`)
+
 ##### `/query/openai` - OpenAI SQL Generation
 
 ```json
@@ -256,7 +289,7 @@ Content-Type: application/json
 {
   "prompt": "Show me the top 6 stores with highest sales in year 2024",
   "limit_rows": 100,
-  "data_dictionary_path": null,
+  "client_id": "penguin",
   "execute_query": true,
   "model": "gpt-4o"
 }
@@ -499,16 +532,16 @@ python test_token_logging_comprehensive.py
 
 ```
 LLM Query Engine/
-├── api_server.py                    # Main API server
-├── llm_query_generator.py           # OpenAI query generator
+├── api_server.py                    # Main API server with unified query endpoint
+├── llm_query_generator.py           # OpenAI query generator with optimized chart instructions
 ├── claude_query_generator.py        # Claude query generator
 ├── gemini_query_generator.py        # Gemini query generator
 ├── nlq_to_snowflake.py              # OpenAI end-to-end pipeline
 ├── nlq_to_snowflake_claude.py       # Claude end-to-end pipeline
 ├── nlq_to_snowflake_gemini.py       # Gemini end-to-end pipeline
-├── snowflake_runner.py              # Snowflake connection and query execution
+├── snowflake_runner.py              # Snowflake connection with client-specific credentials
 ├── token_logger.py                  # Token usage tracking and logging
-├── health_check_utils.py            # API and database health checks
+├── health_check_utils.py            # System and client-specific health checks
 ├── error_hint_utils.py              # User-friendly error messages
 ├── prompt_query_history_api.py      # Query history tracking
 ├── prompt_query_history_route.py    # Query history API endpoints
@@ -516,9 +549,71 @@ LLM Query Engine/
 ├── requirements.txt                 # Package dependencies
 ├── test_token_logging_comprehensive.py  # Comprehensive token logging tests
 ├── test_api.py                      # API endpoint tests
-├── Data Dictionary/                 # Contains schema information for prompts
+├── config/
+│   └── clients/                     # Client-specific configurations
+│       ├── env/                      # Client environment files (.env)
+│       ├── data_dictionaries/        # Contains schema information for prompts
+│       │   ├── mts/                   # MTS client-specific dictionary
+│       │   └── penguin/               # Penguin client-specific dictionary
+│       ├── client_registry.csv       # Client registration information
+│       └── llm_api_keys.csv          # API keys for different clients
+├── static/
+│   ├── chart_viewer.html            # Enhanced interactive chart visualization
+│   └── styles.css                    # Styling for web interface
 └── token_usage.csv                  # Token usage logs
 ```
+
+## Data Dictionary
+
+The Data Dictionary is a crucial component that:
+- Defines a data schema for NLQ to SQL conversion
+- Supports client-specific data dictionaries in `Data Dictionary/{client_id}/`
+- Ensures each client's queries are processed using their own data context
+- Prevents cross-client data leakage and dictionary fallbacks
+
+Each client's data dictionary path is strictly enforced through the client manager, avoiding silent fallbacks to other dictionaries. The system ensures that:
+
+1. Client-specific dictionaries are used when available
+2. No automatic fallbacks occur between clients' dictionaries
+3. Proper error handling when dictionary paths are missing or invalid
+
+## Chart Visualization
+
+The system provides rich data visualization capabilities through an enhanced chart rendering system:
+
+### Chart Types
+
+Supports multiple chart types including:
+- Line charts
+- Bar charts
+- Scatter plots
+- Pie charts
+- Area charts
+- Mixed charts (combining different visualization types)
+
+### Categorical X-Axis Handling
+
+Implements special handling for categorical x-axis values:
+- Ensures discrete categorical values are properly displayed using `ensureCategoricalXAxis()` function
+- Prevents continuous scaling issues with categorical data
+- Properly formats time-based discrete intervals (quarters, years, months)
+- Applies Plotly.js settings (categoryorder, dtick, constrain) to prevent continuous scaling
+
+### Smart Scale Detection
+
+Optimized chart recommendations include:
+- Automatic scale detection for numerical values
+- Secondary Y-axis support for multi-scale data
+- Proper handling for different value ranges in the same chart
+- Token-optimized instructions for chart generation
+
+## Multi-Client Dynamic Model Handling
+
+- No hardcoded model names anywhere in the codebase
+- Client-specific environment variables for model selection (e.g., `CLIENT_MTS_OPENAI_MODEL`)
+- Strict validation of client-specific API keys with consistent error messages
+- Specific model name responses rather than generic provider names
+- Support for "all" as a valid model parameter to compare results across providers
 
 ## Maintenance and Best Practices
 
@@ -526,3 +621,4 @@ LLM Query Engine/
 - **Error Handling**: All LLM and database operations include robust error handling.
 - **Testing**: Use the comprehensive test scripts to verify functionality after changes.
 - **Dependencies**: Keep the dependencies updated for security and feature improvements.
+- **Client Isolation**: Maintain strict client isolation for API keys, models, and data dictionaries.

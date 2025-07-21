@@ -113,7 +113,8 @@ class ClientManager:
             'password': env_vars.get('SNOWFLAKE_PASSWORD', ''),
             'warehouse': env_vars.get('SNOWFLAKE_WAREHOUSE', ''),
             'database': env_vars.get('SNOWFLAKE_DATABASE', ''),
-            'schema': env_vars.get('SNOWFLAKE_SCHEMA', '')
+            'schema': env_vars.get('SNOWFLAKE_SCHEMA', ''),
+            'role': env_vars.get('SNOWFLAKE_ROLE', '')
         }
         
         # Validate required parameters

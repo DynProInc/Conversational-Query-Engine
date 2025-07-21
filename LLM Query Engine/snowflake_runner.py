@@ -36,8 +36,11 @@ def execute_query(query: str, print_results: bool = True, client_id: str = None)
             warehouse = snowflake_params.get('warehouse')
             database = snowflake_params.get('database', '')  # Optional
             schema = snowflake_params.get('schema', '')      # Optional
+            role = snowflake_params.get('role', '')         # Optional - role for the connection
             
             print(f"[Snowflake Runner] Using client-specific credentials for client: {client_id}")
+            if role:
+                print(f"[Snowflake Runner] Using Snowflake role: {role}")
             
             # Verify essential credentials are available
             if not all([user, password, account, warehouse]):
@@ -49,6 +52,7 @@ def execute_query(query: str, print_results: bool = True, client_id: str = None)
                 warehouse = warehouse or os.environ.get('SNOWFLAKE_WAREHOUSE')
                 database = database or os.environ.get('SNOWFLAKE_DATABASE', '')  # Optional
                 schema = schema or os.environ.get('SNOWFLAKE_SCHEMA', '')      # Optional
+                role = role or os.environ.get('SNOWFLAKE_ROLE', '')           # Optional
                 
         except Exception as e:
             print(f"[Snowflake Runner] Error retrieving client-specific credentials: {str(e)}. Using global credentials.")
@@ -67,20 +71,37 @@ def execute_query(query: str, print_results: bool = True, client_id: str = None)
         warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
         database = os.environ.get('SNOWFLAKE_DATABASE', '')  # Optional
         schema = os.environ.get('SNOWFLAKE_SCHEMA', '')      # Optional
+        role = os.environ.get('SNOWFLAKE_ROLE', '')         # Optional
     
     # Connect to Snowflake
-    conn = snowflake.connector.connect(
-        user=user,
-        password=password,
-        account=account,
-        warehouse=warehouse,
-        database=database if database else None,
-        schema=schema if schema else None
-    )
+    conn_params = {
+        "user": user,
+        "password": password,
+        "account": account,
+        "warehouse": warehouse,
+        "database": database if database else None,
+        "schema": schema if schema else None
+    }
+    
+    # Add role if available
+    if role:
+        conn_params["role"] = role
+        print(f"[Snowflake Runner] Connecting with role: {role}")
+        
+    conn = snowflake.connector.connect(**conn_params)
     
     try:
         # Execute query and fetch results
         cursor = conn.cursor()
+        
+        # Verify and print current role
+        try:
+            cursor.execute("SELECT CURRENT_ROLE()")
+            current_role = cursor.fetchone()[0]
+            print(f"[Snowflake Runner] Current active role in session: {current_role}")
+        except Exception as e:
+            print(f"[Snowflake Runner] Could not verify current role: {str(e)}")
+
         
         # Debug print: Show the SQL to be executed and its repr
         print("[Snowflake Runner] About to execute SQL:")
