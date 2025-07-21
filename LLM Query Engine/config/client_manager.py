@@ -75,6 +75,9 @@ class ClientManager:
                 # Remove prefix to get the actual variable name
                 clean_key = key[len(prefix):]
                 env_vars[clean_key] = value
+            elif key.startswith('SNOWFLAKE_'):
+                # Also include Snowflake variables without prefix
+                env_vars[key] = value
                 
         return env_vars
     
