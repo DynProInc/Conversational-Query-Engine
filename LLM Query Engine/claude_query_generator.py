@@ -205,6 +205,37 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         - Best for: Detailed data display
         - Multi-scale: Not applicable
 
+        **Histogram Charts**: Distribution analysis of continuous variables
+        - Required: Numerical continuous data only (no categorical)
+        - Best for: Frequency/spread/skewness/outliers in large datasets
+        - Use auto-binning (Sturges/Freedman-Diaconis) for proper bin sizing
+        - X-axis: value range,
+        - "y_axis": [],   "y_axis": null,  // No column needed - frequency is calculated
+        For a histogram:
+        - Use 1 numeric column.
+        - X-axis = value bins from that column.
+        - Y-axis = count (frequency), computed from how many values fall in each bin.
+        - Y-axis is not from any column.
+
+        
+        - Ensure contiguous bins (no gaps)
+        - Avoid overlapping distributions (use separate plots/density plots)
+        - Skip for small datasets (use box/dot plots instead)
+
+        **Box Plot Charts**: Distribution comparison between groups
+        - Required: Numerical data (can group by categorical)
+          if one columns then use null for x_axis,
+          other wise use categorical column for x_axis
+           e.g:  "x_axis": "PRODUCT_CATEGORY",
+            "y_axis": ["SALES_AMOUNT"],
+            "color_by": "PRODUCT_CATEGORY",
+            - Best for: Comparing distributions, showing central tendency/spread/outliers
+            - Box = IQR (Q1-Q3), line = median
+            - Whiskers = Q1-1.5×IQR to Q3+1.5×IQR
+            - Points beyond whiskers = outliers
+            - Best for side-by-side comparisons
+            - Consider combining with histograms/violin plots for distribution shape details
+
         ### Multi-Scale Detection (All Chart Types)
         **Scale Detection Rules**:
         - Trigger: Scale ratio ≥ 100x (larger_value / smaller_value ≥ 100)

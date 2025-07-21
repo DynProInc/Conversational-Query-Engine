@@ -10,7 +10,7 @@ from typing import Dict, List, Any, Optional
 # Load environment variables
 load_dotenv()
 
-def execute_query(query: str, print_results: bool = True) -> pd.DataFrame:
+def execute_query(query: str, print_results: bool = True, client_id: str = None) -> pd.DataFrame:
     """
     Execute a SQL query against Snowflake and return results as DataFrame
     
@@ -21,13 +21,52 @@ def execute_query(query: str, print_results: bool = True) -> pd.DataFrame:
     Returns:
         DataFrame with query results
     """
-    # Get connection parameters from environment
-    user = os.environ.get('SNOWFLAKE_USER')
-    password = os.environ.get('SNOWFLAKE_PASSWORD')
-    account = os.environ.get('SNOWFLAKE_ACCOUNT')
-    warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
-    database = os.environ.get('SNOWFLAKE_DATABASE', '')  # Optional
-    schema = os.environ.get('SNOWFLAKE_SCHEMA', '')      # Optional
+    # Get connection parameters from client-specific environment if client_id is provided
+    # Otherwise fall back to global environment variables
+    if client_id:
+        try:
+            from config.client_manager import client_manager
+            # Get client-specific Snowflake configuration using the proper method
+            snowflake_params = client_manager.get_snowflake_connection_params(client_id)
+            
+            # Extract credentials from client connection parameters
+            user = snowflake_params.get('user')
+            password = snowflake_params.get('password')
+            account = snowflake_params.get('account')
+            warehouse = snowflake_params.get('warehouse')
+            database = snowflake_params.get('database', '')  # Optional
+            schema = snowflake_params.get('schema', '')      # Optional
+            
+            print(f"[Snowflake Runner] Using client-specific credentials for client: {client_id}")
+            
+            # Verify essential credentials are available
+            if not all([user, password, account, warehouse]):
+                print(f"[Snowflake Runner] WARNING: Missing required Snowflake credentials for client {client_id}, falling back to global credentials")
+                # Fall back to global environment variables
+                user = user or os.environ.get('SNOWFLAKE_USER')
+                password = password or os.environ.get('SNOWFLAKE_PASSWORD')
+                account = account or os.environ.get('SNOWFLAKE_ACCOUNT')
+                warehouse = warehouse or os.environ.get('SNOWFLAKE_WAREHOUSE')
+                database = database or os.environ.get('SNOWFLAKE_DATABASE', '')  # Optional
+                schema = schema or os.environ.get('SNOWFLAKE_SCHEMA', '')      # Optional
+                
+        except Exception as e:
+            print(f"[Snowflake Runner] Error retrieving client-specific credentials: {str(e)}. Using global credentials.")
+            # Fall back to global environment variables
+            user = os.environ.get('SNOWFLAKE_USER')
+            password = os.environ.get('SNOWFLAKE_PASSWORD')
+            account = os.environ.get('SNOWFLAKE_ACCOUNT')
+            warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
+            database = os.environ.get('SNOWFLAKE_DATABASE', '')  # Optional
+            schema = os.environ.get('SNOWFLAKE_SCHEMA', '')      # Optional
+    else:
+        # Get connection parameters from global environment
+        user = os.environ.get('SNOWFLAKE_USER')
+        password = os.environ.get('SNOWFLAKE_PASSWORD')
+        account = os.environ.get('SNOWFLAKE_ACCOUNT')
+        warehouse = os.environ.get('SNOWFLAKE_WAREHOUSE')
+        database = os.environ.get('SNOWFLAKE_DATABASE', '')  # Optional
+        schema = os.environ.get('SNOWFLAKE_SCHEMA', '')      # Optional
     
     # Connect to Snowflake
     conn = snowflake.connector.connect(
@@ -42,12 +81,24 @@ def execute_query(query: str, print_results: bool = True) -> pd.DataFrame:
     try:
         # Execute query and fetch results
         cursor = conn.cursor()
+        
         # Debug print: Show the SQL to be executed and its repr
         print("[Snowflake Runner] About to execute SQL:")
         print(query)
         print("[Snowflake Runner] repr of SQL:")
         print(repr(query))
-        # Execute query
+        
+        # First ensure warehouse is active before executing query
+        if warehouse:
+            try:
+                print(f"[Snowflake Runner] Setting active warehouse to: {warehouse}")
+                cursor.execute(f"USE WAREHOUSE {warehouse}")
+            except Exception as e:
+                print(f"[Snowflake Runner] Error setting warehouse: {str(e)}")
+        else:
+            print("[Snowflake Runner] WARNING: No warehouse specified, query may fail")
+            
+        # Execute the actual query
         cursor.execute(query)
         
         # Get column names

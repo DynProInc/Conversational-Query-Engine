@@ -62,6 +62,10 @@ app.include_router(prompt_query_history_router)
 from gemini_query_route import router as gemini_query_router
 app.include_router(gemini_query_router)
 
+# Import and include the execute query router
+from execute_query_route import router as execute_query_router
+app.include_router(execute_query_router)
+
 # Define request and response models
 class QueryRequest(BaseModel):
     client_id: Optional[str] = "mts"  # Default to 'mts' client for backward compatibility
@@ -71,6 +75,7 @@ class QueryRequest(BaseModel):
     execute_query: bool = True
     model: Optional[str] = None  # For specifying a specific model
     include_charts: bool = False  # Whether to include chart recommendations
+    edited_query: Optional[str] = None  # For user-edited SQL queries
 
 class QueryResponse(BaseModel):
     prompt: str
@@ -84,6 +89,7 @@ class QueryResponse(BaseModel):
     user_hint: Optional[str] = None  # NEW: user-friendly hint for errors
     chart_recommendations: Optional[List[Dict[str, Any]]] = None  # NEW: chart recommendations
     chart_error: Optional[str] = None  # NEW: error message when charts cannot be generated
+    edited: bool = False  # Flag indicating if the SQL was edited by the user
 
 
 # Route for the chart viewer UI
@@ -1252,7 +1258,11 @@ async def unified_query_endpoint(
     Parameters:
         request: The query request with model parameter that specifies which model to use.
         Model can be a specific model name or a simple provider name like "openai", "claude", "gemini".
-
+        
+        If request.edited_query is provided, the edited SQL will be executed directly
+        (when execute_query=True) or simply returned (when execute_query=False).
+        
+        If request.execute_query is False, only the SQL will be generated without execution.
         
     Returns:
         QueryResponse: The query response from the selected model
@@ -1261,6 +1271,56 @@ async def unified_query_endpoint(
         # Print client information for debugging
         print(f"\nUnified API: Request for client_id = {request.client_id}")
         
+        # Check if this is an edited query that needs execution
+        if request.edited_query:
+            print(f"Unified API: Processing edited query from client {request.client_id}")
+            
+            # If execute_query is False, just return the edited SQL without execution
+            if not request.execute_query:
+                print("Unified API: Returning edited SQL without execution")
+                return QueryResponse(
+                    prompt=request.prompt,
+                    query=request.edited_query,
+                    query_output=[],
+                    model=request.model or "edited",
+                    success=True,
+                    edited=True,
+                    chart_recommendations=[]
+                )
+            
+            # Otherwise, execute the edited query using our execute-query endpoint
+            from execute_query_route import ExecuteQueryRequest, execute_query
+            
+            # Prepare the execution request
+            execute_request = ExecuteQueryRequest(
+                client_id=request.client_id,
+                query=request.edited_query,
+                limit_rows=request.limit_rows,
+                original_prompt=request.prompt,
+                include_charts=request.include_charts,
+                model=request.model,  # Pass the model used for the original query
+                original_sql=request.query if hasattr(request, 'query') else None,  # Pass the original SQL
+                original_chart_recommendations=request.chart_recommendations if hasattr(request, 'chart_recommendations') else None  # Pass original chart recommendations
+            )
+            
+            # Execute the query
+            execution_result = await execute_query(execute_request, data_dictionary_path)
+            
+            # Convert execution result to QueryResponse format
+            return QueryResponse(
+                prompt=request.prompt,
+                query=execution_result.query,
+                query_output=execution_result.query_output,
+                model=request.model or "edited",
+                success=execution_result.success,
+                error_message=execution_result.error_message,
+                execution_time_ms=execution_result.execution_time_ms,
+                user_hint=None,
+                chart_recommendations=execution_result.chart_recommendations,
+                chart_error=execution_result.chart_error,
+                edited=True
+            )
+            
         # Extract the model from the request
         model = request.model.lower() if request.model else ""
         client_id = request.client_id if hasattr(request, 'client_id') else None
@@ -1273,6 +1333,16 @@ async def unified_query_endpoint(
             print("Unified API: Using comparison endpoint for 'all' model request")
             comparison_response = await compare_models(request, data_dictionary_path=data_dictionary_path)
             
+            # If execute_query is False, ensure we're not executing any queries
+            if not request.execute_query:
+                # Clear query outputs from all model results
+                if comparison_response.openai:
+                    comparison_response.openai.query_output = []
+                if comparison_response.claude:
+                    comparison_response.claude.query_output = []
+                if comparison_response.gemini:
+                    comparison_response.gemini.query_output = []
+                
             # Return the comparison response directly
             return comparison_response
             
@@ -1304,6 +1374,11 @@ async def unified_query_endpoint(
             
             # Call OpenAI endpoint with chart recommendations parameter and data_dictionary_path from client context
             response = await generate_sql_query(request, data_dictionary_path=data_dictionary_path)
+            
+            # If execute_query is False, ensure we're not executing the query
+            if not request.execute_query and response.query_output:
+                response.query_output = []
+                
             return response
             
         elif model == "gemini" or model == "google":
@@ -1333,6 +1408,11 @@ async def unified_query_endpoint(
                 
             # Call Gemini endpoint with data_dictionary_path from client context
             response = await generate_sql_query_gemini(request, data_dictionary_path=data_dictionary_path)
+            
+            # If execute_query is False, ensure we're not executing the query
+            if not request.execute_query and response.query_output:
+                response.query_output = []
+                
             return response
             
         elif model == "claude" or model == "anthropic":
@@ -1362,6 +1442,11 @@ async def unified_query_endpoint(
                 
             # Call Claude endpoint with data_dictionary_path from client context
             response = await generate_sql_query_claude(request, data_dictionary_path=data_dictionary_path)
+            
+            # If execute_query is False, ensure we're not executing the query
+            if not request.execute_query and response.query_output:
+                response.query_output = []
+                
             return response
         
         elif model == "":
@@ -1395,6 +1480,11 @@ async def unified_query_endpoint(
             request.model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
             print(f"Using default Claude model: {request.model}")
             response = await generate_sql_query_claude(request, data_dictionary_path=data_dictionary_path)
+            
+            # If execute_query is False, ensure we're not executing the query
+            if not request.execute_query and response.query_output:
+                response.query_output = []
+                
             return response
             
         else:
@@ -1421,11 +1511,18 @@ async def unified_query_endpoint(
 if __name__ == "__main__":
     # Import and include the prompt query history router
     from prompt_query_history_api import router as history_router
+    import argparse
+    
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="LLM SQL Query Engine API Server")
+    parser.add_argument("--port", type=int, default=8000, help="Port to run the API server on (default: 8000)")
+    args = parser.parse_args()
 
     # Include the prompt query history endpoints directly in our API
     app.include_router(history_router, prefix="")  # Access via /prompt_query_history
 
     import uvicorn
-    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
+    print(f"Starting API server on port {args.port}")
+    uvicorn.run("api_server:app", host="0.0.0.0", port=args.port, reload=True)
 
 

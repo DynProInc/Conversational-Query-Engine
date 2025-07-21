@@ -55,11 +55,42 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
 After generating the SQL query, you must also recommend appropriate chart types for visualizing the results. Follow these rules for chart recommendations:
 
 1. Analyze the query structure to understand what data will be returned
-2.For single numeric values KPI_CARD: 
+2. For single numeric values KPI_CARD: 
    Display as minimal cards with bold label at top, large formatted number below, no icons, clean white background, centered text only.
-3.For purely categorical data with no numeric measures, recommend a table visualization.
-4.Recommend 1-3 appropriate chart types (bar, line, pie, scatter,KPI_CARD,MIX etc.) based on the query's structure
-5. For each recommendation, provide:
+3. For purely categorical data with no numeric measures, recommend a table visualization.
+4. Consider specialized chart types for distribution analysis:
+
+  **Histogram Charts**: Distribution analysis of continuous variables
+        - Required: Numerical continuous data only (no categorical)
+        - Best for: Frequency/spread/skewness/outliers in large datasets
+        - Use auto-binning (Sturges/Freedman-Diaconis) for proper bin sizing
+        - X-axis: value range,
+        - "y_axis": [],   "y_axis": null,  // ✅ No column needed - frequency is calculated
+        For a histogram:
+        - Use 1 numeric column.
+        - X-axis = value bins from that column.
+        - Y-axis = count (frequency), computed from how many values fall in each bin.
+        - Y-axis is not from any column.
+        - Ensure contiguous bins (no gaps)
+        - Avoid overlapping distributions (use separate plots/density plots)
+        - Skip for small datasets (use box/dot plots instead)
+
+        **Box Plot Charts**: Distribution comparison between groups
+        - Required: Numerical data (can group by categorical)
+          if one columns then use null for x_axis,
+          other wise categorical column for x_axis
+           e.g:  "x_axis": "PRODUCT_CATEGORY",
+            "y_axis": ["SALES_AMOUNT"],
+            "color_by": "PRODUCT_CATEGORY",
+            - Best for: Comparing distributions, showing central tendency/spread/outliers
+            - Box = IQR (Q1-Q3), line = median
+            - Whiskers = Q1-1.5×IQR to Q3+1.5×IQR
+            - Points beyond whiskers = outliers
+            - Best for side-by-side comparisons
+            - Consider combining with histograms/violin plots for distribution shape details
+
+5. Recommend 1-3 appropriate chart types (bar, line, pie, scatter, histogram, boxplot, KPI_CARD, MIX etc.) based on the query's structure
+6. For each recommendation, provide:
    - chart_type: The type of chart (bar, line, pie, scatter,mix, etc.)
    - reasoning: Brief explanation of why this chart type is appropriate
    - priority: Importance ranking (1 = highest)

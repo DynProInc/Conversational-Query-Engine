@@ -34,6 +34,7 @@ The codebase follows a modular architecture to support multiple LLM providers an
 
 4. **Database Connector** (`snowflake_runner.py`):
    - Handles Snowflake connectivity
+   - Automatically activates the specified warehouse before query execution
    - Executes SQL queries
    - Returns results as pandas DataFrames
 
@@ -349,6 +350,32 @@ GET /models
 | `execute_query` | boolean | *Optional* | true | Whether to execute the generated SQL |
 | `model` | string | *Optional* | Depends on endpoint | Specific model to use |
 
+### API Endpoints
+
+#### Natural Language Query Endpoints
+
+- `/query/unified` - Unified endpoint that routes to the selected model
+- `/query/openai` - Convert NL to SQL using OpenAI
+- `/query/claude` - Convert NL to SQL using Claude
+- `/query/gemini` - Convert NL to SQL using Gemini
+- `/query/compare` - Run the query through all models and compare results
+
+#### Direct SQL Execution
+
+- `/execute-query` - Execute a SQL query directly against Snowflake
+  - Supports chart recommendations for query results
+  - Handles edited SQL queries with original chart reuse when appropriate
+  - Provides detailed execution metrics and error handling
+
+#### Health Check and System Endpoints
+
+- `/health` - System-wide health check
+- `/health/client` - Health status for all clients
+- `/health/client/{client_id}` - Client-specific health check
+- `/models` - List available language models
+- `/clients` - List all registered clients
+- `/clients/{client_id}` - Get detailed info for a specific client
+
 ### Example Request with Only Required Parameters
 
 ```json
@@ -372,6 +399,61 @@ Content-Type: application/json
   "data_dictionary_path": "Data Dictionary/custom_schema.csv",
   "execute_query": true,
   "model": "gpt-4o"
+}
+```
+
+### Example /execute-query Request
+
+```json
+POST /execute-query
+Content-Type: application/json
+X-Client-ID: mts
+
+{
+  "client_id": "mts",
+  "query": "SELECT s.STORE_NUM_NAME, s.CITY, s.STATE, SUM(s.DAILY_TOTAL_SALE) as TOTAL_SALES FROM REPORTING_UAT.GOLD_SALES.V_SMM_DAILY_SALES s WHERE EXTRACT(YEAR FROM s.BUSINESS_DATE) = 2024 GROUP BY s.STORE_NUM_NAME, s.CITY, s.STATE ORDER BY TOTAL_SALES DESC LIMIT 6",
+  "limit_rows": 50,
+  "original_prompt": "Show me the top 6 stores with highest sales in year 2024",
+  "include_charts": true,
+  "model": "gpt-4o"
+}
+```
+
+### Example /execute-query Response
+
+```json
+{
+  "query": "SELECT s.STORE_NUM_NAME, s.CITY, s.STATE, SUM(s.DAILY_TOTAL_SALE) as TOTAL_SALES FROM REPORTING_UAT.GOLD_SALES.V_SMM_DAILY_SALES s WHERE EXTRACT(YEAR FROM s.BUSINESS_DATE) = 2024 GROUP BY s.STORE_NUM_NAME, s.CITY, s.STATE ORDER BY TOTAL_SALES DESC LIMIT 6",
+  "query_output": [
+    {
+      "STORE_NUM_NAME": "123 - Main Street",
+      "CITY": "New York",
+      "STATE": "NY",
+      "TOTAL_SALES": 1245678.90
+    },
+    // Additional rows...
+  ],
+  "success": true,
+  "error_message": null,
+  "execution_time_ms": 1831.69,
+  "row_count": 6,
+  "original_prompt": "Show me the top 6 stores with highest sales in year 2024",
+  "edited": true,
+  "chart_recommendations": [
+    {
+      "reasoning": "This data shows sales performance across different stores, which is well-suited for a bar chart to compare values.",
+      "chart_config": {
+        "chart_type": "bar",
+        "title": "Top 6 Stores by Sales (2024)",
+        "x_axis": "STORE_NUM_NAME",
+        "y_axis": ["TOTAL_SALES"],
+        "additional_config": {
+          "orientation": "horizontal"
+        }
+      }
+    }
+  ],
+  "chart_error": null
 }
 ```
 
