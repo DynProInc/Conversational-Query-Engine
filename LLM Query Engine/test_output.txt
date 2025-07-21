@@ -1,5 +1,0 @@
-RESULT KEYS: ['chart_error', 'chart_recommendations', 'completion_tokens', 'model', 'prompt_tokens', 'sql', 'timestamp', 'total_tokens']
-chart_recommendations present: False
-chart_recommendations type: NoneType
-chart_error present: False
-chart_error value: None
