@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # Import SQL structure analysis tools
-from sql_structure_utils import is_column_structure_changed
+from sql_structure_utils import is_column_structure_changed, validate_read_only_sql
 
 # Import chart recommendation tools
 from chart_utils import generate_chart_recommendations_for_edited_sql
@@ -71,11 +71,57 @@ async def execute_query(request: ExecuteQueryRequest, data_dictionary_path: Opti
     start_time = time.time()
     
     try:
-        # Add LIMIT if not present and limit_rows is specified
+        # Validate query for read-only operations
         sql = request.query
+        validation_result = validate_read_only_sql(sql)
+        
+        # If validation failed, return error response
+        if validation_result is not True:
+            error_msg = validation_result.get('error', 'SQL validation failed. Unknown error.')
+            print(f"SQL validation error: {error_msg}")
+            
+            # Return error response without executing query
+            return ExecuteQueryResponse(
+                query=sql,
+                query_output=[],
+                success=False,
+                error_message=error_msg,
+                execution_time_ms=(time.time() - start_time) * 1000,
+                row_count=0,
+                original_prompt=request.original_prompt,
+                edited=True,
+                chart_recommendations=[],
+                chart_error="Cannot generate charts due to SQL validation error"
+            )
+        
+        # Add LIMIT if not present and limit_rows is specified
         if request.limit_rows > 0 and "LIMIT" not in sql.upper():
-            sql = f"{sql.rstrip('; \n')} LIMIT {request.limit_rows}"
-            print(f"\nAdded limit clause: LIMIT {request.limit_rows}")
+            # For SELECT statements without GROUP BY or aggregate functions, enforce LIMIT
+            sql_upper = sql.upper()
+            is_select = sql_upper.startswith("SELECT")
+            has_group_by = "GROUP BY" in sql_upper
+            has_aggregates = any(agg in sql_upper for agg in [" COUNT(", " SUM(", " AVG(", " MIN(", " MAX("])
+            has_distinct = "DISTINCT" in sql_upper
+            
+            # If it's a SELECT without aggregation, enforce limit
+            if is_select and not (has_group_by or has_aggregates or has_distinct):
+                sql = f"{sql.rstrip('; \n')} LIMIT {min(request.limit_rows, 1000)}"
+                print(f"\nAdded limit clause: LIMIT {min(request.limit_rows, 1000)}")
+            else:
+                # For other queries, respect the requested limit
+                sql = f"{sql.rstrip('; \n')} LIMIT {request.limit_rows}"
+                print(f"\nAdded limit clause: LIMIT {request.limit_rows}")
+        elif "LIMIT" not in sql.upper():
+            # If no limit specified and it's a simple SELECT, add default limit of 100
+            sql_upper = sql.upper()
+            is_select = sql_upper.startswith("SELECT")
+            has_group_by = "GROUP BY" in sql_upper
+            has_aggregates = any(agg in sql_upper for agg in [" COUNT(", " SUM(", " AVG(", " MIN(", " MAX("])
+            has_distinct = "DISTINCT" in sql_upper
+            
+            if is_select and not (has_group_by or has_aggregates or has_distinct):
+                sql = f"{sql.rstrip('; \n')} LIMIT 100"
+                print("\nAdded default limit clause: LIMIT 100")
         
         print(f"\nExecuting SQL in Snowflake:\n{sql}")
         

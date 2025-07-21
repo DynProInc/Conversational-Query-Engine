@@ -259,9 +259,30 @@
             
             <!-- SQL Editor Tab Content -->
             <div id="sql-tab" class="tab-content" style="display:none;">
+                <!-- Connection info and restrictions alert -->
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <div id="snowflake-connection-info" style="background-color: #e6f7ff; border-left: 4px solid #1890ff; padding: 10px; margin-bottom: 10px; font-weight: bold;">
+                        Connected to Snowflake Account: <span id="snowflake-account">Loading...</span>
+                    </div>
+                    <div style="background-color: #fff1f0; border-left: 4px solid #ff4d4f; padding: 10px; margin-bottom: 10px;">
+                        <strong>⚠️ STRICT RULES - ONLY READ OPERATIONS ALLOWED</strong>
+                        <ul style="margin-top: 5px; margin-bottom: 0;">
+                            <li><span style="color: green;">✅ ALLOWED:</span> SELECT statements only</li>
+                            <li><span style="color: green;">✅ ALLOWED:</span> WITH clauses (CTEs) containing only SELECT operations</li>
+                            <li><span style="color: red;">❌ FORBIDDEN:</span> INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, etc.</li>
+                            <li><span style="color: red;">❌ FORBIDDEN:</span> DESCRIBE/DESC commands (table structure queries)</li>
+                            <li><span style="color: red;">❌ FORBIDDEN:</span> SHOW, EXPLAIN commands for security reasons</li>
+                            <li><span style="color: green;">✅ ALLOWED:</span> DESC keyword in ORDER BY clauses for sorting</li>
+                            <li><span style="color: blue;">ℹ️ NOTE:</span> SELECT * is not allowed - you must specify columns</li>
+                            <li><span style="color: blue;">ℹ️ NOTE:</span> LIMIT clause is required or will be added automatically</li>
+                        </ul>
+                    </div>
+                </div>
+                
                 <div class="form-group">
                     <label for="sql-editor">SQL Query:</label>
-                    <textarea id="sql-editor" rows="8" placeholder="Enter your SQL query here..."></textarea>
+                    <textarea id="sql-editor" rows="8" placeholder="Enter your SQL query here (SELECT statements only)..." oninput="validateSqlInput()"></textarea>
+                    <div id="sql-validation-message" style="color: red; margin-top: 5px; font-size: 14px;"></div>
                 </div>
                 
                 <div class="form-group">
@@ -269,6 +290,14 @@
                     <textarea id="original-prompt" rows="2" placeholder="The original question that generated this SQL (if any)"></textarea>
                 </div>
                 
+                <div class="form-group">
+                    <label for="client-sql">Select Client:</label>
+                    <select id="client-sql" onchange="updateSqlSnowflakeAccount()">
+                        <option value="mts">MTS</option>
+                        <option value="penguin">Penguin</option>
+                    </select>
+                </div>
+
                 <div class="form-group">
                     <label for="model-sql">LLM Model for Charts:</label>
                     <select id="model-sql">
@@ -285,7 +314,7 @@
                     </label>
                 </div>
                 
-                <button onclick="buttonWithSpinner(this, function() { executeQuery('sql'); })" class="btn btn-success">Execute SQL Query</button>
+                <button id="execute-sql-button" onclick="buttonWithSpinner(this, function() { executeQuery('sql'); })" class="btn btn-success">Execute SQL Query</button>
             </div>
         </div>
 
@@ -390,14 +419,24 @@
         function updateDataDictionary() {
             const clientSelect = document.getElementById('client');
             const dataDictionaryInput = document.getElementById('data-dictionary');
+            const snowflakeAccountSpan = document.getElementById('snowflake-account');
             
             const selectedClient = clientSelect.value;
             
             // Update the data dictionary path based on client selection
             if (selectedClient === 'mts') {
                 dataDictionaryInput.value = 'Data Dictionary/mts.csv';
+                snowflakeAccountSpan.innerText = 'MTS Production';
             } else if (selectedClient === 'penguin') {
                 dataDictionaryInput.value = 'Data Dictionary/penguin.csv';
+                snowflakeAccountSpan.innerText = 'Penguin Analytics';
+            }
+            
+            // Update the snowflake account display in the SQL editor tab
+            const sqlClientSelect = document.getElementById('client-sql');
+            if (sqlClientSelect) {
+                sqlClientSelect.value = selectedClient;
+                updateSqlSnowflakeAccount();
             }
             
             console.log(`Client changed to ${selectedClient}, data dictionary updated to: ${dataDictionaryInput.value}`);
@@ -458,9 +497,125 @@
             }
         }
         
+        // Function to validate SQL input in real-time
+        function validateSqlInput() {
+            const sql = document.getElementById('sql-editor').value.trim();
+            const executeButton = document.getElementById('execute-sql-button');
+            const validationMessage = document.getElementById('sql-validation-message');
+            
+            // Reset validation state
+            executeButton.disabled = false;
+            validationMessage.textContent = '';
+            
+            if (!sql) {
+                executeButton.disabled = true;
+                return;
+            }
+            
+            const sqlUpper = sql.toUpperCase();
+            
+            // Special handling for commands at the BEGINNING OF STATEMENTS ONLY
+            // Using word boundary pattern (\b) to ensure we're only matching complete command words,
+            // not when they appear as part of table or column names
+            
+            // Check for DESCRIBE/DESC as commands (at beginning of statement only)
+            if (/^\s*DESC(RIBE)?\b[\s(][\"'\w\d_\.]/i.test(sqlUpper)) {
+                executeButton.disabled = true;
+                validationMessage.textContent = 'DESCRIBE/DESC commands are not allowed. Only SELECT statements and WITH clauses are permitted.';
+                return;
+            }
+            
+            // Check for SHOW as a command (at beginning of statement only)
+            if (/^\s*SHOW\b[\s(][\"'\w\d_\.]/i.test(sqlUpper)) {
+                executeButton.disabled = true;
+                validationMessage.textContent = 'SHOW commands are not allowed. Only SELECT statements and WITH clauses are permitted.';
+                return;
+            }
+            
+            // Check for EXPLAIN as a command (at beginning of statement only)
+            if (/^\s*EXPLAIN\b[\s(][\"'\w\d_\.]/i.test(sqlUpper)) {
+                executeButton.disabled = true;
+                validationMessage.textContent = 'EXPLAIN commands are not allowed. Only SELECT statements and WITH clauses are permitted.';
+                return;
+            }
+            
+            // Check for other forbidden operations with more precise pattern matching
+            const forbiddenOperations = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TRUNCATE', 'MERGE', 'COPY', 'PUT', 'GET'];
+            for (const op of forbiddenOperations) {
+                // Using word boundary (\b) to ensure we only match complete command words
+                // This prevents blocking when these words are part of table/column names
+                const pattern = new RegExp(`^\\s*${op}\\b[\\s(][\\"'\\w\\d_\\.]`, 'i');
+                if (pattern.test(sqlUpper)) {
+                    executeButton.disabled = true;
+                    validationMessage.textContent = `Operation not allowed: ${op} statements are forbidden.`;
+                    return;
+                }
+            }
+            
+            // Check for allowed prefixes
+            const allowedPrefixes = ['SELECT', 'WITH'];
+            let isAllowed = false;
+            for (const prefix of allowedPrefixes) {
+                if (sqlUpper.trim().startsWith(prefix)) {
+                    isAllowed = true;
+                    break;
+                }
+            }
+            
+            if (!isAllowed) {
+                executeButton.disabled = true;
+                validationMessage.textContent = 'Invalid query. Only SELECT statements and WITH clauses are allowed.';
+                return;
+            }
+            
+            // For WITH clauses, ensure they only contain SELECT operations
+            if (sqlUpper.trim().startsWith('WITH')) {
+                // Simple pattern to check for disallowed operations within WITH clauses
+                const withClausePattern = /(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|MERGE|COPY|PUT|GET)\s+/i;
+                if (withClausePattern.test(sql)) {
+                    executeButton.disabled = true;
+                    validationMessage.textContent = 'WITH clauses must only contain SELECT operations.';
+                    return;
+                }
+                
+                // For multi-line WITH clauses, we'll use a simpler check
+                // Just ensure it has WITH, AS, and SELECT somewhere in the right order
+                if (!sql.match(/WITH\s+.*\s+AS\s*\(/i) || !sql.match(/\).*SELECT/is)) {
+                    executeButton.disabled = true;
+                    validationMessage.textContent = 'WITH clause must define a table expression followed by a SELECT statement.';
+                    return;
+                }
+            }
+            
+            // Check for SELECT * which is disallowed
+            if (sqlUpper.trim().startsWith('SELECT') && /SELECT\s+\*\s+FROM|SELECT\s+\*\s*$/.test(sqlUpper)) {
+                executeButton.disabled = true;
+                validationMessage.textContent = '"SELECT *" is not allowed. Please specify explicit column names.';
+                return;
+            }
+        }
+        
+        // Function to update Snowflake account display in SQL editor tab
+        function updateSqlSnowflakeAccount() {
+            const sqlClientSelect = document.getElementById('client-sql');
+            const snowflakeAccountSpan = document.getElementById('snowflake-account');
+            
+            if (sqlClientSelect && snowflakeAccountSpan) {
+                const selectedClient = sqlClientSelect.value;
+                
+                if (selectedClient === 'mts') {
+                    snowflakeAccountSpan.innerText = 'MTS Production';
+                } else if (selectedClient === 'penguin') {
+                    snowflakeAccountSpan.innerText = 'Penguin Analytics';
+                }
+            }
+        }
+
         // Initialize when document is ready
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM loaded, initializing tab functionality');
+            updateSqlSnowflakeAccount();
+            validateSqlInput(); // Initialize validation state
             
             // Add click handlers to all tab buttons
             document.querySelectorAll('.tab-button').forEach(button => {
@@ -570,6 +725,85 @@
             } else if (mode === 'sql' && !sql) {
                 alert('Please enter a SQL query');
                 return;
+            }
+            
+            // Validate SQL query if in SQL mode to enforce read-only operations
+            if (mode === 'sql') {
+                const sqlUpper = sql.toUpperCase();
+                
+                // Special handling for commands at the BEGINNING OF STATEMENTS ONLY
+                // Using word boundary pattern (\b) to ensure we're only matching complete command words,
+                // not when they appear as part of table or column names
+                
+                // Check for DESCRIBE/DESC as commands (at beginning of statement only)
+                if (/^\s*DESC(RIBE)?\b[\s(][\"'\w\d_\.]/i.test(sqlUpper)) {
+                    alert('DESCRIBE/DESC commands are not allowed. Only SELECT statements and WITH clauses are permitted.');
+                    return;
+                }
+                
+                // Check for SHOW as a command (at beginning of statement only)
+                if (/^\s*SHOW\b[\s(][\"'\w\d_\.]/i.test(sqlUpper)) {
+                    alert('SHOW commands are not allowed. Only SELECT statements and WITH clauses are permitted.');
+                    return;
+                }
+                
+                // Check for EXPLAIN as a command (at beginning of statement only)
+                if (/^\s*EXPLAIN\b[\s(][\"'\w\d_\.]/i.test(sqlUpper)) {
+                    alert('EXPLAIN commands are not allowed. Only SELECT statements and WITH clauses are permitted.');
+                    return;
+                }
+                
+                // Check for other forbidden operations with more precise pattern matching
+                const forbiddenOperations = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TRUNCATE', 'MERGE', 'COPY', 'PUT', 'GET'];
+                for (const op of forbiddenOperations) {
+                    // Using word boundary (\b) to ensure we only match complete command words
+                    // This prevents blocking when these words are part of table/column names
+                    const pattern = new RegExp(`^\\s*${op}\\b[\\s(][\\"'\\w\\d_\\.]`, 'i');
+                    if (pattern.test(sqlUpper)) {
+                        alert(`Operation not allowed: ${op} statements are forbidden.`);
+                        return;
+                    }
+                }
+                
+                // Check for allowed prefixes
+                const allowedPrefixes = ['SELECT', 'WITH'];
+                let isAllowed = false;
+                for (const prefix of allowedPrefixes) {
+                    if (sqlUpper.trim().startsWith(prefix)) {
+                        isAllowed = true;
+                        break;
+                    }
+                }
+                
+                if (!isAllowed) {
+                    alert('Invalid query. Only SELECT statements and WITH clauses are allowed.');
+                    return;
+                }
+                
+                // For WITH clauses, ensure they only contain SELECT operations
+                if (sqlUpper.trim().startsWith('WITH')) {
+                    // Check for disallowed operations within WITH clause
+                    const withClausePattern = /(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|MERGE|COPY|PUT|GET)\s+/i;
+                    if (withClausePattern.test(sql)) {
+                        alert('WITH clauses must only contain SELECT operations.');
+                        return;
+                    }
+                }
+                
+                // Check for SELECT * which is disallowed
+                if (sqlUpper.trim().startsWith('SELECT') && /SELECT\s+\*\s+FROM|SELECT\s+\*\s*$/.test(sqlUpper)) {
+                    alert('"SELECT *" is not allowed. Please specify explicit column names.');
+                    return;
+                }
+                
+                // Add a friendly reminder about LIMIT if it's a SELECT query without LIMIT
+                if (sqlUpper.trim().startsWith('SELECT') && !sqlUpper.includes('LIMIT ') && 
+                    !sqlUpper.includes('GROUP BY') && !sqlUpper.includes('COUNT(') && 
+                    !sqlUpper.includes('SUM(') && !sqlUpper.includes('AVG(') && 
+                    !sqlUpper.includes('MIN(') && !sqlUpper.includes('MAX(') && 
+                    !sqlUpper.includes('DISTINCT')) {
+                    console.log('Note: A LIMIT clause will be automatically added to your query if not present');
+                }
             }
             
             // Validate row limit
