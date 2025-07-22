@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: conversational-query-engine
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api_server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 8000
+      # Add your environment variables here - you'll need to set these in Render dashboard
+      # - key: CLIENT_MTS_SNOWFLAKE_USER
+      #   sync: false
+      # - key: CLIENT_MTS_SNOWFLAKE_PASSWORD
+      #   sync: false
+      # - key: CLIENT_MTS_SNOWFLAKE_ACCOUNT
+      #   sync: false
+      # - key: CLIENT_MTS_SNOWFLAKE_WAREHOUSE
+      #   sync: false
+      # - key: CLIENT_MTS_SNOWFLAKE_ROLE
+      #   sync: false
+      # - key: CLIENT_MTS_SNOWFLAKE_DATABASE
+      #   sync: false
+      # - key: CLIENT_MTS_SNOWFLAKE_SCHEMA
+      #   sync: false
+      # - key: CLIENT_MTS_OPENAI_API_KEY
+      #   sync: false
+      # - key: CLIENT_MTS_ANTHROPIC_API_KEY
+      #   sync: false
+      # - key: CLIENT_MTS_GEMINI_API_KEY
+      #   sync: false 
