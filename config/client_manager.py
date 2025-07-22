@@ -55,21 +55,21 @@ class ClientManager:
         return CLIENT_ENV_DIR / f"{client_id}.env"
         
     def _load_client_env(self, client_id: str) -> Dict[str, str]:
-        """Load client environment variables from .env file"""
+        """Load client environment variables from .env file or system environment"""
         env_path = self._get_client_env_path(client_id)
-        
-        if not env_path.exists():
-            print(f"Warning: Environment file for client '{client_id}' not found at {env_path}")
-            return {}
-            
-        # Load environment variables from file
         env_vars = {}
-        dotenv.load_dotenv(env_path)
         
         # Create a prefix for this client's environment variables
         prefix = f"CLIENT_{client_id.upper()}_"
         
-        # Extract all environment variables for this client
+        # First, try to load from .env file if it exists (local development)
+        if env_path.exists():
+            print(f"Loading environment from file: {env_path}")
+            dotenv.load_dotenv(env_path)
+        else:
+            print(f"Environment file not found at {env_path}, using system environment variables")
+        
+        # Extract all environment variables for this client from os.environ
         for key, value in os.environ.items():
             if key.startswith(prefix):
                 # Remove prefix to get the actual variable name
