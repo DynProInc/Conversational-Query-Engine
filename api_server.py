@@ -1022,6 +1022,47 @@ async def health_check():
     Health check endpoint: checks OpenAI, Claude, Gemini APIs and Snowflake connectivity.
     Returns generic error messages rather than specific error details.
     """
+    from health_check_utils import check_openai_health, check_claude_health, check_gemini_health, check_snowflake_health
+    
+    # Check all model APIs and database
+    openai_ok, openai_msg = check_openai_health()
+    claude_ok, claude_msg = check_claude_health()
+    gemini_ok, gemini_msg = check_gemini_health()
+    snowflake_ok, snowflake_msg = check_snowflake_health()
+
+    # Determine overall system status
+    all_ok = openai_ok and claude_ok and gemini_ok and snowflake_ok
+    status = "healthy" if all_ok else "degraded"
+    
+    # Include status for all components
+    details = {
+        "openai": {"ok": openai_ok, "msg": openai_msg},
+        "claude": {"ok": claude_ok, "msg": claude_msg},
+        "gemini": {"ok": gemini_ok, "msg": gemini_msg},
+        "snowflake": {"ok": snowflake_ok, "msg": snowflake_msg},
+    }
+    
+    # Return complete health status
+    return {
+        "status": status,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "models": ["openai", "claude", "gemini"],
+        "details": details
+    }
+
+
+@app.get("/health/simple")
+async def simple_health_check():
+    """
+    Simple health check endpoint that just confirms the server is running.
+    Useful for basic system monitoring without requiring API keys.
+    """
+    return {
+        "status": "healthy",
+        "message": "Server is running",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "version": "1.1.0"
+    }
 
 
 @app.get("/health/client")
@@ -1078,30 +1119,6 @@ async def all_clients_health_check():
         error_msg = f"Failed to check health for all clients: {str(e)}"
         print(f"ERROR: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
-    # Check all model APIs and database
-    openai_ok, openai_msg = check_openai_health()
-    claude_ok, claude_msg = check_claude_health()
-    gemini_ok, gemini_msg = check_gemini_health()
-    snowflake_ok, snowflake_msg = check_snowflake_health()
-
-    # Determine overall system status
-    all_ok = openai_ok and claude_ok and gemini_ok and snowflake_ok
-    status = "healthy" if all_ok else "degraded"
-    
-    # Include status for all components
-    details = {
-        "openai": {"ok": openai_ok, "msg": openai_msg},
-        "claude": {"ok": claude_ok, "msg": claude_msg},
-        "gemini": {"ok": gemini_ok, "msg": gemini_msg},
-        "snowflake": {"ok": snowflake_ok, "msg": snowflake_msg},
-    }
-    
-    # Return complete health status
-    return {
-        "status": status,
-        "models": ["openai", "claude", "gemini"],
-        "details": details
-    }
 
 
 @app.get("/health/client/{client_id}")
