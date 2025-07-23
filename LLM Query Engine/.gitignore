@@ -5,8 +5,11 @@ __pycache__/
 
 # Client credential files
 config/clients/env/
+config/clients/cache/
 config/clients/*.csv
 *.env
+**/.env
+**/*.env
 
 # C extensions
 *.so
@@ -95,7 +98,9 @@ celerybeat-schedule
 # Pyre type checker
 .pyre/
 
-# Data and logs
+# Data, stats and logs
+stats/cache/
+stats/**/*.json
 # token_usage.csv - keeping accessible for reporting
 *.log
 

@@ -10,6 +10,7 @@ import time
 import json
 import pandas as pd
 import datetime
+import logging
 from typing import Dict, List, Optional, Union, Any
 
 import fastapi
@@ -19,6 +20,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from dotenv import load_dotenv
+
+# Import our simplified caching system
+from cache.cache_decorator import cache_llm_query, get_cache_stats, clear_cache
 
 # Import our existing functionality
 from nlq_to_snowflake import nlq_to_snowflake
@@ -31,14 +35,32 @@ from nlq_to_snowflake_claude import nlq_to_snowflake_claude
 from config.client_integration import with_client_context
 from config.client_manager import client_manager
 
+# Import caching system
+from services.cache_integration import (
+    initialize_cache_system, 
+    shutdown_cache_system, 
+    cached_llm_query,
+    adapt_query_response_for_cache
+)
+from services.cache_service import CacheService
+from api.cache_routes import router as cache_router
+from api.rag_routes import router as rag_router
+
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
     title="LLM SQL Query Engine API",
-    description="Convert natural language to SQL and execute in Snowflake using OpenAI or Claude",
-    version="1.1.0"
+    description="Convert natural language to SQL and execute in Snowflake using OpenAI or Claude with RAG and Caching support",
+    version="1.2.0"
 )
 
 # Add CORS middleware to allow requests from API clients
@@ -76,6 +98,18 @@ class QueryRequest(BaseModel):
     model: Optional[str] = None  # For specifying a specific model
     include_charts: bool = False  # Whether to include chart recommendations
     edited_query: Optional[str] = None  # For user-edited SQL queries
+    
+    # RAG parameters
+    use_rag: bool = False  # Whether to use RAG for context enhancement
+    rag_collection: Optional[str] = None  # Vector store collection name
+    rag_top_k: int = 5  # Number of relevant documents to retrieve
+    
+    # Optional column pruning to shrink schema context
+    prune_columns: bool = False  # If true, LLM/heuristic pruning applied to retrieved columns
+    
+    # LLM parameters
+    temperature: float = 0.7  # Temperature for LLM generation
+    max_tokens: Optional[int] = None  # Maximum tokens for LLM response
 
 class QueryResponse(BaseModel):
     prompt: str
@@ -1248,6 +1282,7 @@ async def get_client_info(client_id: str):
 
 @app.post("/query/unified", response_model=Union[QueryResponse, ComparisonResponse])
 @with_client_context  # Apply client context switching
+@cache_llm_query(ttl=3600)  # Add caching with 1 hour TTL
 async def unified_query_endpoint(
     request: QueryRequest,
     data_dictionary_path: Optional[str] = None
@@ -1372,7 +1407,65 @@ async def unified_query_endpoint(
             request.model = os.getenv("OPENAI_MODEL", "gpt-4o")  # Use environment variable or default
             print(f"Using default OpenAI model: {request.model}")
             
-            # Call OpenAI endpoint with chart recommendations parameter and data_dictionary_path from client context
+            # Check if RAG should be used
+            if request.use_rag:
+                print(f"Using RAG enhancement with collection: {request.rag_collection or 'default'}, top_k: {request.rag_top_k}")
+                # Import RAG client
+                from services.rag_client import retrieve_context, enhance_prompt
+                print("✅ RAG client imported successfully")
+                
+                # Get relevant context based on the query
+                # Use client_id to formulate the default collection name if not specified
+                if request.rag_collection:
+                    collection_name = request.rag_collection
+                else:
+                    # Default collection name format: {client_id}_data_dictionary
+                    collection_name = f"{request.client_id}_data_dictionary"
+                print(f"Using collection: {collection_name}")
+                
+                try:
+                    # Retrieve context from vector store
+                    print(f"Retrieving context from vector store for query: '{request.prompt}'")
+                    retrieval_result = retrieve_context(
+                        query=request.prompt,
+                        collection_name=collection_name,
+                        client_id=request.client_id,
+                        top_k=request.rag_top_k
+                    )
+                    
+                    if retrieval_result and retrieval_result.get("documents"):
+                        print(f"Found {len(retrieval_result['documents'])} relevant documents in collection '{collection_name}'")
+                        
+                        # Enhance the prompt with retrieved context
+                        print("Enhancing prompt with retrieved context")
+                        enhanced_result = enhance_prompt(
+                            query=request.prompt,
+                            retrieved_context=retrieval_result,
+                            system_prompt=None,
+                            prune_columns=getattr(request, "prune_columns", False)
+                        )
+                        
+                        if enhanced_result and enhanced_result.get("enhanced_prompt"):
+                            # Create a copy of the request with the enhanced prompt
+                            from copy import deepcopy
+                            enhanced_request = deepcopy(request)
+                            enhanced_request.prompt = enhanced_result.get("enhanced_prompt")
+                            
+                            # Use the enhanced request for SQL generation
+                            print("Generating SQL with RAG-enhanced prompt")
+                            response = await generate_sql_query(enhanced_request, data_dictionary_path=data_dictionary_path)
+                            response.prompt = request.prompt  # Keep the original prompt in the response
+                            return response
+                        else:
+                            print("⚠️ Failed to enhance prompt with RAG context, falling back to standard processing")
+                    else:
+                        print("⚠️ No relevant documents found in vector store, falling back to standard processing")
+                        
+                except Exception as e:
+                    print(f"⚠️ Error using RAG: {str(e)}, falling back to standard processing")
+            
+            # If RAG is not enabled or fails, call standard OpenAI endpoint
+            print("Using standard prompt without RAG enhancement")
             response = await generate_sql_query(request, data_dictionary_path=data_dictionary_path)
             
             # If execute_query is False, ensure we're not executing the query
@@ -1405,14 +1498,58 @@ async def unified_query_endpoint(
             # Use default model name
             request.model = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")  # Use environment variable or default
             print(f"Using default Gemini model: {request.model}")
-                
-            # Call Gemini endpoint with data_dictionary_path from client context
+
+            # --------------------------
+            # Attempt RAG enhancement
+            # --------------------------
+            try:
+                if request.use_rag:
+                    print(f"Using RAG enhancement with collection: {request.rag_collection or 'default'}, top_k: {request.rag_top_k}")
+                    from services.rag_client import retrieve_context, enhance_prompt
+                    print("✅ RAG client imported successfully for Gemini")
+
+                    collection_name = request.rag_collection if request.rag_collection else f"{request.client_id}_data_dictionary"
+                    print(f"Using collection: {collection_name}")
+
+                    retrieval_result = retrieve_context(
+                        query=request.prompt,
+                        collection_name=collection_name,
+                        client_id=request.client_id,
+                        top_k=request.rag_top_k,
+                    )
+
+                    if retrieval_result and retrieval_result.get("documents"):
+                        print(f"Found {len(retrieval_result['documents'])} relevant documents in collection '{collection_name}'")
+                        enhanced_res = enhance_prompt(
+                            query=request.prompt,
+                            retrieved_context=retrieval_result,
+                            system_prompt=None,
+                             prune_columns=getattr(request, "prune_columns", False),
+                        )
+                        if enhanced_res and enhanced_res.get("enhanced_prompt"):
+                            from copy import deepcopy
+                            enhanced_request = deepcopy(request)
+                            enhanced_request.prompt = enhanced_res["enhanced_prompt"]
+
+                            response = await generate_sql_query_gemini(enhanced_request, data_dictionary_path=data_dictionary_path)
+                            response.prompt = request.prompt  # keep original prompt
+
+                            if not request.execute_query and response.query_output:
+                                response.query_output = []
+                            return response
+                        else:
+                            print("⚠️ Failed to enhance prompt with RAG context for Gemini, falling back to standard processing")
+                    else:
+                        print("⚠️ No relevant documents found in vector store for Gemini, falling back to standard processing")
+            except Exception as e:
+                print(f"⚠️ Error during Gemini RAG processing: {str(e)}. Falling back to standard processing.")
+
+            # Fallback to standard processing
             response = await generate_sql_query_gemini(request, data_dictionary_path=data_dictionary_path)
-            
-            # If execute_query is False, ensure we're not executing the query
+
             if not request.execute_query and response.query_output:
                 response.query_output = []
-                
+
             return response
             
         elif model == "claude" or model == "anthropic":
@@ -1439,14 +1576,58 @@ async def unified_query_endpoint(
             # Use default model name
             request.model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")  # Use environment variable or default
             print(f"Using default Claude model: {request.model}")
-                
-            # Call Claude endpoint with data_dictionary_path from client context
+
+            # --------------------------
+            # Attempt RAG enhancement
+            # --------------------------
+            try:
+                if request.use_rag:
+                    print(f"Using RAG enhancement with collection: {request.rag_collection or 'default'}, top_k: {request.rag_top_k}")
+                    from services.rag_client import retrieve_context, enhance_prompt
+                    print("✅ RAG client imported successfully for Claude")
+
+                    collection_name = request.rag_collection if request.rag_collection else f"{request.client_id}_data_dictionary"
+                    print(f"Using collection: {collection_name}")
+
+                    retrieval_result = retrieve_context(
+                        query=request.prompt,
+                        collection_name=collection_name,
+                        client_id=request.client_id,
+                        top_k=request.rag_top_k,
+                    )
+
+                    if retrieval_result and retrieval_result.get("documents"):
+                        print(f"Found {len(retrieval_result['documents'])} relevant documents in collection '{collection_name}'")
+                        enhanced_res = enhance_prompt(
+                            query=request.prompt,
+                            retrieved_context=retrieval_result,
+                            system_prompt=None,
+                             prune_columns=getattr(request, "prune_columns", False),
+                        )
+                        if enhanced_res and enhanced_res.get("enhanced_prompt"):
+                            from copy import deepcopy
+                            enhanced_request = deepcopy(request)
+                            enhanced_request.prompt = enhanced_res["enhanced_prompt"]
+
+                            response = await generate_sql_query_claude(enhanced_request, data_dictionary_path=data_dictionary_path)
+                            response.prompt = request.prompt  # keep original
+
+                            if not request.execute_query and response.query_output:
+                                response.query_output = []
+                            return response
+                        else:
+                            print("⚠️ Failed to enhance prompt with RAG context for Claude, falling back to standard processing")
+                    else:
+                        print("⚠️ No relevant documents found in vector store for Claude, falling back to standard processing")
+            except Exception as e:
+                print(f"⚠️ Error during Claude RAG processing: {str(e)}. Falling back to standard processing.")
+
+            # Fallback to standard processing
             response = await generate_sql_query_claude(request, data_dictionary_path=data_dictionary_path)
-            
-            # If execute_query is False, ensure we're not executing the query
+
             if not request.execute_query and response.query_output:
                 response.query_output = []
-                
+
             return response
         
         elif model == "":
@@ -1507,19 +1688,76 @@ async def unified_query_endpoint(
 
 
 
+# Add startup event to initialize services
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on application startup."""
+    try:
+        logger.info("Initializing caching system...")
+        initialize_cache_system()
+        logger.info("Caching system initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing services: {e}")
+
+# Add shutdown event to clean up services
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up services on application shutdown."""
+    try:
+        logger.info("Shutting down caching system...")
+        shutdown_cache_system()
+        logger.info("Caching system shut down successfully")
+    except Exception as e:
+        logger.error(f"Error shutting down services: {e}")
+
+# Add cache status endpoint
+@app.get("/cache/stats", tags=["cache"])
+async def get_cache_statistics(client_id: Optional[str] = None):
+    """Get cache statistics."""
+    try:
+        stats = get_cache_stats()
+        return {
+            "cache_stats": stats,
+            "client_id": client_id or "all"
+        }
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Add cache clear endpoint
+@app.post("/cache/clear", tags=["cache"])
+async def clear_cache_endpoint(client_id: Optional[str] = None):
+    """Clear cache contents."""
+    try:
+        clear_cache(client_id)
+        return {
+            "success": True,
+            "message": f"Cache cleared for client: {client_id if client_id else 'all'}"
+        }
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Register all routers at the module level for proper Swagger documentation
+from prompt_query_history_api import router as history_router
+
+# Include the prompt query history endpoints directly in our API
+app.include_router(history_router, prefix="")  # Access via /prompt_query_history
+
+# Include cache routes
+app.include_router(cache_router, prefix="")  # Access via /cache/*
+
+# Include RAG routes
+app.include_router(rag_router, prefix="")  # Access via /rag/*
+
 # Main entry point to run the server directly
 if __name__ == "__main__":
-    # Import and include the prompt query history router
-    from prompt_query_history_api import router as history_router
     import argparse
     
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="LLM SQL Query Engine API Server")
     parser.add_argument("--port", type=int, default=8000, help="Port to run the API server on (default: 8000)")
     args = parser.parse_args()
-
-    # Include the prompt query history endpoints directly in our API
-    app.include_router(history_router, prefix="")  # Access via /prompt_query_history
 
     import uvicorn
     print(f"Starting API server on port {args.port}")

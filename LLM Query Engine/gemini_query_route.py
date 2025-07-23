@@ -29,7 +29,7 @@ from fastapi import HTTPException
 import pandas as pd
 from nlq_to_snowflake_gemini import nlq_to_snowflake_gemini
 
-@router.post("/query/gemini", response_model=GeminiQueryResponse)
+@router.post("/query/gemini", response_model=GeminiQueryResponse, operation_id="gemini_generate_sql_query")
 def generate_sql_query_gemini(request: GeminiQueryRequest):
     """
     Generate SQL from natural language using Google Gemini and return as JSON.
@@ -81,7 +81,7 @@ class QueryResponse(BaseModel):
     chart_recommendations: Optional[List[Dict[str, Any]]] = None
     chart_error: Optional[str] = None
 
-@router.post("/query/gemini/execute", response_model=QueryResponse)
+@router.post("/query/gemini/execute", response_model=QueryResponse, operation_id="gemini_generate_sql_and_execute")
 def generate_sql_query_gemini_execute(request: QueryRequest):
     """
     Generate SQL from natural language using Gemini, execute in Snowflake, and return results in OpenAI/Claude format.

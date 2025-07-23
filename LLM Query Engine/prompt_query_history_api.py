@@ -14,8 +14,8 @@ app = FastAPI()  # Keep for standalone usage
 
 TOKEN_USAGE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'token_usage.csv')
 
-@router.get("/prompt_query_history")
-@app.get("/prompt_query_history")  # Keep for standalone usage
+@router.get("/prompt_query_history", operation_id="prompt_query_history_api_get")
+@app.get("/prompt_query_history", operation_id="prompt_query_history_api_app_get")  # Keep for standalone usage
 def prompt_query_history() -> JSONResponse:
     """
     Returns the last 30 days of prompt/query history from token_usage.csv as JSON.

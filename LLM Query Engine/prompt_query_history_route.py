@@ -9,7 +9,7 @@ router = APIRouter()
 
 TOKEN_USAGE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'token_usage.csv')
 
-@router.get("/prompt_query_history")
+@router.get("/prompt_query_history", operation_id="prompt_query_history_route_get")
 def prompt_query_history(page: int = 1, page_size: int = 100) -> JSONResponse:
     """
     Returns the last 30 days of prompt/query history from token_usage.csv as JSON.

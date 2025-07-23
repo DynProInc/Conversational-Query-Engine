@@ -1,0 +1,1053 @@
+{
+  "documents": [
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: WORK_ORDER_STATUS, DESCRIPTION: Status of the work order associated with the transaction",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "WORK_ORDER_STATUS",
+        "row_index": 0,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_work_order_status"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_DT, DESCRIPTION: Full date when the transaction occurred",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_DT",
+        "row_index": 1,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_dt"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_YEAR, DESCRIPTION: Year extracted from the transaction date",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_YEAR",
+        "row_index": 2,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_year"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_MONTH, DESCRIPTION: Month number extracted from the transaction date",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_MONTH",
+        "row_index": 3,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_month"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_YEAR_MONTH, DESCRIPTION: Combined year and month for easier grouping",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_YEAR_MONTH",
+        "row_index": 4,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_year_month"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_MONTH_NUM_NAME, DESCRIPTION: Month number with its name",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_MONTH_NUM_NAME",
+        "row_index": 5,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_month_num_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_MONTH_NAME, DESCRIPTION: Full name of the month",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_MONTH_NAME",
+        "row_index": 6,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_month_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_QUARTER, DESCRIPTION: Quarter in which the transaction occurred",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_QUARTER",
+        "row_index": 7,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_quarter"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_DAY_NUM_OF_MONTH, DESCRIPTION: Day number in the month",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_DAY_NUM_OF_MONTH",
+        "row_index": 8,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_day_num_of_month"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_DAY_OF_MONTH, DESCRIPTION: Alias for day-of-month",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_DAY_OF_MONTH",
+        "row_index": 9,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_day_of_month"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: TRANSACTION_WEEK_OF_YEAR, DESCRIPTION: Week number within the year",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "TRANSACTION_WEEK_OF_YEAR",
+        "row_index": 10,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_transaction_week_of_year"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CUSTOMER_NAME, DESCRIPTION: Name of the customer associated with the transaction",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CUSTOMER_NAME",
+        "row_index": 11,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_customer_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: PARENT_CUSTOMER_NAME, DESCRIPTION: Parent or corporate customer name",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "PARENT_CUSTOMER_NAME",
+        "row_index": 12,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_parent_customer_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: ACCOUNT_TYPE_NAME, DESCRIPTION: Type of account",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "ACCOUNT_TYPE_NAME",
+        "row_index": 13,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_account_type_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: ACCOUNT_GROUP, DESCRIPTION: Group to which the account belongs for business segmentation",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "ACCOUNT_GROUP",
+        "row_index": 14,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_account_group"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: STORE_NUMBER, DESCRIPTION: Unique store identifier where the transaction occurred",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "STORE_NUMBER",
+        "row_index": 15,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_store_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: STORE_NAME, DESCRIPTION: Name of the store",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "STORE_NAME",
+        "row_index": 16,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_store_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: STORE_NUM_NAME, DESCRIPTION: Combined store number and name",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "STORE_NUM_NAME",
+        "row_index": 17,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_store_num_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CITY, DESCRIPTION: City in which the store is located",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CITY",
+        "row_index": 18,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_city"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: STATE, DESCRIPTION: State or province of the store location",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "STATE",
+        "row_index": 19,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_state"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: REGION, DESCRIPTION: Geographical region",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "REGION",
+        "row_index": 20,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_region"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: FORM_TYPE_CODE, DESCRIPTION: Code representing the form or document type",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "FORM_TYPE_CODE",
+        "row_index": 21,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_form_type_code"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: FORM_TYPE_NAME, DESCRIPTION: Name or description of the form type",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "FORM_TYPE_NAME",
+        "row_index": 22,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_form_type_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: SALES_REP_NUMBER, DESCRIPTION: Identifier for the sales representative",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "SALES_REP_NUMBER",
+        "row_index": 23,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_sales_rep_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: SALES_REP_NAME, DESCRIPTION: Full name of the sales representative",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "SALES_REP_NAME",
+        "row_index": 24,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_sales_rep_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: SALES_REP_NUM_NAME, DESCRIPTION: Combined string of sales rep number and name",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "SALES_REP_NUM_NAME",
+        "row_index": 25,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_sales_rep_num_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CATEGORY_CODE, DESCRIPTION: Internal or vendor-specific code for the product category",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CATEGORY_CODE",
+        "row_index": 26,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_category_code"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CATEGORY_NAME, DESCRIPTION: Name of the product category",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CATEGORY_NAME",
+        "row_index": 27,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_category_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CATEGORY_CODE_NAME, DESCRIPTION: Combined code and name of the category",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CATEGORY_CODE_NAME",
+        "row_index": 28,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_category_code_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: GROUP_ID, DESCRIPTION: Identifier for the category group",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "GROUP_ID",
+        "row_index": 29,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_group_id"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CATEGORY_GROUP_NAME, DESCRIPTION: Name of the broader group under which categories fall",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CATEGORY_GROUP_NAME",
+        "row_index": 30,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_category_group_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CATEGORY_GROUP_ID_NAME, DESCRIPTION: Combined group ID and group name",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CATEGORY_GROUP_ID_NAME",
+        "row_index": 31,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_category_group_id_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CLASS_ID, DESCRIPTION: ID representing a more specific product classification",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CLASS_ID",
+        "row_index": 32,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_class_id"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CLASS_NAME, DESCRIPTION: Name of the product class",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CLASS_NAME",
+        "row_index": 33,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_class_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: CLASS_ID_NAME, DESCRIPTION: Combined class ID and class name",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "CLASS_ID_NAME",
+        "row_index": 34,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_class_id_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: VENDOR_NUMBER, DESCRIPTION: Unique number identifying the vendor or supplier",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "VENDOR_NUMBER",
+        "row_index": 35,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_vendor_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: VENDOR_NAME, DESCRIPTION: Name of the vendor or supplier",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "VENDOR_NAME",
+        "row_index": 36,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_vendor_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_QUANTITY, DESCRIPTION: Total quantity sold on the transaction date",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_QUANTITY",
+        "row_index": 37,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_quantity"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_COST, DESCRIPTION: Total cost for the quantity sold",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_COST",
+        "row_index": 38,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_cost"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_SALE, DESCRIPTION: Total revenue from sales on that date",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_SALE",
+        "row_index": 39,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_sale"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_GROSS_PROFIT, DESCRIPTION: Total gross profit for that day",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_GROSS_PROFIT",
+        "row_index": 40,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_gross_profit"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_GROSS_PROFIT_PCT, DESCRIPTION: Gross profit percentage for the day",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_GROSS_PROFIT_PCT",
+        "row_index": 41,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_gross_profit_pct"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_FEE_QUANTITY, DESCRIPTION: Total quantity sold in the fee category",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_FEE_QUANTITY",
+        "row_index": 42,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_fee_quantity"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_FEE_COST, DESCRIPTION: Total cost of fee-based items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_FEE_COST",
+        "row_index": 43,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_fee_cost"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_FEE_SALE, DESCRIPTION: Total sales for fee-based items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_FEE_SALE",
+        "row_index": 44,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_fee_sale"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_FEE_GROSS_PROFIT, DESCRIPTION: Gross profit from fee-based items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_FEE_GROSS_PROFIT",
+        "row_index": 45,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_fee_gross_profit"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_FEE_GROSS_PROFIT_PCT, DESCRIPTION: Gross profit percentage from fee-based items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_FEE_GROSS_PROFIT_PCT",
+        "row_index": 46,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_fee_gross_profit_pct"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_CAT88_QUANTITY, DESCRIPTION: Quantity sold for category 88 items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_CAT88_QUANTITY",
+        "row_index": 47,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_cat88_quantity"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_CAT88_COST, DESCRIPTION: Total cost for category 88 items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_CAT88_COST",
+        "row_index": 48,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_cat88_cost"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_CAT88_SALE, DESCRIPTION: Total sale value for category 88 items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_CAT88_SALE",
+        "row_index": 49,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_cat88_sale"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_TOTAL_CAT88_GROSS_PROFIT, DESCRIPTION: Gross profit from category 88 items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_TOTAL_CAT88_GROSS_PROFIT",
+        "row_index": 50,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_total_cat88_gross_profit"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_DAILY_SALES, COLUMN_NAME: DAILY_CAT88_GROSS_PROFIT_PCT, DESCRIPTION: Gross profit percentage for category 88 items",
+      "metadata": {
+        "table_name": "V_SMM_DAILY_SALES",
+        "column_name": "DAILY_CAT88_GROSS_PROFIT_PCT",
+        "row_index": 51,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_daily_sales_daily_cat88_gross_profit_pct"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_DT, DESCRIPTION: The date on which the transaction occurred",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_DT",
+        "row_index": 52,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_dt"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_YEAR, DESCRIPTION: Year extracted from the transaction date",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_YEAR",
+        "row_index": 53,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_year"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_MONTH, DESCRIPTION: Month extracted from the transaction date",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_MONTH",
+        "row_index": 54,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_month"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_YEAR_MONTH, DESCRIPTION: Combination of transaction year and month",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_YEAR_MONTH",
+        "row_index": 55,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_year_month"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_MONTH_NUM_NAME, DESCRIPTION: Numeric representation and name of the transaction month",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_MONTH_NUM_NAME",
+        "row_index": 56,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_month_num_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_MONTH_NAME, DESCRIPTION: Name of the transaction month",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_MONTH_NAME",
+        "row_index": 57,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_month_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_QUARTER, DESCRIPTION: Quarter in which the transaction took place",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_QUARTER",
+        "row_index": 58,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_quarter"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_DAY_NUM_OF_MONTH, DESCRIPTION: Numeric day of the month when the transaction occurred",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_DAY_NUM_OF_MONTH",
+        "row_index": 59,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_day_num_of_month"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_DAY_OF_MONTH, DESCRIPTION: Day of the month the transaction occurred",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_DAY_OF_MONTH",
+        "row_index": 60,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_day_of_month"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: TRANSACTION_WEEK_OF_YEAR, DESCRIPTION: Week number within the year when the transaction occurred",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "TRANSACTION_WEEK_OF_YEAR",
+        "row_index": 61,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_transaction_week_of_year"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: FORM_TYPE_CODE, DESCRIPTION: Code representing the form type of the transaction",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "FORM_TYPE_CODE",
+        "row_index": 62,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_form_type_code"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: POS_PREFIX, DESCRIPTION: Prefix identifying the Point of Sale",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "POS_PREFIX",
+        "row_index": 63,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_pos_prefix"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: WORK_ORDER_NUMBER, DESCRIPTION: Unique identifier for the work order",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "WORK_ORDER_NUMBER",
+        "row_index": 64,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_work_order_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: STORE_NUMBER, DESCRIPTION: Numerical ID of the store",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "STORE_NUMBER",
+        "row_index": 65,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_store_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: STORE_NAME, DESCRIPTION: Name of the store",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "STORE_NAME",
+        "row_index": 66,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_store_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: STORE_NUM_NAME, DESCRIPTION: Combined representation of store number and name",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "STORE_NUM_NAME",
+        "row_index": 67,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_store_num_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: STORE_CITY, DESCRIPTION: City where the store is located",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "STORE_CITY",
+        "row_index": 68,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_store_city"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: STORE_STATE, DESCRIPTION: State where the store is located",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "STORE_STATE",
+        "row_index": 69,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_store_state"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: REGION, DESCRIPTION: Geographical region assigned to the store",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "REGION",
+        "row_index": 70,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_region"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: SALES_REP_NUMBER, DESCRIPTION: Unique identifier for the sales representative",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "SALES_REP_NUMBER",
+        "row_index": 71,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_sales_rep_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: SALES_REP_NAME, DESCRIPTION: Name of the sales representative",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "SALES_REP_NAME",
+        "row_index": 72,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_sales_rep_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: SALES_REP_NUM_NAME, DESCRIPTION: Combined representation of sales rep number and name",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "SALES_REP_NUM_NAME",
+        "row_index": 73,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_sales_rep_num_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: STORE_MANAGER_NAME, DESCRIPTION: Name of the store manager",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "STORE_MANAGER_NAME",
+        "row_index": 74,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_store_manager_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: AREA_MANAGER_NUMBER, DESCRIPTION: Unique identifier for the area manager",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "AREA_MANAGER_NUMBER",
+        "row_index": 75,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_area_manager_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: AREA_MANAGER_NAME, DESCRIPTION: Name of the area manager",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "AREA_MANAGER_NAME",
+        "row_index": 76,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_area_manager_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: AREA_MANAGER_NUM_NAME, DESCRIPTION: Combined representation of area manager number and name",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "AREA_MANAGER_NUM_NAME",
+        "row_index": 77,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_area_manager_num_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: REGIONAL_MANAGER_NUMBER, DESCRIPTION: Unique identifier for the regional manager",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "REGIONAL_MANAGER_NUMBER",
+        "row_index": 78,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_regional_manager_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: REGIONAL_MANAGER_NAME, DESCRIPTION: Name of the regional manager",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "REGIONAL_MANAGER_NAME",
+        "row_index": 79,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_regional_manager_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: REGIONAL_MANAGER_NUM_NAME, DESCRIPTION: Combined representation of regional manager number and name",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "REGIONAL_MANAGER_NUM_NAME",
+        "row_index": 80,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_regional_manager_num_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CUSTOMER_ID, DESCRIPTION: Unique identifier for the customer",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CUSTOMER_ID",
+        "row_index": 81,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_customer_id"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CUSTOMER_NAME, DESCRIPTION: Name of the customer",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CUSTOMER_NAME",
+        "row_index": 82,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_customer_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: PARENT_CUSTOMER_NAME, DESCRIPTION: Name of the parent company or customer",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "PARENT_CUSTOMER_NAME",
+        "row_index": 83,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_parent_customer_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: ACCOUNT_TYPE_NAME, DESCRIPTION: Classification of the customer account",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "ACCOUNT_TYPE_NAME",
+        "row_index": 84,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_account_type_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: ACCOUNT_GROUP, DESCRIPTION: Grouping label for accounts",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "ACCOUNT_GROUP",
+        "row_index": 85,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_account_group"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CATEGORY_CODE, DESCRIPTION: Code representing the product category",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CATEGORY_CODE",
+        "row_index": 86,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_category_code"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CATEGORY_NAME, DESCRIPTION: Name of the product category",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CATEGORY_NAME",
+        "row_index": 87,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_category_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CATEGORY_CODE_NAME, DESCRIPTION: Combined category code and name",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CATEGORY_CODE_NAME",
+        "row_index": 88,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_category_code_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CATEGORY_GROUP_ID, DESCRIPTION: Unique identifier for the category group",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CATEGORY_GROUP_ID",
+        "row_index": 89,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_category_group_id"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CATEGORY_GROUP_NAME, DESCRIPTION: Name of the category group",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CATEGORY_GROUP_NAME",
+        "row_index": 90,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_category_group_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CATEGORY_GROUP_ID_NAME, DESCRIPTION: Combined category group ID and name",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CATEGORY_GROUP_ID_NAME",
+        "row_index": 91,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_category_group_id_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CLASS_ID, DESCRIPTION: Identifier for the product class",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CLASS_ID",
+        "row_index": 92,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_class_id"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CLASS_NAME, DESCRIPTION: Name of the product class",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CLASS_NAME",
+        "row_index": 93,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_class_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: CLASS_ID_NAME, DESCRIPTION: Combined class ID and name",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "CLASS_ID_NAME",
+        "row_index": 94,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_class_id_name"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: ITEM_NUMBER, DESCRIPTION: Unique number identifying the item",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "ITEM_NUMBER",
+        "row_index": 95,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_item_number"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: ITEM_DESCRIPTION, DESCRIPTION: Description of the item",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "ITEM_DESCRIPTION",
+        "row_index": 96,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_item_description"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: ITEM_NUM_DESCRIPTION, DESCRIPTION: Combined item number and description",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "ITEM_NUM_DESCRIPTION",
+        "row_index": 97,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_item_num_description"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: SIZE, DESCRIPTION: Size or volume specification of the item",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "SIZE",
+        "row_index": 98,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_size"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: DAILY_SALES, DESCRIPTION: Daily sales amount of the item or transaction",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "DAILY_SALES",
+        "row_index": 99,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_daily_sales"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: GROSS_PROFIT, DESCRIPTION: Gross profit earned on the transaction",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "GROSS_PROFIT",
+        "row_index": 100,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_gross_profit"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: QUANTITY, DESCRIPTION: Number of units sold",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "QUANTITY",
+        "row_index": 101,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_quantity"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: COST, DESCRIPTION: Cost price of the item",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "COST",
+        "row_index": 102,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_cost"
+    },
+    {
+      "text": "DB_SCHEMA: REPORTING_UAT.GOLD_SALES, TABLE_NAME: V_SMM_ITEM_DAILY_SALE, COLUMN_NAME: GP_PERCENT, DESCRIPTION: Gross profit expressed as a percentage",
+      "metadata": {
+        "table_name": "V_SMM_ITEM_DAILY_SALE",
+        "column_name": "GP_PERCENT",
+        "row_index": 103,
+        "db_schema": "REPORTING_UAT.GOLD_SALES"
+      },
+      "id": "v_smm_item_daily_sale_gp_percent"
+    }
+  ],
+  "collection_name": "mts_data_dictionary",
+  "chunk_size": 1000,
+  "chunk_overlap": 200,
+  "metadata": {
+    "client_id": "mts",
+    "source_file": "mts_dictionary.csv",
+    "total_tables": 2,
+    "total_columns": 104
+  }
+}

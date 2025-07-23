@@ -1,9 +1,9 @@
-# Environment files
+# Environment and secret files
 **/.env
+**/*.env
 LLM Query Engine/.env
 LLM Query Engine/config/clients/env/*.env
-LLM Query Engine/config/clients/env/mts.env
-LLM Query Engine/config/clients/env/penguin.env
+LLM Query Engine/config/clients/cache/*.env
 
 # Data and log files
 LLM Query Engine/token_usage.csv
@@ -12,6 +12,10 @@ LLM Query Engine/token_usage.csv
 LLM Query Engine/RAG_Data/
 LLM Query Engine/data/
 LLM Query Engine/token_usage.csv
+
+# Stats cache
+LLM Query Engine/stats/cache/
+LLM Query Engine/stats/**/*.json
 
 # Python cache files
 __pycache__/
