@@ -20,7 +20,7 @@ def generate_sql_query():
     
     # Extract parameters from request
     question = data['question']
-    model_type = data.get('model_type', 'openai').lower()  # 'openai', 'claude', or 'gemini'
+    model_type = data.get('model_type', 'claude').lower()  # 'openai', 'claude', or 'gemini'
     execute = data.get('execute', True)
     limit_rows = data.get('limit_rows', 100)
     include_charts = data.get('include_charts', True)

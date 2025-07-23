@@ -581,7 +581,7 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
 
 def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = None, 
                       api_key: Optional[str] = None, model: str = None, log_tokens: bool = True,
-                      model_provider: str = "openai", limit_rows: int = 100, include_charts: bool = False) -> Dict[str, Any]:
+                      model_provider: str = "claude", limit_rows: int = 100, include_charts: bool = False) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL
     
@@ -647,7 +647,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test SQL generation with different models")
     parser.add_argument("--query", "-q", default="Show me the top 5 stores with highest sales", 
                         help="Natural language query")
-    parser.add_argument("--model", "-m", default="openai", choices=["openai", "claude"],
+    parser.add_argument("--model", "-m", default="claude", choices=["openai", "claude"],
                         help="Model provider to use (openai or claude)")
     parser.add_argument("--specific-model", "-s", help="Specific model version")
     args = parser.parse_args()

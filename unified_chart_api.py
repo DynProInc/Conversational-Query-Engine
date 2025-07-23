@@ -32,7 +32,7 @@ def unified_query():
     
     # Extract parameters from request
     prompt = data['prompt']
-    model_name = data.get('model', 'openai').lower()
+    model_name = data.get('model', 'claude').lower()
     execute_query = data.get('execute_query', False)
     include_charts = data.get('include_charts', True)
     data_dictionary_path = data.get('data_dictionary_path')
