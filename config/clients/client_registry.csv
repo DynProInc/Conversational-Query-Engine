@@ -1,3 +1,3 @@
 client_id,client_name,description,active,snowflake_account,snowflake_user,snowflake_password,snowflake_warehouse,snowflake_database,snowflake_schema,data_dictionary_path
-mts,MTS Corporation,MTS financial services client,true,mts_account,mts_user,mts_password,mts_warehouse,mts_database,mts_schema,/Users/dhruvanavinchander/Desktop/DynProMTS/Conversational-Query-Engine/LLM Query Engine/config/clients/data_dictionaries/mts/mts_dictionary.csv
-penguin,Penguin Analytics,Penguin analytics client,true,penguin_account,penguin_user,penguin_password,penguin_warehouse,penguin_database,penguin_schema,/Users/dhruvanavinchander/Desktop/DynProMTS/Conversational-Query-Engine/LLM Query Engine/config/clients/data_dictionaries/penguin/penguin_dictionary.csv
+mts,MTS Corporation,MTS financial services client,true,mts_account,mts_user,mts_password,mts_warehouse,mts_database,mts_schema,config/clients/data_dictionaries/mts/mts_dictionary.csv
+penguin,Penguin Analytics,Penguin analytics client,true,penguin_account,penguin_user,penguin_password,penguin_warehouse,penguin_database,penguin_schema,config/clients/data_dictionaries/penguin/penguin_dictionary.csv
