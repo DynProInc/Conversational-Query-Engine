@@ -9,7 +9,7 @@ import os
 import argparse
 from token_logger import TokenLogger
 
-def make_api_request(prompt, model="openai", limit_rows=100, data_dictionary_path=None, specific_model=None):
+def make_api_request(prompt, model="claude", limit_rows=100, data_dictionary_path=None, specific_model=None):
     """Make a request to the API Server
     
     Args:
@@ -251,7 +251,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Test the NL-to-SQL API with different models")
     parser.add_argument("--prompt", "-p", help="Natural language query")
     parser.add_argument("--limit", "-l", type=int, default=100, help="Maximum number of rows to return")
-    parser.add_argument("--model", "-m", default="openai", choices=["openai", "claude", "compare", "gemini"],
+    parser.add_argument("--model", "-m", default="claude", choices=["openai", "claude", "compare", "gemini"],
                         help="Model to use for generation (openai, claude, compare, or gemini)")
     parser.add_argument("--specific-model", "-s", help="Specific model version to use (e.g., gpt-4o, claude-3-opus)")
     parser.add_argument("--data-dictionary", "-d", help="Path to data dictionary")

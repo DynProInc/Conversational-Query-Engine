@@ -19,7 +19,7 @@ def unified_query():
     Expected request format:
     {
       "prompt": "give me results overall sales in year 2024 in store number 11 for top items and ACCOUNT_TYPE_NAME RETAIL",
-      "model": "openai", # or "claude", "gemini"
+      "model": "claude", # or "openai", "gemini"
       "execute_query": false,
       "include_charts": true,
       "data_dictionary_path": null
@@ -32,7 +32,7 @@ def unified_query():
     
     # Extract parameters from request
     prompt = data['prompt']
-    model_name = data.get('model', 'openai').lower()
+    model_name = data.get('model', 'claude').lower()
     execute_query = data.get('execute_query', False)
     include_charts = data.get('include_charts', True)
     data_dictionary_path = data.get('data_dictionary_path')
