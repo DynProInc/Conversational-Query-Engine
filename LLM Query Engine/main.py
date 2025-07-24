@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 # Import API routes
 from api.cache_routes import router as cache_router
 from api.rag_routes import router as rag_router
+from api.feedback_routes import router as feedback_router
 # Import other routers as needed
 
 # Import services
@@ -48,6 +49,7 @@ app.add_middleware(
 # Include API routers
 app.include_router(cache_router)
 app.include_router(rag_router)
+app.include_router(feedback_router)
 # Include other routers here
 
 # Initialize services at startup

@@ -17,6 +17,9 @@ LLM Query Engine/token_usage.csv
 LLM Query Engine/stats/cache/
 LLM Query Engine/stats/**/*.json
 
+# Feedback loop data
+LLM Query Engine/feedback/
+
 # Python cache files
 __pycache__/
 *.py[cod]

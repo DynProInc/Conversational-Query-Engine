@@ -45,6 +45,7 @@ from services.cache_integration import (
 from services.cache_service import CacheService
 from api.cache_routes import router as cache_router
 from api.rag_routes import router as rag_router
+from api.feedback_routes import router as feedback_router
 
 # Load environment variables
 load_dotenv()
@@ -490,6 +491,16 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
         from gemini_query_generator import natural_language_to_sql_gemini
         from token_logger import TokenLogger
         
+        # ----------------------------------------------------------------
+        # Integrate free-form feedback as RAG hint (if any)
+        # ----------------------------------------------------------------
+        from services.feedback_service import get_feedback_service
+        f_service = get_feedback_service()
+        fb_entry = f_service.get_feedback_entry(request.client_id or "default", request.prompt)
+        prompt_for_rag = request.prompt
+        if fb_entry and fb_entry.get("feedback") and not fb_entry.get("corrected_sql"):
+            prompt_for_rag = f"{request.prompt}\n\nHINT FROM USER: {fb_entry['feedback']}"
+
         print("\nATTEMPT 1: Direct SQL generation and execution")
         
         # Setup token logger
@@ -511,7 +522,7 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
         print(f"Gemini endpoint using dictionary path: {dict_path}")
         
         result = natural_language_to_sql_gemini(
-            query=request.prompt,
+            query=prompt_for_rag,
             data_dictionary_path=dict_path,
             model=gemini_model,
             log_tokens=True,
@@ -611,7 +622,7 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
         # Log token usage with execution status
         logger.log_usage(
             model=gemini_model,
-            query=request.prompt,
+            query=prompt_for_rag,
             usage=token_usage,
             prompt=request.prompt,
             sql_query=sql,
@@ -649,7 +660,7 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
         logger = TokenLogger()
         logger.log_usage(
             model=gemini_model,
-            query=request.prompt,
+            query=prompt_for_rag,
             usage={
                 "prompt_tokens": 200, 
                 "completion_tokens": 50,
@@ -1356,6 +1367,58 @@ async def unified_query_endpoint(
                 edited=True
             )
             
+        # ---------------------------------------------
+        # Feedback override – check if we already have
+        # high-quality corrected SQL for this prompt in
+        # the feedback store. If so, short-circuit the
+        # normal generation path and either execute or
+        # return that SQL directly.
+        # ---------------------------------------------
+        from services.feedback_service import get_feedback_service
+        f_service = get_feedback_service()
+        feedback_entry = f_service.get_corrected_sql(request.client_id or "default", request.prompt)
+        if feedback_entry and feedback_entry.get("corrected_sql"):
+            corrected_sql = feedback_entry["corrected_sql"]
+            print("Unified API: Using corrected SQL from feedback store")
+            if request.execute_query:
+                from execute_query_route import ExecuteQueryRequest, execute_query
+                execute_request = ExecuteQueryRequest(
+                    client_id=request.client_id,
+                    query=corrected_sql,
+                    limit_rows=request.limit_rows,
+                    original_prompt=request.prompt,
+                    include_charts=request.include_charts,
+                    model="feedback_override"
+                )
+                execution_result = await execute_query(execute_request, data_dictionary_path)
+                return QueryResponse(
+                    prompt=request.prompt,
+                    query=execution_result.query,
+                    query_output=execution_result.query_output,
+                    model="feedback_override",
+                    success=execution_result.success,
+                    chart_recommendations=execution_result.chart_recommendations,
+                    edited=False
+                )
+            else:
+                return QueryResponse(
+                    prompt=request.prompt,
+                    query=corrected_sql,
+                    query_output=[],
+                    model="feedback_override",
+                    success=True,
+                    edited=False,
+                    chart_recommendations=[]
+                )
+
+        # If we have any free-form feedback (even without corrected_sql)
+        # we may augment retrieval by appending it as hint text so RAG
+        # can fetch more relevant docs / columns.
+        feedback_free = f_service.get_feedback_entry(request.client_id or "default", request.prompt)
+        prompt_for_rag = request.prompt
+        if feedback_free and feedback_free.get("feedback") and not feedback_free.get("corrected_sql"):
+            prompt_for_rag = f"{request.prompt}\n\nHINT FROM USER: {feedback_free['feedback']}"
+
         # Extract the model from the request
         model = request.model.lower() if request.model else ""
         client_id = request.client_id if hasattr(request, 'client_id') else None
@@ -1425,9 +1488,9 @@ async def unified_query_endpoint(
                 
                 try:
                     # Retrieve context from vector store
-                    print(f"Retrieving context from vector store for query: '{request.prompt}'")
+                    print(f"Retrieving context from vector store for query: '{prompt_for_rag}'")
                     retrieval_result = retrieve_context(
-                        query=request.prompt,
+                        query=prompt_for_rag,
                         collection_name=collection_name,
                         client_id=request.client_id,
                         top_k=request.rag_top_k
@@ -1439,7 +1502,7 @@ async def unified_query_endpoint(
                         # Enhance the prompt with retrieved context
                         print("Enhancing prompt with retrieved context")
                         enhanced_result = enhance_prompt(
-                            query=request.prompt,
+                            query=prompt_for_rag,
                             retrieved_context=retrieval_result,
                             system_prompt=None,
                             prune_columns=getattr(request, "prune_columns", False)
@@ -1512,7 +1575,7 @@ async def unified_query_endpoint(
                     print(f"Using collection: {collection_name}")
 
                     retrieval_result = retrieve_context(
-                        query=request.prompt,
+                        query=prompt_for_rag,
                         collection_name=collection_name,
                         client_id=request.client_id,
                         top_k=request.rag_top_k,
@@ -1521,7 +1584,7 @@ async def unified_query_endpoint(
                     if retrieval_result and retrieval_result.get("documents"):
                         print(f"Found {len(retrieval_result['documents'])} relevant documents in collection '{collection_name}'")
                         enhanced_res = enhance_prompt(
-                            query=request.prompt,
+                            query=prompt_for_rag,
                             retrieved_context=retrieval_result,
                             system_prompt=None,
                              prune_columns=getattr(request, "prune_columns", False),
@@ -1590,7 +1653,7 @@ async def unified_query_endpoint(
                     print(f"Using collection: {collection_name}")
 
                     retrieval_result = retrieve_context(
-                        query=request.prompt,
+                        query=prompt_for_rag,
                         collection_name=collection_name,
                         client_id=request.client_id,
                         top_k=request.rag_top_k,
@@ -1599,7 +1662,7 @@ async def unified_query_endpoint(
                     if retrieval_result and retrieval_result.get("documents"):
                         print(f"Found {len(retrieval_result['documents'])} relevant documents in collection '{collection_name}'")
                         enhanced_res = enhance_prompt(
-                            query=request.prompt,
+                            query=prompt_for_rag,
                             retrieved_context=retrieval_result,
                             system_prompt=None,
                              prune_columns=getattr(request, "prune_columns", False),
@@ -1749,6 +1812,7 @@ app.include_router(cache_router, prefix="")  # Access via /cache/*
 
 # Include RAG routes
 app.include_router(rag_router, prefix="")  # Access via /rag/*
+app.include_router(feedback_router, prefix="")  # Access via /feedback/*
 
 # Main entry point to run the server directly
 if __name__ == "__main__":

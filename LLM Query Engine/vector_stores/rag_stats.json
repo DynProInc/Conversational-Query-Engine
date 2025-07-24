@@ -1,8 +1,8 @@
 {
-  "total_queries": 19,
-  "retrieval_time": 3.573141574859619,
-  "documents_retrieved": 85,
-  "avg_retrieval_time": 0.18806008288734838,
+  "total_queries": 43,
+  "retrieval_time": 8.768293142318726,
+  "documents_retrieved": 205,
+  "avg_retrieval_time": 0.20391379400741222,
   "context_enhancement_time": 0,
   "avg_context_enhancement_time": 0,
   "processing_time": 27.75165104866028,

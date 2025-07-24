@@ -101,6 +101,9 @@ celerybeat-schedule
 # Data, stats and logs
 stats/cache/
 stats/**/*.json
+
+# Feedback loop data
+feedback/
 # token_usage.csv - keeping accessible for reporting
 *.log
 

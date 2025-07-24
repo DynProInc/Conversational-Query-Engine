@@ -171,6 +171,18 @@ class CacheService:
         
         return result
     
+    def invalidate_query_cache(
+        self,
+        query: str,
+        client_id: str,
+        model: str,
+        context: Optional[str] = None
+    ) -> bool:
+        """Remove a cached query result when feedback indicates it's wrong."""
+        from utils.cache_utils import generate_cache_key
+        key = generate_cache_key(prefix="query", content={"query": query, "client_id": client_id, "model": model, "context": context or ""})
+        return self.cache_integrator.delete_from_cache(key=key, namespace="query_cache")
+
     def cache_query_result(
         self,
         query: str,

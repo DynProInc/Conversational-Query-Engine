@@ -130,32 +130,73 @@ def cache_llm_query(ttl: int = 3600):
             
             try:
                 # Try to get from cache
+                # -----------------------------------------------------------------
+                # Before even attempting to read the pickle, compare its mtime with
+                # the feedback file mtime for this client. If feedback is newer,
+                # we delete the pickle so the rest of the logic goes down the
+                # normal cache-miss path. This is cheap and avoids having to load
+                # the pickle into memory first.
+                # -----------------------------------------------------------------
+                fb_newer = False
+                try:
+                    from services.feedback_service import get_feedback_service
+                    fb_file = get_feedback_service()._file_for_client(client_id)
+                    if fb_file.exists() and os.path.exists(cache_file):
+                        if fb_file.stat().st_mtime > os.path.getmtime(cache_file):
+                            logger.info("Pre-read check: feedback newer than cache pickle → deleting %s", cache_file)
+                            os.remove(cache_file)
+                            fb_newer = True
+                except Exception:
+                    pass
+
                 if os.path.exists(cache_file):
                     # Use file lock to prevent concurrent access
                     with FileLock(lock_file):
                         with open(cache_file, 'rb') as f:
                             cache_data = pickle.load(f)
-                        
-                        # Check if cache is still valid
-                        if time.time() - cache_data['timestamp'] < ttl:
-                            logger.info(f"Cache hit for prompt: '{prompt[:30]}...'")
-                            _cache_stats["hits"] += 1
-                            
-                            # Add cache metadata to response
-                            result = cache_data['result']
-                            if isinstance(result, dict):
-                                result.setdefault("_cache_metadata", {})
-                                result["_cache_metadata"].update({
-                                    "cache_hit": True,
-                                    "cached_at": datetime.datetime.fromtimestamp(cache_data['timestamp']).isoformat(),
-                                    "ttl": ttl,
-                                    "expires_at": datetime.datetime.fromtimestamp(cache_data['timestamp'] + ttl).isoformat()
-                                })
-                            
-                            return result
-                        else:
-                            # Cache expired, delete it
-                            os.remove(cache_file)
+                            cache_timestamp = cache_data.get('timestamp', 0)
+                            stale_due_feedback = False
+
+                            # If we now have feedback recorded AFTER this cache entry was saved,
+                            # the result is stale.  In that case we delete the cache file and
+                            # treat as a cache-miss so the response is regenerated once with
+                            # the new user hint / corrected SQL, after which it will be cached
+                            # again.  This gives us the flow: miss → regenerate with feedback →
+                            # future hits until the next feedback submission.
+                            try:
+                                from services.feedback_service import get_feedback_service
+                                f_service = get_feedback_service()
+                                fb_file = f_service._file_for_client(client_id)
+                                if fb_file.exists():
+                                    feedback_ts = fb_file.stat().st_mtime
+                                    if feedback_ts > cache_timestamp:
+                                        logger.info("File-cache stale (client '%s') due to feedback at %s > cache at %s. Deleting …", client_id, feedback_ts, cache_timestamp)
+                                        os.remove(cache_file)
+                                        stale_due_feedback = True
+                            except FileNotFoundError:
+                                stale_due_feedback = True
+                            except Exception as _e:
+                                # Any error in feedback check – ignore and proceed
+                                pass
+
+                            # If cache is not stale due to feedback and within TTL, serve it
+                            if (not stale_due_feedback) and (time.time() - cache_timestamp < ttl):
+                                logger.info(f"Cache hit for prompt: '{prompt[:30]}...'")
+                                _cache_stats["hits"] += 1
+                                
+                                # Add cache metadata to response
+                                result = cache_data['result']
+                                if isinstance(result, dict):
+                                    result.setdefault("_cache_metadata", {})
+                                    result["_cache_metadata"].update({
+                                        "cache_hit": True,
+                                        "cached_at": datetime.datetime.fromtimestamp(cache_data['timestamp']).isoformat(),
+                                        "ttl": ttl,
+                                        "expires_at": datetime.datetime.fromtimestamp(cache_data['timestamp'] + ttl).isoformat()
+                                    })
+                                
+                                return result
+
                 
                 # Cache miss or expired
                 _cache_stats["misses"] += 1
