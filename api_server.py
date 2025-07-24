@@ -100,6 +100,13 @@ async def chart_viewer():
 
 
 
+@app.post("/query", response_model=QueryResponse)
+@with_client_context  # Apply client context switching
+async def generate_sql_query(request: QueryRequest, data_dictionary_path: Optional[str] = None):
+    """Generate SQL from natural language using Claude (default endpoint)"""
+    # Redirect to Claude endpoint
+    return await generate_sql_query_claude(request, data_dictionary_path)
+
 @app.post("/query/claude", response_model=QueryResponse)
 @with_client_context  # Apply client context switching
 async def generate_sql_query_claude(request: QueryRequest, data_dictionary_path: Optional[str] = None):
@@ -289,6 +296,8 @@ async def health_check():
         "models": ["claude"],
         "details": details
     }
+
+
 
 
 @app.get("/health/simple")
@@ -662,17 +671,12 @@ async def unified_query_endpoint(
 
 # Main entry point to run the server directly
 if __name__ == "__main__":
-    # Import and include the prompt query history router
-    from prompt_query_history_api import router as history_router
     import argparse
     
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="LLM SQL Query Engine API Server")
     parser.add_argument("--port", type=int, default=8000, help="Port to run the API server on (default: 8000)")
     args = parser.parse_args()
-
-    # Include the prompt query history endpoints directly in our API
-    app.include_router(history_router, prefix="")  # Access via /prompt_query_history
 
     import uvicorn
     print(f"Starting API server on port {args.port}")
