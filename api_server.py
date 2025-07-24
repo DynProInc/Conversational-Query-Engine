@@ -64,6 +64,10 @@ app.include_router(prompt_query_history_router)
 from execute_query_route import router as execute_query_router
 app.include_router(execute_query_router)
 
+# Import and include the admin router
+from admin_routes import router as admin_router
+app.include_router(admin_router)
+
 # Define request and response models
 class QueryRequest(BaseModel):
     client_id: Optional[str] = "mts"  # Default to 'mts' client for backward compatibility
@@ -94,6 +98,11 @@ class QueryResponse(BaseModel):
 @app.get("/charts", response_class=HTMLResponse)
 async def chart_viewer():
     return FileResponse("static/chart_viewer.html")
+
+# Route for the admin dashboard UI
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard():
+    return FileResponse("static/admin_dashboard.html")
     
 
 
@@ -495,6 +504,19 @@ async def get_client_info(client_id: str):
         )
 
 
+@app.post("/query/compare", response_model=QueryResponse)
+@with_client_context  # Apply client context switching
+async def compare_models(request: QueryRequest, data_dictionary_path: Optional[str] = None):
+    """
+    Compare models endpoint - redirects to unified endpoint with compare model
+    """
+    # Set the model to "compare" to trigger comparison logic
+    request.model = "compare"
+    
+    # Call the unified endpoint
+    return await unified_query_endpoint(request, data_dictionary_path)
+
+
 @app.post("/query/unified", response_model=QueryResponse)
 @with_client_context  # Apply client context switching
 async def unified_query_endpoint(
@@ -576,7 +598,7 @@ async def unified_query_endpoint(
         
         print(f"Unified API: Routing request with model = {model}, client_id = {client_id}")
         
-        # Only support Claude
+        # Support Claude and compare
         if model == "claude" or model == "anthropic":
             # For exact Claude model aliases only - check key first
             print("Unified API: Routing to Claude endpoint")
@@ -616,6 +638,18 @@ async def unified_query_endpoint(
                 
             return response
         
+        elif model == "compare":
+            # Handle compare model - return a simple response indicating comparison is not supported
+            print("Unified API: Compare model requested, but only Claude is supported")
+            return QueryResponse(
+                prompt=request.prompt,
+                query="",
+                query_output=[],
+                model="compare",
+                success=False,
+                error_message="Model comparison is not supported. Only Claude is available. Please use 'claude' or leave empty for default.",
+                user_hint="Try using 'claude' as the model instead of 'compare'."
+            )
         elif model == "":
             # Handle empty model parameter - default to Claude but verify key exists first
             print("Unified API: No model specified, defaulting to Claude")
