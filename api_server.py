@@ -1021,10 +1021,8 @@ async def unified_query_endpoint(
         
         print(f"Unified API: Routing request with model = {model}, client_id = {client_id}")
         
-
-            
         # Strict model name validation - only allow exact matches
-        elif model == "openai" or model == "gpt":
+        if model == "openai" or model == "gpt":
             # For exact OpenAI model aliases only - check key first
             print("Unified API: Routing to OpenAI endpoint")
             
