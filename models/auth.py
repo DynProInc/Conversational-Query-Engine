@@ -10,6 +10,9 @@ class UserRegister(BaseModel):
     password: str
     name: str
 
+class GoogleLogin(BaseModel):
+    id_token: str
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -19,4 +22,6 @@ class User(BaseModel):
     email: str
     name: str
     role: str
-    is_active: bool = True 
+    is_active: bool = True
+    picture: Optional[str] = None
+    auth_provider: str = "email"  # "email" or "google" 

@@ -25,7 +25,9 @@ users_db = {
         "name": "Arman Khan",
         "hashed_password": pwd_context.hash("Password123!"),
         "role": "admin",
-        "is_active": True
+        "is_active": True,
+        "auth_provider": "email",
+        "picture": None
     },
     "admin@example.com": {
         "id": "admin",
@@ -33,7 +35,9 @@ users_db = {
         "name": "System Admin",
         "hashed_password": pwd_context.hash("admin123!"),
         "role": "admin",
-        "is_active": True
+        "is_active": True,
+        "auth_provider": "email",
+        "picture": None
     },
     "user1@example.com": {
         "id": "user1",
@@ -41,7 +45,9 @@ users_db = {
         "name": "Test User 1",
         "hashed_password": pwd_context.hash("user123!"),
         "role": "user",
-        "is_active": True
+        "is_active": True,
+        "auth_provider": "email",
+        "picture": None
     },
     "user2@example.com": {
         "id": "user2",
@@ -49,7 +55,9 @@ users_db = {
         "name": "Test User 2",
         "hashed_password": pwd_context.hash("user123!"),
         "role": "user",
-        "is_active": True
+        "is_active": True,
+        "auth_provider": "email",
+        "picture": None
     }
 }
 
@@ -66,6 +74,38 @@ def authenticate_user(email: str, password: str):
     if not verify_password(password, user["hashed_password"]):
         return False
     return user
+
+def get_or_create_google_user(google_user_info: dict):
+    """Get existing user or create new user from Google OAuth"""
+    email = google_user_info['email']
+    
+    # Check if user already exists
+    if email in users_db:
+        user = users_db[email]
+        # Update user info from Google
+        user.update({
+            'name': google_user_info['name'],
+            'picture': google_user_info.get('picture'),
+            'auth_provider': 'google'
+        })
+        return user
+    
+    # Create new user
+    user_id = f"google_{google_user_info['user_id']}"
+    new_user = {
+        'id': user_id,
+        'email': email,
+        'name': google_user_info['name'],
+        'hashed_password': None,  # No password for Google users
+        'role': 'user',  # Default role for new users
+        'is_active': True,
+        'auth_provider': 'google',
+        'picture': google_user_info.get('picture')
+    }
+    
+    # Add to database
+    users_db[email] = new_user
+    return new_user
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
