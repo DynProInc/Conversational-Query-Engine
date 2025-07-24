@@ -97,21 +97,7 @@ class QueryResponse(BaseModel):
 async def chart_viewer():
     return FileResponse("static/chart_viewer.html")
     
-class ComparisonResponse(BaseModel):
-    prompt: str
-    openai: Optional[QueryResponse] = None
-    claude: Optional[QueryResponse] = None
-    gemini: Optional[QueryResponse] = None
-    # Required for unified endpoint compatibility
-    query: str = "Comparison of multiple models"  # Placeholder value
-    query_output: List[Dict[str, Any]] = []  # Empty list as this is a comparison response
-    model: str = "compare"  # Indicator that this is a comparison response
-    token_usage: Optional[Dict[str, int]] = None
-    success: bool = True
-    error_message: Optional[str] = None
-    execution_time_ms: Optional[float] = None
-    user_hint: Optional[str] = None
-    chart_recommendations: Optional[List[Dict[str, Any]]] = None  # NEW: chart recommendations
+
 
 @app.post("/query", response_model=QueryResponse)
 @with_client_context  # Apply client context switching
@@ -704,315 +690,6 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
         )
 
 
-@app.post("/query/compare", response_model=ComparisonResponse)
-@with_client_context  # Apply client context switching
-async def compare_models(request: QueryRequest, data_dictionary_path: Optional[str] = None):
-    """Generate SQL using OpenAI, Claude, and Gemini and compare results"""
-    # Import the copy module for deep copying
-    import copy
-    
-    # Store original model selection
-    original_model = request.model
-    
-    # Create a response object
-    response = ComparisonResponse(prompt=request.prompt)
-    
-    # Get OpenAI result
-    try:
-        # Force OpenAI for this request
-        openai_request = copy.deepcopy(request)
-        openai_request.model = os.getenv("OPENAI_MODEL", "gpt-4o")  # Use environment variable or default
-        # Keep execute_query as set by the user
-        
-        print("\nCompare API: Calling OpenAI endpoint...")
-        print(f"Using data_dictionary_path: {data_dictionary_path}")
-        openai_response = await generate_sql_query(openai_request, data_dictionary_path=data_dictionary_path)
-        print(f"Compare API: OpenAI response success={openai_response.success}, output rows={len(openai_response.query_output)}")
-        response.openai = openai_response
-    except Exception as e:
-        print(f"Error getting OpenAI result: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        response.openai = QueryResponse(
-            prompt=request.prompt,
-            query="",
-            query_output=[],
-            model="openai",
-            success=False,
-            error_message=f"Error: {str(e)}"
-        )
-    
-    # Get Claude result
-    try:
-        # Force Claude for this request
-        claude_request = copy.deepcopy(request)
-        claude_request.model = os.getenv("ANTHROPIC_MODEL") or os.getenv("anthropic_model", "claude-3-5-sonnet-20241022")  # Try both uppercase and lowercase
-        # Keep execute_query as set by the user
-        
-        print("\nCompare API: Calling Claude endpoint...")
-        print(f"Using data_dictionary_path: {data_dictionary_path}")
-        claude_response = await generate_sql_query_claude(claude_request, data_dictionary_path=data_dictionary_path)
-        
-        # Check for SQL execution errors in the Claude response
-        # There are two ways to access properties in the response: as attributes or dict items
-        # Check both for thoroughness
-        
-        # First check direct attributes
-        if hasattr(claude_response, "error_execution") and getattr(claude_response, "error_execution"):
-            print(f"Claude SQL execution error detected in attributes: {getattr(claude_response, 'error_execution')}")
-            # Update success status and error message
-            claude_response.success = False
-            claude_response.error_message = getattr(claude_response, "error_execution")
-        
-        # Then check dict form
-        if hasattr(claude_response, "__dict__") and "error_execution" in claude_response.__dict__ and claude_response.__dict__["error_execution"]:
-            print(f"Claude SQL execution error detected in __dict__: {claude_response.__dict__['error_execution']}")
-            # Update success status and error message
-            claude_response.success = False
-            claude_response.error_message = claude_response.__dict__["error_execution"]
-            
-        # Also directly check if it's a Pydantic model (which is likely)
-        if hasattr(claude_response, "model_dump") and callable(claude_response.model_dump):
-            response_dict = claude_response.model_dump()
-            if "error_execution" in response_dict and response_dict["error_execution"]:
-                print(f"Claude SQL execution error detected in model_dump: {response_dict['error_execution']}")
-                # Update success status and error message
-                claude_response.success = False
-                claude_response.error_message = response_dict["error_execution"]
-        
-        print(f"Compare API: Claude response success={claude_response.success}, output rows={len(claude_response.query_output)}")
-        response.claude = claude_response
-    except Exception as e:
-        print(f"Error getting Claude result: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        response.claude = QueryResponse(
-            prompt=request.prompt,
-            query="",
-            query_output=[],
-            model="claude",
-            success=False,
-            error_message=f"Error: {str(e)}"
-        )
-    
-    # Get Gemini result - COMPLETELY REWRITTEN IMPLEMENTATION
-    try:
-        # Import libraries directly here to ensure they're available
-        import pandas as pd
-        from nlq_to_snowflake_gemini import nlq_to_snowflake_gemini
-        
-        # Create a fresh request for Gemini
-        print("\nCompare API: Creating direct Gemini request...")
-        gemini_model = os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash-latest")  # Use environment variable or default
-        
-        # Call the Gemini implementation directly to ensure we get results
-        start_time = pd.Timestamp.now()
-        try:
-            result = nlq_to_snowflake_gemini(
-                prompt=request.prompt,
-                data_dictionary_path=data_dictionary_path,  # Use the provided data_dictionary_path
-                execute_query=request.execute_query,  # Respect user's execute_query setting
-                limit_rows=request.limit_rows,
-                model=gemini_model,
-                include_charts=request.include_charts  # Also pass the include_charts parameter
-            )
-        except Exception as exec_error:
-            # Directly propagate SQL execution errors
-            print(f"Gemini execution error: {str(exec_error)}")
-            error_msg = str(exec_error)
-            gemini_response = QueryResponse(
-                prompt=request.prompt,
-                query="",  # No SQL if execution error
-                query_output=[],
-                model=gemini_model,
-                success=False,
-                error_message=error_msg,
-                execution_time_ms=(pd.Timestamp.now() - start_time).total_seconds() * 1000,
-                user_hint=f"SQL error: {error_msg}",
-                chart_recommendations=None,
-                chart_error="Cannot generate charts due to SQL error"
-            )
-            response.gemini = gemini_response
-            # Skip further processing
-            return response
-        
-        # Debug the raw result
-        print("\nCompare API: Direct Gemini result received")
-        print(f"Result keys: {list(result.keys())}")
-        print(f"Success flag: {result.get('success', False)}")
-        print(f"Has results: {'results' in result}")
-        
-        # Check for errors - prioritize error_message over error
-        if not result.get('success', True) or result.get('error_message') or result.get('error'):
-            error_msg = result.get('error_message') or result.get('error') or "Unknown Gemini error"
-            print(f"Gemini error detected: {error_msg}")
-            # Create an error response without executing SQL
-            gemini_response = QueryResponse(
-                prompt=request.prompt,
-                query=result.get('sql', ""),
-                query_output=[],
-                model=gemini_model,
-                token_usage={
-                    "prompt_tokens": result.get("prompt_tokens", 0),
-                    "completion_tokens": result.get("completion_tokens", 0),
-                    "total_tokens": result.get("total_tokens", 0)
-                },
-                success=False,
-                error_message=error_msg,
-                execution_time_ms=result.get("execution_time_ms", 0),
-                user_hint=f"Gemini error: {error_msg}",
-                chart_recommendations=None,
-                chart_error=result.get("chart_error", "Cannot generate charts: error in processing")
-            )
-            response.gemini = gemini_response
-            # Skip further processing for Gemini
-            print("Compare API: Skipping Gemini SQL execution due to errors")
-            return response
-        
-        # Convert DataFrame results to a list of dictionaries for JSON serialization
-        query_output = []
-        if "results" in result and result["results"] is not None:
-            print(f"Results type: {type(result['results'])}")
-            
-            # Convert DataFrame results
-            if isinstance(result["results"], pd.DataFrame):
-                df = result["results"]
-                print(f"DataFrame shape: {df.shape}")
-                
-                # Try direct conversion
-                try:
-                    query_output = df.to_dict(orient="records")
-                    print(f"Converted {len(query_output)} rows to dictionary")
-                except Exception as df_err:
-                    print(f"Error converting DataFrame: {str(df_err)}")
-                    # Fallback manual conversion
-                    query_output = []
-                    for i, row in df.iterrows():
-                        row_dict = {}
-                        for col in df.columns:
-                            row_dict[col] = row[col]
-                        query_output.append(row_dict)
-        
-        # Calculate execution time
-        execution_time_ms = (pd.Timestamp.now() - start_time).total_seconds() * 1000
-        
-        # Extract token usage from result if available, or create default values
-        token_usage = {
-            "prompt_tokens": result.get("prompt_tokens", 0),
-            "completion_tokens": result.get("completion_tokens", 0),
-            "total_tokens": result.get("total_tokens", 0)
-        }
-        
-        print(f"Compare API: Token usage for Gemini: {token_usage}")
-        
-        # Create the response directly with chart handling exactly matching OpenAI behavior
-        gemini_response = QueryResponse(
-            prompt=request.prompt,
-            query=result.get("sql", ""),
-            query_output=query_output,  # This should now contain results
-            model=gemini_model,  # Use the model from environment variable
-            token_usage=token_usage,  # Now includes token usage
-            success=result.get("success", False),  # Use success flag from result
-            error_message=result.get("error", None),
-            execution_time_ms=execution_time_ms,
-            user_hint="SQL query generated only. Execution skipped." if not request.execute_query else "Query executed successfully.",
-            # Use chart recommendations directly from the model handler (already properly conditioned)
-            chart_recommendations=result.get("chart_recommendations", None),
-            chart_error=result.get("chart_error", None)
-        )
-        
-        print(f"Compare API: Created Gemini response with {len(query_output)} results")
-        response.gemini = gemini_response
-        
-    except Exception as e:
-        print(f"Error getting Gemini result: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        response.gemini = QueryResponse(
-            prompt=request.prompt,
-            query="",
-            query_output=[],
-            model="gemini",
-            success=False,
-            error_message=f"Error: {str(e)}"
-        )
-    
-    # Calculate the total execution time across all models
-    total_execution_time = 0.0
-    if response.openai and response.openai.execution_time_ms:
-        total_execution_time += response.openai.execution_time_ms
-    if response.claude and response.claude.execution_time_ms:
-        total_execution_time += response.claude.execution_time_ms
-    if response.gemini and response.gemini.execution_time_ms:
-        total_execution_time += response.gemini.execution_time_ms
-    
-    # Add combined token usage
-    total_token_usage = {
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
-        "total_tokens": 0
-    }
-    
-    # Add OpenAI tokens
-    if response.openai and response.openai.token_usage:
-        for key in total_token_usage:
-            total_token_usage[key] += response.openai.token_usage.get(key, 0)
-    
-    # Add Claude tokens
-    if response.claude and response.claude.token_usage:
-        for key in total_token_usage:
-            total_token_usage[key] += response.claude.token_usage.get(key, 0)
-    
-    # Add Gemini tokens
-    if response.gemini and response.gemini.token_usage:
-        for key in total_token_usage:
-            total_token_usage[key] += response.gemini.token_usage.get(key, 0)
-            
-    # Set required fields for unified endpoint compatibility
-    response.query = "Comparison of multiple models"
-    response.model = "compare"
-    
-    # Set the combined token usage
-    response.token_usage = total_token_usage
-    
-    # Set individual success flags and collect errors to determine overall status
-    openai_success = response.openai and response.openai.success
-    claude_success = response.claude and response.claude.success
-    gemini_success = response.gemini and response.gemini.success
-    
-    # For comparison endpoint, success=true only if ALL models were actually asked to execute queries
-    # AND at least one model succeeded
-    if request.execute_query:
-        # When execute_query=true, require at least one model to succeed
-        response.success = any([openai_success, claude_success, gemini_success])
-        
-        # Build an informative user hint that shows each model's status
-        model_status = []
-        if response.openai:
-            status = "success" if openai_success else "failed"
-            error = f": {response.openai.error_message}" if response.openai.error_message else ""
-            model_status.append(f"OpenAI: {status}{error}")
-        if response.claude:
-            status = "success" if claude_success else "failed"
-            error = f": {response.claude.error_message}" if response.claude.error_message else ""
-            model_status.append(f"Claude: {status}{error}")
-        if response.gemini:
-            status = "success" if gemini_success else "failed"
-            error = f": {response.gemini.error_message}" if response.gemini.error_message else ""
-            model_status.append(f"Gemini: {status}{error}")
-            
-        # Create a detailed user hint
-        response.user_hint = "Results compared across models. " + "; ".join(model_status)
-    else:
-        # When execute_query=false, all models should simply generate SQL without errors
-        response.success = True  # Success for pure SQL generation without execution
-        response.user_hint = "SQL queries generated from all models. Execution skipped."
-    
-    # Set execution time
-    response.execution_time_ms = total_execution_time
-    
-    # Return the combined response
-    return response
 
 from health_check_utils import check_openai_health, check_snowflake_health, check_claude_health, check_gemini_health
 
@@ -1207,7 +884,7 @@ async def available_models():
             "openai": [os.getenv("OPENAI_MODEL", "gpt-4o"), "gpt-4-turbo", "gpt-3.5-turbo"],
             "claude": [os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022"), "claude-3-opus-20240229", "claude-3-haiku-20240307"],
             "gemini": [os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash"), "models/gemini-1.5-flash-latest"],
-            "compare": ["Compare all models"]
+    
         }
         
         return {
@@ -1263,7 +940,7 @@ async def get_client_info(client_id: str):
         )
 
 
-@app.post("/query/unified", response_model=Union[QueryResponse, ComparisonResponse])
+@app.post("/query/unified", response_model=QueryResponse)
 @with_client_context  # Apply client context switching
 async def unified_query_endpoint(
     request: QueryRequest,
@@ -1344,24 +1021,7 @@ async def unified_query_endpoint(
         
         print(f"Unified API: Routing request with model = {model}, client_id = {client_id}")
         
-        # Support 'all' or 'compare' as a special model name to run all models
-        if model == "all" or model == "compare":
-            # Use the existing comparison endpoint logic
-            print("Unified API: Using comparison endpoint for 'all' model request")
-            comparison_response = await compare_models(request, data_dictionary_path=data_dictionary_path)
-            
-            # If execute_query is False, ensure we're not executing any queries
-            if not request.execute_query:
-                # Clear query outputs from all model results
-                if comparison_response.openai:
-                    comparison_response.openai.query_output = []
-                if comparison_response.claude:
-                    comparison_response.claude.query_output = []
-                if comparison_response.gemini:
-                    comparison_response.gemini.query_output = []
-                
-            # Return the comparison response directly
-            return comparison_response
+
             
         # Strict model name validation - only allow exact matches
         elif model == "openai" or model == "gpt":
@@ -1508,7 +1168,7 @@ async def unified_query_endpoint(
             # Invalid model name - return error with clear, concise guidance
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid model name. Please use one of these valid options: 'openai', 'claude', 'gemini', 'all' or leave empty for claude."
+                detail=f"Invalid model name. Please use one of these valid options: 'openai', 'claude', 'gemini' or leave empty for claude."
             )
                 
     except Exception as e:

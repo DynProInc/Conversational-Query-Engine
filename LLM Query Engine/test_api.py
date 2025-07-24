@@ -251,8 +251,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Test the NL-to-SQL API with different models")
     parser.add_argument("--prompt", "-p", help="Natural language query")
     parser.add_argument("--limit", "-l", type=int, default=100, help="Maximum number of rows to return")
-    parser.add_argument("--model", "-m", default="claude", choices=["openai", "claude", "compare", "gemini"],
-                        help="Model to use for generation (openai, claude, compare, or gemini)")
+    parser.add_argument("--model", "-m", default="claude", choices=["openai", "claude", "gemini"],
+                        help="Model to use for generation (openai, claude, or gemini)")
     parser.add_argument("--specific-model", "-s", help="Specific model version to use (e.g., gpt-4o, claude-3-opus)")
     parser.add_argument("--data-dictionary", "-d", help="Path to data dictionary")
     parser.add_argument("--interactive", "-i", action="store_true", help="Run in interactive mode")
