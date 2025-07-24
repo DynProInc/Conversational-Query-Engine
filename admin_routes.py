@@ -12,44 +12,10 @@ from collections import defaultdict, Counter
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from utils.auth import get_current_admin_user, users_db
 
 # Initialize router
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-
-# Security
-security = HTTPBearer()
-
-# In-memory storage (in production, this would be a database)
-users_db = {
-    "admin": {
-        "id": "admin",
-        "username": "admin",
-        "email": "admin@example.com",
-        "role": "admin",
-        "created_at": "2024-01-01T00:00:00Z",
-        "last_login": "2024-01-01T00:00:00Z",
-        "is_active": True
-    },
-    "user1": {
-        "id": "user1",
-        "username": "user1",
-        "email": "user1@example.com",
-        "role": "user",
-        "created_at": "2024-01-01T00:00:00Z",
-        "last_login": "2024-01-01T00:00:00Z",
-        "is_active": True
-    },
-    "user2": {
-        "id": "user2",
-        "username": "user2",
-        "email": "user2@example.com",
-        "role": "user",
-        "created_at": "2024-01-01T00:00:00Z",
-        "last_login": "2024-01-01T00:00:00Z",
-        "is_active": True
-    }
-}
 
 # Mock analytics data (in production, this would come from actual usage logs)
 analytics_data = {
@@ -111,18 +77,9 @@ class AnalyticsResponse(BaseModel):
     user_analytics: List[UserAnalytics]
     system_performance: Dict[str, Any]
 
-# Authentication dependency
-async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Verify admin token - in production, implement proper JWT validation"""
-    token = credentials.credentials
-    # For demo purposes, accept any token that starts with 'admin_'
-    if not token.startswith('admin_'):
-        raise HTTPException(status_code=401, detail="Invalid admin token")
-    return token
-
 # Admin routes
 @router.get("/users", response_model=List[User])
-async def get_all_users(token: str = Depends(verify_admin_token)):
+async def get_all_users(current_user = Depends(get_current_admin_user)):
     """Get all users in the system"""
     return list(users_db.values())
 
@@ -130,7 +87,7 @@ async def get_all_users(token: str = Depends(verify_admin_token)):
 async def update_user_role(
     user_id: str, 
     user_update: UserUpdate, 
-    token: str = Depends(verify_admin_token)
+    current_user = Depends(get_current_admin_user)
 ):
     """Update user role and status"""
     if user_id not in users_db:
@@ -149,7 +106,7 @@ async def update_user_role(
     return users_db[user_id]
 
 @router.get("/stats", response_model=SystemStats)
-async def get_system_statistics(token: str = Depends(verify_admin_token)):
+async def get_system_statistics(current_user = Depends(get_current_admin_user)):
     """Get system statistics"""
     # Calculate stats from analytics data
     total_queries = len(analytics_data["queries"])
@@ -177,7 +134,7 @@ async def get_system_statistics(token: str = Depends(verify_admin_token)):
     )
 
 @router.get("/analytics", response_model=AnalyticsResponse)
-async def get_user_analytics(token: str = Depends(verify_admin_token)):
+async def get_user_analytics(current_user = Depends(get_current_admin_user)):
     """Get user analytics and system performance data"""
     
     # Calculate queries by model

@@ -68,6 +68,10 @@ app.include_router(execute_query_router)
 from admin_routes import router as admin_router
 app.include_router(admin_router)
 
+# Import and include the auth router
+from routes.auth import router as auth_router
+app.include_router(auth_router)
+
 # Define request and response models
 class QueryRequest(BaseModel):
     client_id: Optional[str] = "mts"  # Default to 'mts' client for backward compatibility

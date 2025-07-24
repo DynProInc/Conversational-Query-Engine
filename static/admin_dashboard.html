@@ -213,12 +213,21 @@
         </div>
         
         <div class="content">
-            <!-- Token Input -->
+            <!-- Login Section -->
             <div class="section">
                 <h2>🔐 Authentication</h2>
-                <input type="text" id="adminToken" class="token-input" placeholder="Enter admin token (e.g., admin_test_token_123)" value="admin_test_token_123">
-                <button class="btn btn-primary" onclick="testConnection()">Test Connection</button>
-                <div id="connectionStatus"></div>
+                <div id="loginForm">
+                    <input type="email" id="userEmail" class="token-input" placeholder="Email (e.g., arman.khan@dynpro.com)" value="arman.khan@dynpro.com">
+                    <input type="password" id="userPassword" class="token-input" placeholder="Password" value="Password123!">
+                    <button class="btn btn-primary" onclick="login()">Login</button>
+                    <div id="loginStatus"></div>
+                </div>
+                <div id="userInfo" style="display: none;">
+                    <div class="success">
+                        <strong>Logged in as:</strong> <span id="userName"></span> (<span id="userRole"></span>)
+                    </div>
+                    <button class="btn btn-success" onclick="logout()">Logout</button>
+                </div>
             </div>
             
             <!-- System Statistics -->
@@ -252,13 +261,70 @@
 
     <script>
         const BASE_URL = 'https://conversational-query-engine-pp4v.onrender.com';
+        let currentToken = null;
+        let currentUser = null;
         
         function getHeaders() {
-            const token = document.getElementById('adminToken').value;
+            if (!currentToken) {
+                throw new Error('Not authenticated');
+            }
             return {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': `Bearer ${currentToken}`,
                 'Content-Type': 'application/json'
             };
+        }
+        
+        async function login() {
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+            const statusDiv = document.getElementById('loginStatus');
+            
+            statusDiv.innerHTML = '<div class="loading">Logging in...</div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    currentToken = data.access_token;
+                    
+                    // Get user profile
+                    const userResponse = await fetch(`${BASE_URL}/api/auth/me`, {
+                        headers: getHeaders()
+                    });
+                    
+                    if (userResponse.ok) {
+                        currentUser = await userResponse.json();
+                        
+                        // Show user info
+                        document.getElementById('userName').textContent = currentUser.name;
+                        document.getElementById('userRole').textContent = currentUser.role;
+                        document.getElementById('loginForm').style.display = 'none';
+                        document.getElementById('userInfo').style.display = 'block';
+                        
+                        statusDiv.innerHTML = '<div class="success">✅ Login successful!</div>';
+                    }
+                } else {
+                    const error = await response.json();
+                    statusDiv.innerHTML = `<div class="error">❌ Login failed: ${error.detail}</div>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">❌ Login error: ${error.message}</div>`;
+            }
+        }
+        
+        function logout() {
+            currentToken = null;
+            currentUser = null;
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('userInfo').style.display = 'none';
+            document.getElementById('loginStatus').innerHTML = '<div class="success">✅ Logged out successfully</div>';
         }
         
         async function makeRequest(url, options = {}) {
@@ -279,12 +345,16 @@
         }
         
         async function testConnection() {
-            const statusDiv = document.getElementById('connectionStatus');
+            const statusDiv = document.getElementById('loginStatus');
             statusDiv.innerHTML = '<div class="loading">Testing connection...</div>';
             
             try {
-                const response = await makeRequest(`${BASE_URL}/api/admin/health`);
-                statusDiv.innerHTML = `<div class="success">✅ Connection successful! Admin routes are available.</div>`;
+                const response = await fetch(`${BASE_URL}/api/admin/health`);
+                if (response.ok) {
+                    statusDiv.innerHTML = `<div class="success">✅ Connection successful! Admin routes are available.</div>`;
+                } else {
+                    statusDiv.innerHTML = `<div class="error">❌ Connection failed: ${response.statusText}</div>`;
+                }
             } catch (error) {
                 statusDiv.innerHTML = `<div class="error">❌ Connection failed: ${error.message}</div>`;
             }
