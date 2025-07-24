@@ -35,12 +35,12 @@ analytics_data = {
 # Pydantic models
 class User(BaseModel):
     id: str
-    username: str
+    name: str
     email: str
     role: str
-    created_at: str
-    last_login: str
     is_active: bool
+    created_at: Optional[str] = None
+    last_login: Optional[str] = None
 
 class UserUpdate(BaseModel):
     role: str
@@ -70,18 +70,29 @@ class UserAnalytics(BaseModel):
     average_response_time_ms: float
 
 class AnalyticsResponse(BaseModel):
-    total_users: int
-    total_queries: int
-    queries_by_model: Dict[str, int]
-    queries_by_day: Dict[str, int]
-    user_analytics: List[UserAnalytics]
-    system_performance: Dict[str, Any]
+    userActivity: List[Dict[str, Any]]
+    queryTypes: List[Dict[str, Any]]
+    recentUsers: List[Dict[str, Any]]
 
 # Admin routes
 @router.get("/users", response_model=List[User])
 async def get_all_users(current_user = Depends(get_current_admin_user)):
     """Get all users in the system"""
-    return list(users_db.values())
+    # Transform users_db to match the User model
+    users = []
+    for email, user_data in users_db.items():
+        # Remove hashed_password from the response
+        user_response = {
+            "id": user_data["id"],
+            "name": user_data["name"],
+            "email": user_data["email"],
+            "role": user_data["role"],
+            "is_active": user_data["is_active"],
+            "created_at": "2024-01-01T00:00:00Z",  # Mock creation date
+            "last_login": "2024-01-15T10:30:00Z"   # Mock last login
+        }
+        users.append(user_response)
+    return users
 
 @router.put("/users/{user_id}", response_model=User)
 async def update_user_role(
@@ -90,7 +101,14 @@ async def update_user_role(
     current_user = Depends(get_current_admin_user)
 ):
     """Update user role and status"""
-    if user_id not in users_db:
+    # Find user by ID in users_db
+    user_found = None
+    for email, user_data in users_db.items():
+        if user_data["id"] == user_id:
+            user_found = user_data
+            break
+    
+    if not user_found:
         raise HTTPException(status_code=404, detail="User not found")
     
     # Validate role
@@ -99,11 +117,20 @@ async def update_user_role(
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {valid_roles}")
     
     # Update user
-    users_db[user_id]["role"] = user_update.role
+    user_found["role"] = user_update.role
     if user_update.is_active is not None:
-        users_db[user_id]["is_active"] = user_update.is_active
+        user_found["is_active"] = user_update.is_active
     
-    return users_db[user_id]
+    # Return user in the expected format
+    return {
+        "id": user_found["id"],
+        "name": user_found["name"],
+        "email": user_found["email"],
+        "role": user_found["role"],
+        "is_active": user_found["is_active"],
+        "created_at": "2024-01-01T00:00:00Z",
+        "last_login": "2024-01-15T10:30:00Z"
+    }
 
 @router.get("/stats", response_model=SystemStats)
 async def get_system_statistics(current_user = Depends(get_current_admin_user)):
@@ -137,77 +164,38 @@ async def get_system_statistics(current_user = Depends(get_current_admin_user)):
 async def get_user_analytics(current_user = Depends(get_current_admin_user)):
     """Get user analytics and system performance data"""
     
-    # Calculate queries by model
-    model_counts = Counter()
-    for query in analytics_data["queries"]:
-        model_counts[query["model"]] += 1
+    # Mock user activity data (daily queries and users)
+    user_activity = [
+        {"name": "Mon", "queries": 65, "users": 24},
+        {"name": "Tue", "queries": 59, "users": 22},
+        {"name": "Wed", "queries": 80, "users": 28},
+        {"name": "Thu", "queries": 81, "users": 29},
+        {"name": "Fri", "queries": 56, "users": 20},
+        {"name": "Sat", "queries": 55, "users": 18},
+        {"name": "Sun", "queries": 40, "users": 15}
+    ]
     
-    # Calculate queries by day
-    day_counts = Counter()
-    for query in analytics_data["queries"]:
-        date = query["timestamp"].split("T")[0]
-        day_counts[date] += 1
+    # Mock query types data
+    query_types = [
+        {"name": "Text Queries", "value": 65},
+        {"name": "Voice Queries", "value": 35}
+    ]
     
-    # Calculate user analytics
-    user_analytics = []
-    for user_id, user_data in users_db.items():
-        user_queries = [q for q in analytics_data["queries"] if q["user_id"] == user_id]
-        
-        if user_queries:
-            total_queries = len(user_queries)
-            successful_queries = len([q for q in user_queries if q["success"]])
-            failed_queries = total_queries - successful_queries
-            success_rate = (successful_queries / total_queries * 100) if total_queries > 0 else 0
-            
-            # Find favorite model
-            user_models = [q["model"] for q in user_queries]
-            favorite_model = max(set(user_models), key=user_models.count) if user_models else "None"
-            
-            # Last activity
-            last_activity = max(q["timestamp"] for q in user_queries)
-            
-            user_analytics.append(UserAnalytics(
-                user_id=user_id,
-                username=user_data["username"],
-                total_queries=total_queries,
-                successful_queries=successful_queries,
-                failed_queries=failed_queries,
-                success_rate=success_rate,
-                last_activity=last_activity,
-                favorite_model=favorite_model,
-                average_response_time_ms=1250.0  # Mock value
-            ))
-        else:
-            # User with no queries
-            user_analytics.append(UserAnalytics(
-                user_id=user_id,
-                username=user_data["username"],
-                total_queries=0,
-                successful_queries=0,
-                failed_queries=0,
-                success_rate=0.0,
-                last_activity="Never",
-                favorite_model="None",
-                average_response_time_ms=0.0
-            ))
-    
-    # System performance data
-    system_performance = {
-        "uptime_hours": 24.5,
-        "memory_usage_mb": 512.0,
-        "cpu_usage_percent": 15.5,
-        "disk_usage_percent": 45.2,
-        "active_connections": 12,
-        "requests_per_minute": 8.5
-    }
+    # Mock recent users data
+    recent_users = []
+    for email, user_data in users_db.items():
+        recent_users.append({
+            "id": user_data["id"],
+            "name": user_data["name"],
+            "email": user_data["email"],
+            "lastActive": "10 minutes ago",
+            "queries": 12
+        })
     
     return AnalyticsResponse(
-        total_users=len(users_db),
-        total_queries=len(analytics_data["queries"]),
-        queries_by_model=dict(model_counts),
-        queries_by_day=dict(day_counts),
-        user_analytics=user_analytics,
-        system_performance=system_performance
+        userActivity=user_activity,
+        queryTypes=query_types,
+        recentUsers=recent_users
     )
 
 # Health check for admin routes
