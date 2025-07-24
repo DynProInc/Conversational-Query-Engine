@@ -598,9 +598,14 @@ async def unified_query_endpoint(
                     print(f"Error: {error_msg}")
                     raise HTTPException(status_code=400, detail=error_msg)
             
-            # Use default model name
-            request.model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")  # Use environment variable or default
-            print(f"Using default Claude model: {request.model}")
+            # Get the model from client configuration
+            if client_id:
+                from config.client_manager import client_manager
+                claude_config = client_manager.get_llm_config(client_id, 'anthropic')
+                request.model = claude_config.get('model', "claude-3-5-sonnet-20241022")
+            else:
+                request.model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+            print(f"Using Claude model: {request.model}")
                 
             # Call Claude endpoint with data_dictionary_path from client context
             response = await generate_sql_query_claude(request, data_dictionary_path=data_dictionary_path)
@@ -639,8 +644,13 @@ async def unified_query_endpoint(
                     raise HTTPException(status_code=400, detail=error_msg)
             
             # Only proceed if key validation passes (client has valid API key or no client specified)
-            request.model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
-            print(f"Using default Claude model: {request.model}")
+            if client_id:
+                from config.client_manager import client_manager
+                claude_config = client_manager.get_llm_config(client_id, 'anthropic')
+                request.model = claude_config.get('model', "claude-3-5-sonnet-20241022")
+            else:
+                request.model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+            print(f"Using Claude model: {request.model}")
             response = await generate_sql_query_claude(request, data_dictionary_path=data_dictionary_path)
             
             # If execute_query is False, ensure we're not executing the query

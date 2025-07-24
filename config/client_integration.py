@@ -35,27 +35,42 @@ def restore_original_env():
 
 def set_client_context(client_id: str, model_provider: str = None) -> bool:
     """
-    Set the client context by updating environment variables
+    Set client context by loading environment variables for a specific client
     
     Args:
         client_id: The client identifier
-        model_provider: The model provider to use (openai, anthropic, gemini)
+        model_provider: The model provider to load (openai, anthropic, gemini, or None for default)
         
     Returns:
-        True if client context was set, False otherwise
+        True if context was set successfully, False otherwise
     """
-    if not client_id:
-        # Use default configuration
-        return False
-    
     try:
-        # Set Snowflake connection parameters
-        sf_params = client_manager.get_snowflake_connection_params(client_id)
-        os.environ['SNOWFLAKE_USER'] = sf_params['user']
-        os.environ['SNOWFLAKE_PASSWORD'] = sf_params['password']
-        os.environ['SNOWFLAKE_ACCOUNT'] = sf_params['account']
-        os.environ['SNOWFLAKE_WAREHOUSE'] = sf_params['warehouse']
+        # Store original environment variables
+        original_env = {
+            'OPENAI_API_KEY': os.environ.get('OPENAI_API_KEY'),
+            'OPENAI_MODEL': os.environ.get('OPENAI_MODEL'),
+            'ANTHROPIC_API_KEY': os.environ.get('ANTHROPIC_API_KEY'),
+            'ANTHROPIC_MODEL': os.environ.get('ANTHROPIC_MODEL'),
+            'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY'),
+            'GEMINI_MODEL': os.environ.get('GEMINI_MODEL'),
+            'SNOWFLAKE_ACCOUNT': os.environ.get('SNOWFLAKE_ACCOUNT'),
+            'SNOWFLAKE_USER': os.environ.get('SNOWFLAKE_USER'),
+            'SNOWFLAKE_PASSWORD': os.environ.get('SNOWFLAKE_PASSWORD'),
+            'SNOWFLAKE_WAREHOUSE': os.environ.get('SNOWFLAKE_WAREHOUSE'),
+            'SNOWFLAKE_DATABASE': os.environ.get('SNOWFLAKE_DATABASE'),
+            'SNOWFLAKE_SCHEMA': os.environ.get('SNOWFLAKE_SCHEMA'),
+        }
         
+        # Set Snowflake credentials
+        sf_params = client_manager.get_snowflake_connection_params(client_id)
+        if sf_params['account']:
+            os.environ['SNOWFLAKE_ACCOUNT'] = sf_params['account']
+        if sf_params['user']:
+            os.environ['SNOWFLAKE_USER'] = sf_params['user']
+        if sf_params['password']:
+            os.environ['SNOWFLAKE_PASSWORD'] = sf_params['password']
+        if sf_params['warehouse']:
+            os.environ['SNOWFLAKE_WAREHOUSE'] = sf_params['warehouse']
         if sf_params['database']:
             os.environ['SNOWFLAKE_DATABASE'] = sf_params['database']
         if sf_params['schema']:
@@ -76,11 +91,11 @@ def set_client_context(client_id: str, model_provider: str = None) -> bool:
                 # For comparison, try to load all available providers but don't fail if some are missing
                 providers_to_load = ['openai', 'anthropic', 'gemini']
             else:
-                # Default to OpenAI if provider not recognized
-                providers_to_load = ['openai']
+                # Default to Anthropic if provider not recognized (since this is a Claude-focused system)
+                providers_to_load = ['anthropic']
         else:
-            # If no provider specified, try to load OpenAI as default
-            providers_to_load = ['openai']
+            # If no provider specified, default to Anthropic (Claude) instead of OpenAI
+            providers_to_load = ['anthropic']
         
         # Set LLM API keys and models for requested providers
         for provider in providers_to_load:

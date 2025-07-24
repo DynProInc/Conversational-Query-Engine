@@ -159,9 +159,12 @@ Provide only your generic hint:"""
             provider = 'gemini'
             model = preferred_model
     
-    # If no specific model is identified, use default OpenAI
+    # If no specific model is identified, use default Claude (since this is a Claude-focused system)
     if not provider:
-        if openai is not None:
+        if anthropic is not None:
+            provider = 'claude'
+            model = os.environ.get('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022')
+        elif openai is not None:
             provider = 'openai'
             model = os.environ.get('OPENAI_MODEL', 'gpt-4o')
     
