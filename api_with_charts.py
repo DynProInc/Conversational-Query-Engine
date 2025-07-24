@@ -3,9 +3,7 @@ API example showing how to expose chart recommendations through a REST API
 """
 from flask import Flask, request, jsonify
 import pandas as pd
-from nlq_to_snowflake import nlq_to_snowflake
 from nlq_to_snowflake_claude import nlq_to_snowflake_claude
-from nlq_to_snowflake_gemini import nlq_to_snowflake_gemini
 
 app = Flask(__name__)
 
@@ -20,46 +18,23 @@ def generate_sql_query():
     
     # Extract parameters from request
     question = data['question']
-    model_type = data.get('model_type', 'claude').lower()  # 'openai', 'claude', or 'gemini'
+    model_type = data.get('model_type', 'claude').lower()  # 'claude' only
     execute = data.get('execute', True)
     limit_rows = data.get('limit_rows', 100)
     include_charts = data.get('include_charts', True)
     
-    # Set model based on model_type
-    model = None
-    if model_type == 'openai':
-        model = data.get('model', 'gpt-4o')
-    elif model_type == 'claude':
-        model = data.get('model', 'claude-3-5-sonnet-20241022')
-    elif model_type == 'gemini':
-        model = data.get('model', 'models/gemini-1.5-flash-latest')
+    # Only support Claude
+    model = data.get('model', 'claude-3-5-sonnet-20241022')
     
     try:
-        # Call the appropriate function based on model_type
-        if model_type == 'claude':
-            result = nlq_to_snowflake_claude(
-                question=question,
-                execute=execute,
-                limit_rows=limit_rows,
-                model=model,
-                include_charts=include_charts
-            )
-        elif model_type == 'gemini':
-            result = nlq_to_snowflake_gemini(
-                question=question,
-                execute=execute,
-                limit_rows=limit_rows,
-                model=model,
-                include_charts=include_charts
-            )
-        else:  # Default to OpenAI
-            result = nlq_to_snowflake(
-                question=question,
-                execute=execute,
-                limit_rows=limit_rows,
-                model=model,
-                include_charts=include_charts
-            )
+        # Use Claude for all requests
+        result = nlq_to_snowflake_claude(
+            question=question,
+            execute=execute,
+            limit_rows=limit_rows,
+            model=model,
+            include_charts=include_charts
+        )
         
         # Convert DataFrame to list of dictionaries if present
         if 'results' in result and isinstance(result['results'], pd.DataFrame):

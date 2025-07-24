@@ -3,7 +3,7 @@ Natural Language to Snowflake Query Runner
 
 This script combines the LLM query generator with Snowflake execution:
 1. Takes a natural language query
-2. Uses OpenAI to convert it to SQL
+2. Uses Claude to convert it to SQL
 3. Executes the SQL against your Snowflake account
 4. Returns the results
 """
@@ -29,7 +29,7 @@ def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str =
     
     Args:
         prompt: Natural language question to convert to SQL
-        model: Specific OpenAI model to use, overrides OPENAI_MODEL environment variable
+        model: Specific Claude model to use, overrides ANTHROPIC_MODEL environment variable
         data_dictionary_path: Path to data dictionary CSV/Excel file
         limit_rows: Maximum number of rows to return (adds LIMIT if not in query)
         execute_query: Whether to execute the SQL in Snowflake (True) or just return SQL (False)
@@ -43,16 +43,17 @@ def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str =
         # Raise an error instead of silently falling back to MTS dictionary
         raise ValueError("No dictionary path provided. Cannot proceed without a data dictionary.")
     
-    # Use provided model, or get from environment, or use default
+    # Use provided model, or get from environment, or use default Claude model
     if model is None:
-        model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
     
     print(f"Using model: {model}")
     print(f"Converting: '{prompt}' to SQL...")
     
     try:
-        # Generate SQL from natural language using OpenAI
-        sql_result = natural_language_to_sql(
+        # Generate SQL from natural language using Claude
+        from claude_query_generator import natural_language_to_sql_claude
+        sql_result = natural_language_to_sql_claude(
             query=prompt,
             data_dictionary_path=data_dictionary_path,
             model=model,
@@ -199,7 +200,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert natural language to SQL and execute in Snowflake")
     parser.add_argument("prompt", help="Natural language question to convert to SQL")
     parser.add_argument("--data-dictionary", "-d", dest="data_dictionary_path", help="Path to data dictionary CSV/Excel file")
-    parser.add_argument("--model", "-m", help="Specific OpenAI model to use")
+    parser.add_argument("--model", "-m", help="Specific Claude model to use")
     parser.add_argument("--limit-rows", "-l", type=int, default=100, help="Maximum number of rows to return")
     parser.add_argument("--execute-query", "-e", type=lambda x: x.lower() in ["true", "yes", "1", "t"], 
                         default=True, help="Whether to execute the SQL in Snowflake (True/False)")
