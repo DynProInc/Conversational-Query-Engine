@@ -19,7 +19,7 @@ def unified_query():
     Expected request format:
     {
       "prompt": "give me results overall sales in year 2024 in store number 11 for top items and ACCOUNT_TYPE_NAME RETAIL",
-      "model": "claude", # or "openai", "gemini"
+      "model": "claude", # Claude only
       "execute_query": false,
       "include_charts": true,
       "data_dictionary_path": null
@@ -50,16 +50,8 @@ def unified_query():
                 data_dictionary_path=data_dictionary_path,
                 include_charts=include_charts
             )
-        elif model_name == 'gemini':
-            result = nlq_to_snowflake_gemini(
-                question=prompt,
-                execute=execute_query,
-                limit_rows=limit_rows,
-                data_dictionary_path=data_dictionary_path,
-                include_charts=include_charts
-            )
-        else:  # Default to OpenAI
-            result = nlq_to_snowflake(
+        else:  # Default to Claude
+            result = nlq_to_snowflake_claude(
                 question=prompt,
                 execute=execute_query,
                 limit_rows=limit_rows,

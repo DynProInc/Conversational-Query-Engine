@@ -21,10 +21,7 @@ def make_api_request(prompt, model="claude", limit_rows=100, data_dictionary_pat
     """
     # Constants
     API_BASE_URL = "http://localhost:8000"
-    API_OPENAI_ENDPOINT = f"{API_BASE_URL}/query"
     API_CLAUDE_ENDPOINT = f"{API_BASE_URL}/query/claude"
-    API_COMPARE_ENDPOINT = f"{API_BASE_URL}/query/compare"
-    API_GEMINI_ENDPOINT = f"{API_BASE_URL}/query/gemini/execute"
     API_MODELS_ENDPOINT = f"{API_BASE_URL}/models"
 
     print(f"\nDEBUG: Making API request to {model.lower()} model")
@@ -36,12 +33,9 @@ def make_api_request(prompt, model="claude", limit_rows=100, data_dictionary_pat
     elif model.lower() == "compare":
         endpoint = API_COMPARE_ENDPOINT
         print(f"DEBUG: Using Compare endpoint: {endpoint}")
-    elif model.lower() == "gemini":
-        endpoint = API_GEMINI_ENDPOINT
-        print(f"DEBUG: Using Gemini endpoint: {endpoint}")
-    else:  # Default to OpenAI
-        endpoint = API_OPENAI_ENDPOINT
-        print(f"DEBUG: Using OpenAI endpoint: {endpoint}")
+    else:  # Default to Claude
+        endpoint = API_CLAUDE_ENDPOINT
+        print(f"DEBUG: Using Claude endpoint: {endpoint}")
     
     # Prepare the request payload
     payload = {
@@ -83,10 +77,10 @@ def get_available_models():
             return response.json()
         else:
             print(f"Failed to retrieve models: {response.status_code}")
-            return {"openai": ["gpt-4o"], "claude": ["claude-3-5-sonnet"]}
+            return {"claude": ["claude-3-5-sonnet"]}
     except Exception as e:
         print(f"Error getting available models: {str(e)}")
-        return {"openai": ["gpt-4o"], "claude": ["claude-3-5-sonnet"]}
+        return {"claude": ["claude-3-5-sonnet"]}
 
 def display_results(response, model_type):
     # Check if request was successful
@@ -96,97 +90,33 @@ def display_results(response, model_type):
         print("\n=== API Response ===")
         print(f"Prompt: {result.get('prompt', result.get('query', ''))}")
         
-        # Handle comparison mode differently
-        if model_type == "compare":
-            # OpenAI results
-            if result.get('openai'):
-                print("\n=== OpenAI Results ===")
-                openai_result = result['openai']
-                print(f"Model: {openai_result.get('model', 'Unknown')}")
-                print(f"Generated SQL Query: \n{openai_result.get('query', 'No query generated')}")
-                
-                print("\nQuery Output:")
-                if openai_result.get('query_output'):
-                    # Print the results in a formatted way
-                    for row in openai_result['query_output'][:5]:  # Limit to 5 rows for readability
-                        print(json.dumps(row, indent=2))
-                    if len(openai_result['query_output']) > 5:
-                        print(f"...and {len(openai_result['query_output']) - 5} more rows")
-                else:
-                    print("No results returned or query was not executed.")
-                
-                # Print token usage if available
-                if openai_result.get('token_usage'):
-                    print("\nToken Usage:")
-                    print(f"  Prompt tokens: {openai_result['token_usage'].get('prompt_tokens', 0)}")
-                    print(f"  Completion tokens: {openai_result['token_usage'].get('completion_tokens', 0)}")
-                    print(f"  Total tokens: {openai_result['token_usage'].get('total_tokens', 0)}")
-                
-                # Handle the case where execution_time_ms might be None
-                exec_time = openai_result.get('execution_time_ms')
-                if exec_time is not None:
-                    print(f"Execution time: {exec_time:.2f} ms")
-                else:
-                    print("Execution time: Not available")
-            
-            # Claude results
-            if result.get('claude'):
-                print("\n=== Claude Results ===")
-                claude_result = result['claude']
-                print(f"Model: {claude_result.get('model', 'Unknown')}")
-                print(f"Generated SQL Query: \n{claude_result.get('query', 'No query generated')}")
-                
-                print("\nQuery Output:")
-                if claude_result.get('query_output'):
-                    # Print the results in a formatted way
-                    for row in claude_result['query_output'][:5]:  # Limit to 5 rows for readability
-                        print(json.dumps(row, indent=2))
-                    if len(claude_result['query_output']) > 5:
-                        print(f"...and {len(claude_result['query_output']) - 5} more rows")
-                else:
-                    print("No results returned or query was not executed.")
-                
-                # Print token usage if available
-                if claude_result.get('token_usage'):
-                    print("\nToken Usage:")
-                    print(f"  Prompt tokens: {claude_result['token_usage'].get('prompt_tokens', 0)}")
-                    print(f"  Completion tokens: {claude_result['token_usage'].get('completion_tokens', 0)}")
-                    print(f"  Total tokens: {claude_result['token_usage'].get('total_tokens', 0)}")
-                
-                # Handle the case where execution_time_ms might be None
-                exec_time = claude_result.get('execution_time_ms')
-                if exec_time is not None:
-                    print(f"Execution time: {exec_time:.2f} ms")
-                else:
-                    print("Execution time: Not available")
+        # Handle regular (single model) response (Claude only)
+        print(f"Model: {result.get('model', 'Unknown')}")
+        print(f"Generated SQL Query: \n{result.get('query', 'No query generated')}")
+        
+        print("\nQuery Output:")
+        if result.get('query_output'):
+            # Print the results in a formatted way
+            for row in result['query_output'][:5]:  # Limit to 5 rows for readability
+                print(json.dumps(row, indent=2))
+            if len(result['query_output']) > 5:
+                print(f"...and {len(result['query_output']) - 5} more rows")
         else:
-            # Handle regular (single model) response (OpenAI, Claude, Gemini)
-            print(f"Model: {result.get('model', 'Unknown')}")
-            print(f"Generated SQL Query: \n{result.get('query', 'No query generated')}")
-            
-            print("\nQuery Output:")
-            if result.get('query_output'):
-                # Print the results in a formatted way
-                for row in result['query_output'][:5]:  # Limit to 5 rows for readability
-                    print(json.dumps(row, indent=2))
-                if len(result['query_output']) > 5:
-                    print(f"...and {len(result['query_output']) - 5} more rows")
-            else:
-                print("No results returned or query was not executed.")
-            
-            # Print token usage if available
-            if result.get('token_usage'):
-                print("\nToken Usage:")
-                print(f"  Prompt tokens: {result['token_usage'].get('prompt_tokens', 0)}")
-                print(f"  Completion tokens: {result['token_usage'].get('completion_tokens', 0)}")
-                print(f"  Total tokens: {result['token_usage'].get('total_tokens', 0)}")
-            
-            # Handle the case where execution_time_ms might be None
-            exec_time = result.get('execution_time_ms')
-            if exec_time is not None:
-                print(f"Execution time: {exec_time:.2f} ms")
-            else:
-                print("Execution time: Not available")
+            print("No results returned or query was not executed.")
+        
+        # Print token usage if available
+        if result.get('token_usage'):
+            print("\nToken Usage:")
+            print(f"  Prompt tokens: {result['token_usage'].get('prompt_tokens', 0)}")
+            print(f"  Completion tokens: {result['token_usage'].get('completion_tokens', 0)}")
+            print(f"  Total tokens: {result['token_usage'].get('total_tokens', 0)}")
+        
+        # Handle the case where execution_time_ms might be None
+        exec_time = result.get('execution_time_ms')
+        if exec_time is not None:
+            print(f"Execution time: {exec_time:.2f} ms")
+        else:
+            print("Execution time: Not available")
     else:
         print(f"Error: API returned status code {response.status_code}")
         print(f"Response: {response.text}")
@@ -251,8 +181,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Test the NL-to-SQL API with different models")
     parser.add_argument("--prompt", "-p", help="Natural language query")
     parser.add_argument("--limit", "-l", type=int, default=100, help="Maximum number of rows to return")
-    parser.add_argument("--model", "-m", default="claude", choices=["openai", "claude", "gemini"],
-                        help="Model to use for generation (openai, claude, or gemini)")
+    parser.add_argument("--model", "-m", default="claude", choices=["claude"],
+                        help="Model to use for generation (claude only)")
     parser.add_argument("--specific-model", "-s", help="Specific model version to use (e.g., gpt-4o, claude-3-opus)")
     parser.add_argument("--data-dictionary", "-d", help="Path to data dictionary")
     parser.add_argument("--interactive", "-i", action="store_true", help="Run in interactive mode")

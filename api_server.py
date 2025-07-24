@@ -58,9 +58,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 from prompt_query_history_route import router as prompt_query_history_router
 app.include_router(prompt_query_history_router)
 
-# Import and include the Gemini query router
-from gemini_query_route import router as gemini_query_router
-app.include_router(gemini_query_router)
+
 
 # Import and include the execute query router
 from execute_query_route import router as execute_query_router
@@ -99,158 +97,7 @@ async def chart_viewer():
     
 
 
-@app.post("/query", response_model=QueryResponse)
-@with_client_context  # Apply client context switching
-async def generate_sql_query(request: QueryRequest, data_dictionary_path: Optional[str] = None):
-    """Generate SQL from natural language using OpenAI and optionally execute against Snowflake"""
-    # Initialize variables to ensure they are always available in the except block
-    generated_sql = ""
-    token_usage = None
-    result = None
-    try:
-        # Use our existing functionality to process the query
-        # Store the original model from environment variable
-        original_model = os.environ.get("OPENAI_MODEL")
-        
-        # Temporarily set the model for this request if specified
-        # WITHOUT modifying the environment variable
-        model_to_use = request.model if request.model else original_model
-        
-        # Run LLM step first, capture SQL and token usage
-        # Use the client-specific dictionary path from the context if available
-        # This is set by the with_client_context decorator
-        dict_path = data_dictionary_path if data_dictionary_path else request.data_dictionary_path
-        
-        result = nlq_to_snowflake(
-            prompt=request.prompt,
-            data_dictionary_path=dict_path,
-            execute_query=request.execute_query,
-            limit_rows=request.limit_rows,
-            model=model_to_use,  # Pass the model explicitly rather than modifying env var
-            include_charts=request.include_charts  # Add the include_charts parameter
-        )
-        generated_sql = result.get("sql", "")
-        if all(k in result for k in ["prompt_tokens", "completion_tokens", "total_tokens"]):
-            token_usage = {
-                "prompt_tokens": result["prompt_tokens"],
-                "completion_tokens": result["completion_tokens"],
-                "total_tokens": result["total_tokens"]
-            }
-        
-        # Check for errors
-        if not result.get("success", False) or "error" in result or "error_execution" in result:
-            from error_hint_utils import get_user_friendly_hint, clean_error_message, identify_error_type
-            raw_error_msg = result.get("error") or result.get("error_execution", "Unknown error")
-            
-            # Identify the type of error
-            error_type = identify_error_type(raw_error_msg)
-            
-            # Clean the error message based on its type
-            clean_error = clean_error_message(raw_error_msg, error_type)
-            
-            # Generate appropriate hint based on error type - passing the current model
-            model_name = result.get("model", request.model or "openai")
-            user_hint = get_user_friendly_hint(raw_error_msg, generated_sql, model=model_name)
-            
-            # Clean up the query field for errors
-            # If generated_sql contains an error message, replace it with a generic message
-            if generated_sql and ("error" in generated_sql.lower() or error_type == "api_connection"):
-                display_query = "Error generating SQL query"
-            else:
-                display_query = generated_sql
-                
-            return QueryResponse(
-                prompt=request.prompt,
-                query=display_query,
-                query_output=[],
-                model=result.get("model", "openai"),
-                token_usage=token_usage,
-                success=False,
-                error_message=clean_error,
-                execution_time_ms=result.get("execution_time_ms"),
-                user_hint=user_hint,
-                chart_recommendations=result.get("chart_recommendations", [])
-            )
-        
-        # Convert DataFrame results to a list of dictionaries for JSON serialization
-        query_output = []
-        if "results" in result and isinstance(result["results"], pd.DataFrame):
-            # Convert DataFrame to list of dictionaries
-            query_output = result["results"].to_dict(orient="records")
-        
-        # Generate a helpful hint for successful queries too
-        from error_hint_utils import get_success_hint
-        model_name = result.get("model", request.model or "openai")
-        success_hint = get_success_hint(generated_sql, model=model_name)
-        
-        # Build the response
-        return QueryResponse(
-            prompt=request.prompt,
-            query=generated_sql,
-            query_output=query_output,
-            model=model_to_use,  # Return actual model name (gpt-4o, etc.)
-            token_usage=token_usage,
-            success=True,
-            error_message=None,
-            execution_time_ms=result.get("execution_time_ms"),
-            user_hint=success_hint,
-            chart_recommendations=result.get("chart_recommendations", []),
-            chart_error=result.get("chart_error")
-        )
-    
-    except Exception as e:
-        from error_hint_utils import get_user_friendly_hint, identify_error_type, clean_error_message
-        error_str = str(e)
-        
-        # Identify error type
-        error_type = identify_error_type(error_str)
-        
-        # Clean the error message
-        clean_error = clean_error_message(error_str, error_type)
-        
-        # Generate user hint with the appropriate model
-        model_name = request.model or "openai"
-        user_hint = get_user_friendly_hint(error_str, model=model_name)
 
-        # Try to get generated SQL and token usage from exception attributes (for SQL errors)
-        raw_sql = getattr(e, "generated_sql", generated_sql)
-        token_usage_exc = token_usage
-        
-        # Clean up the query field for errors
-        if raw_sql and ("error" in str(raw_sql).lower() or error_type == "api_connection"):
-            display_query = "Error generating SQL query"
-        else:
-            display_query = raw_sql
-            
-        # Debug print for troubleshooting
-        print("[DEBUG] Exception attributes:")
-        print("generated_sql:", getattr(e, "generated_sql", None))
-        print("prompt_tokens:", getattr(e, "prompt_tokens", None))
-        print("completion_tokens:", getattr(e, "completion_tokens", None))
-        print("total_tokens:", getattr(e, "total_tokens", None))
-        if all(hasattr(e, attr) for attr in ["prompt_tokens", "completion_tokens", "total_tokens"]):
-            token_usage_exc = {
-                "prompt_tokens": getattr(e, "prompt_tokens", 0),
-                "completion_tokens": getattr(e, "completion_tokens", 0),
-                "total_tokens": getattr(e, "total_tokens", 0),
-            }
-        
-        # Extract chart error if available
-        chart_error = getattr(e, "chart_error", "No chart recommendations available - query execution failed")
-
-        return QueryResponse(
-            prompt=request.prompt,
-            query=display_query,
-            query_output=[],
-            model=request.model or "openai",
-            token_usage=token_usage_exc,
-            success=False,
-            error_message=clean_error,
-            execution_time_ms=None,
-            user_hint=user_hint,
-            chart_recommendations=[],
-            chart_error=chart_error
-        )
 
 
 @app.post("/query/claude", response_model=QueryResponse)
@@ -414,308 +261,24 @@ async def generate_sql_query_claude(request: QueryRequest, data_dictionary_path:
         )
 
 
-@app.post("/query/gemini", response_model=QueryResponse)
-@app.post("/query/gemini/execute", response_model=QueryResponse)  # Add alternate route for consistency
-@with_client_context  # Add client context switching to be consistent with other endpoints
-async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path: Optional[str] = None):
-    """Generate SQL from natural language using Google Gemini and optionally execute against Snowflake"""
-    # Setup guaranteed response data - this will be used if all else fails
-    fallback_sql = "SELECT store_id, store_name, SUM(profit) AS total_profit FROM sales GROUP BY store_id, store_name ORDER BY total_profit DESC LIMIT 2;"
-    fallback_output = [
-        {"store_id": 1, "store_name": "Downtown Store", "total_profit": 125000.50},
-        {"store_id": 2, "store_name": "Mall Location", "total_profit": 98750.25}
-    ]
-    
-    print("\n-------------- GEMINI API ENDPOINT CALLED --------------")
-    print(f"Processing request: '{request.prompt}'")
-    
-    # Get model name
-    gemini_model = request.model if request.model else os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash-latest")
-    
-    # Step 1: Try to get real results - if any step fails, we'll fall back to guaranteed response
-    try:
-        # Import dependencies
-        import pandas as pd
-        import time
-        from datetime import datetime
-        from snowflake_runner import execute_query
-        from gemini_query_generator import natural_language_to_sql_gemini
-        from token_logger import TokenLogger
-        
-        print("\nATTEMPT 1: Direct SQL generation and execution")
-        
-        # Setup token logger
-        logger = TokenLogger()
-        
-        # Start timing
-        start_time = time.time()
-        
-        # Track query execution success
-        query_executed_successfully = False
-        
-        # Generate SQL
-        # Use the client-specific dictionary path from the context if available
-        dict_path = data_dictionary_path if data_dictionary_path else request.data_dictionary_path
-        # Provide a fallback only if no dictionary path is specified
-        if not dict_path:
-            dict_path = "Data Dictionary/mts.csv"
-            
-        print(f"Gemini endpoint using dictionary path: {dict_path}")
-        
-        result = natural_language_to_sql_gemini(
-            query=request.prompt,
-            data_dictionary_path=dict_path,
-            model=gemini_model,
-            log_tokens=True,
-            limit_rows=request.limit_rows,
-            include_charts=request.include_charts  # Add include_charts parameter
-        )
-        
-        # Extract SQL and check for errors
-        if not result.get("success", True):
-            # If nlq_to_snowflake_gemini reported an error, propagate it
-            raise Exception(result.get("error_message", result.get("error", "Unknown Gemini error")))
-            
-        # Extract SQL
-        sql = result.get("sql", "")
-        if not sql or len(sql.strip()) < 10:  # Sanity check for SQL
-            error_msg = "SQL generation failed or returned invalid SQL"
-            print(error_msg)
-            raise Exception(error_msg)
-        print(f"Generated SQL:\n{sql}")
-        
-        # Check if we should execute SQL
-        df = None
-        query_executed_successfully = None  # Using None to indicate query was not executed
-        
-        if request.execute_query:
-            print("Executing SQL...")
-            try:
-                df = execute_query(sql, print_results=True)
-                print(f"Query execution successful: {df.shape[0]} rows, {df.shape[1]} columns")
-                query_executed_successfully = True
-            except Exception as sql_err:
-                print(f"SQL execution failed: {str(sql_err)}")
-                query_executed_successfully = False
-                raise Exception(f"SQL execution failed: {str(sql_err)}")
-        else:
-            print("Skipping SQL execution as execute_query=False")
-            # Return empty results when not executing
-        
-        # Convert results - with multiple fallback mechanisms
-        query_output = []
-        
-        # If execute_query was false, always return empty results
-        if not request.execute_query:
-            print("Returning empty query_output as execute_query=False")
-            query_output = []
-        elif df is not None and hasattr(df, 'shape') and df.shape[0] > 0:
-            print(f"Converting DataFrame with {df.shape[0]} rows to dict...")
-            try:
-                # METHOD 1: Standard Pandas to_dict
-                query_output = df.to_dict(orient="records")
-                print(f"Method 1 successful, got {len(query_output)} items")
-            except Exception as e1:
-                print(f"Method 1 failed: {str(e1)}, trying method 2")
-                try:
-                    # METHOD 2: Manual conversion with basic types
-                    query_output = []
-                    for idx, row in df.iterrows():
-                        record = {}
-                        for col in df.columns:
-                            val = row[col]
-                            # Convert to basic Python types
-                            if hasattr(val, 'item'):
-                                try:
-                                    record[col] = val.item()
-                                except:
-                                    record[col] = str(val)
-                            else:
-                                record[col] = str(val) if not isinstance(val, (int, float, str, bool, type(None))) else val
-                        query_output.append(record)
-                    print(f"Method 2 successful, got {len(query_output)} items")
-                except Exception as e2:
-                    print(f"Method 2 failed: {str(e2)}, using fallback data")
-                    query_output = []
-        else:
-            print("No DataFrame results or empty DataFrame")
-            query_output = [] if not request.execute_query else []
-        
-        # Calculate execution time
-        execution_time_ms = int((time.time() - start_time) * 1000)
-        
-        # Prepare token usage
-        token_usage = {
-            "prompt_tokens": result.get("prompt_tokens", 0),
-            "completion_tokens": result.get("completion_tokens", 0),
-            "total_tokens": result.get("total_tokens", 0)
-        }
-        
-        # Handle empty results appropriately without using fallback data
-        if not query_output and request.execute_query:
-            print("INFO: Query executed successfully but returned no results")
-            # Keep empty results - don't use fallback data
-            query_executed_successfully = True
-        elif not request.execute_query:
-            print("Empty query_output maintained as execute_query=False")
-            # Keep query_output as empty list
-            
-        # Log token usage with execution status
-        logger.log_usage(
-            model=gemini_model,
-            query=request.prompt,
-            usage=token_usage,
-            prompt=request.prompt,
-            sql_query=sql,
-            query_executed=query_executed_successfully
-        )
-            
-        # Final response assembly
-        response = QueryResponse(
-            prompt=request.prompt,
-            query=sql,
-            query_output=query_output,
-            model=gemini_model,
-            token_usage=token_usage,
-            success=True,  # Always claim success when we have results
-            error_message=None,
-            execution_time_ms=execution_time_ms,
-            user_hint="SQL query generated only. Execution skipped." if not request.execute_query else 
-                  ("Query executed successfully." if len(query_output) > 0 else "Query executed but no results returned."),
-            chart_recommendations=result.get("chart_recommendations", None),  # Include chart recommendations
-            chart_error=result.get("chart_error", None)  # Include chart errors
-        )
-        
-        # Successful result
-        print(f"SUCCESS - Returning {len(query_output)} results")
-        return response
-        
-    # GUARANTEED FALLBACK: If anything fails, return hardcoded results
-    except Exception as e:
-        import traceback
-        print(f"\nERROR in Gemini endpoint: {str(e)}")
-        traceback.print_exc()
-        print("\nIMPLEMENTING GUARANTEED FALLBACK RESPONSE")
-        
-        # Log token usage with failed execution
-        logger = TokenLogger()
-        logger.log_usage(
-            model=gemini_model,
-            query=request.prompt,
-            usage={
-                "prompt_tokens": 200, 
-                "completion_tokens": 50,
-                "total_tokens": 250
-            },
-            prompt=request.prompt,
-            sql_query=fallback_sql,
-            query_executed=False
-        )
-        
-        # Create fallback chart recommendations if requested
-        fallback_chart_recommendations = None
-        if request.include_charts:
-            fallback_chart_recommendations = [
-                {
-                    "chart_type": "bar",
-                    "reasoning": "Default bar chart showing store profit comparison",
-                    "priority": 1,
-                    "chart_config": {
-                        "title": "Store Profit Comparison",
-                        "chart_library": "plotly"
-                    }
-                },
-                {
-                    "chart_type": "pie",
-                    "reasoning": "Default pie chart showing profit distribution across stores",
-                    "priority": 2,
-                    "chart_config": {
-                        "title": "Store Profit Distribution",
-                        "chart_library": "plotly"
-                    }
-                }
-            ]
-            
-        # Return a proper error response with accurate information
-        from error_hint_utils import get_user_friendly_hint, clean_error_message, identify_error_type
-        error_str = str(e)
-        error_type = identify_error_type(error_str)
-        clean_error = clean_error_message(error_str, error_type)
-        user_hint = get_user_friendly_hint(error_str, model=gemini_model)
-        
-        return QueryResponse(
-            prompt=request.prompt,
-            query=sql if 'sql' in locals() else "",  # Return the actual SQL if available
-            query_output=[],  # Empty results - never use fake data
-            model=gemini_model,
-            token_usage={
-                "prompt_tokens": result.get("prompt_tokens", 0) if 'result' in locals() else 0, 
-                "completion_tokens": result.get("completion_tokens", 0) if 'result' in locals() else 0,
-                "total_tokens": result.get("total_tokens", 0) if 'result' in locals() else 0
-            },
-            success=False,  # Properly report error
-            error_message=clean_error,
-            execution_time_ms=int((time.time() - start_time) * 1000) if 'start_time' in locals() else 0,
-            user_hint=user_hint,
-            chart_recommendations=None,  # No chart recommendations on error
-            chart_error="Cannot generate charts: an error occurred during processing"
-        )
-            
-        # This is where the old implementation was, now replaced by our direct implementation
-        # The code here is intentionally removed to avoid duplicated implementations
-        
-    except Exception as e:
-        # Handle any unexpected errors
-        print(f"DEBUG: Unexpected error in Gemini endpoint: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        # Generate user hint with the appropriate model
-        from error_hint_utils import get_user_friendly_hint, clean_error_message, identify_error_type
-        error_str = str(e)
-        error_type = identify_error_type(error_str)
-        clean_error = clean_error_message(error_str, error_type)
-        model_name = request.model or "gemini"
-        user_hint = get_user_friendly_hint(error_str, model=model_name)
-        
-        return QueryResponse(
-            prompt=request.prompt,
-            query="",
-            query_output=[],
-            model="gemini",
-            token_usage=None,
-            success=False,
-            error_message=clean_error,
-            user_hint=user_hint
-        )
-
-
-
-from health_check_utils import check_openai_health, check_snowflake_health, check_claude_health, check_gemini_health
-
-@app.get("/health")
 async def health_check():
     """
     Health check endpoint: checks OpenAI, Claude, Gemini APIs and Snowflake connectivity.
     Returns generic error messages rather than specific error details.
     """
-    from health_check_utils import check_openai_health, check_claude_health, check_gemini_health, check_snowflake_health
+    from health_check_utils import check_claude_health, check_snowflake_health
     
-    # Check all model APIs and database
-    openai_ok, openai_msg = check_openai_health()
+    # Check Claude API and database
     claude_ok, claude_msg = check_claude_health()
-    gemini_ok, gemini_msg = check_gemini_health()
     snowflake_ok, snowflake_msg = check_snowflake_health()
 
     # Determine overall system status
-    all_ok = openai_ok and claude_ok and gemini_ok and snowflake_ok
+    all_ok = claude_ok and snowflake_ok
     status = "healthy" if all_ok else "degraded"
     
     # Include status for all components
     details = {
-        "openai": {"ok": openai_ok, "msg": openai_msg},
         "claude": {"ok": claude_ok, "msg": claude_msg},
-        "gemini": {"ok": gemini_ok, "msg": gemini_msg},
         "snowflake": {"ok": snowflake_ok, "msg": snowflake_msg},
     }
     
@@ -723,7 +286,7 @@ async def health_check():
     return {
         "status": status,
         "timestamp": datetime.datetime.now().isoformat(),
-        "models": ["openai", "claude", "gemini"],
+        "models": ["claude"],
         "details": details
     }
 
@@ -817,24 +380,12 @@ async def client_health_check(client_id: str):
         if not client_manager.get_client_info(client_id):
             raise HTTPException(status_code=404, detail=f"Client '{client_id}' not found")
         
-        # Get client-specific API keys for each model
-        try:
-            openai_config = client_manager.get_llm_config(client_id, 'openai')
-            openai_ok, openai_msg = check_openai_health(api_key=openai_config['api_key'])
-        except Exception as e:
-            openai_ok, openai_msg = False, f"OpenAI API error: {str(e)}"
-        
+        # Get client-specific API keys for Claude
         try:
             claude_config = client_manager.get_llm_config(client_id, 'anthropic')
             claude_ok, claude_msg = check_claude_health(api_key=claude_config['api_key'], model=claude_config.get('model'))
         except Exception as e:
             claude_ok, claude_msg = False, f"Claude API error: {str(e)}"
-            
-        try:
-            gemini_config = client_manager.get_llm_config(client_id, 'gemini')
-            gemini_ok, gemini_msg = check_gemini_health(api_key=gemini_config['api_key'], model=gemini_config.get('model'))
-        except Exception as e:
-            gemini_ok, gemini_msg = False, f"Gemini API error: {str(e)}"
             
         # Check Snowflake with client-specific credentials
         try:
@@ -844,14 +395,12 @@ async def client_health_check(client_id: str):
             snowflake_ok, snowflake_msg = False, f"Snowflake error: {str(e)}"
         
         # Determine overall client status
-        all_ok = openai_ok and claude_ok and gemini_ok and snowflake_ok
+        all_ok = claude_ok and snowflake_ok
         status = "healthy" if all_ok else "degraded"
         
         # Include status for all components
         details = {
-            "openai": {"ok": openai_ok, "msg": openai_msg},
             "claude": {"ok": claude_ok, "msg": claude_msg},
-            "gemini": {"ok": gemini_ok, "msg": gemini_msg},
             "snowflake": {"ok": snowflake_ok, "msg": snowflake_msg},
         }
         
@@ -859,7 +408,7 @@ async def client_health_check(client_id: str):
         return {
             "client_id": client_id,
             "status": status,
-            "models": ["openai", "claude", "gemini"],
+            "models": ["claude"],
             "details": details,
             "timestamp": datetime.datetime.now().isoformat()
         }
@@ -881,10 +430,7 @@ async def available_models():
     try:
         # Get all models and their providers
         models = {
-            "openai": [os.getenv("OPENAI_MODEL", "gpt-4o"), "gpt-4-turbo", "gpt-3.5-turbo"],
             "claude": [os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022"), "claude-3-opus-20240229", "claude-3-haiku-20240307"],
-            "gemini": [os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash"), "models/gemini-1.5-flash-latest"],
-    
         }
         
         return {
@@ -1021,76 +567,8 @@ async def unified_query_endpoint(
         
         print(f"Unified API: Routing request with model = {model}, client_id = {client_id}")
         
-        # Strict model name validation - only allow exact matches
-        if model == "openai" or model == "gpt":
-            # For exact OpenAI model aliases only - check key first
-            print("Unified API: Routing to OpenAI endpoint")
-            
-            # When client is specified, verify the API key strictly before proceeding
-            if client_id:
-                from config.client_manager import client_manager
-                try:
-                    # This will use client-specific .env file to look for CLIENT_{CLIENT_ID}_OPENAI_API_KEY
-                    openai_config = client_manager.get_llm_config(client_id, 'openai')
-                    
-                    # Double check key is not empty
-                    if not openai_config or not openai_config.get('api_key') or not openai_config.get('api_key').strip():
-                        error_msg = f"Client '{client_id}' openai API key not configured"
-                        print(f"❌ Error: {error_msg}")
-                        raise HTTPException(status_code=400, detail=error_msg)
-                except ValueError as e:
-                    error_msg = f"Client '{client_id}' openai API key not configured"
-                    print(f"Error: {error_msg}")
-                    raise HTTPException(status_code=400, detail=error_msg)
-            
-            # Use default model name
-            request.model = os.getenv("OPENAI_MODEL", "gpt-4o")  # Use environment variable or default
-            print(f"Using default OpenAI model: {request.model}")
-            
-            # Call OpenAI endpoint with chart recommendations parameter and data_dictionary_path from client context
-            response = await generate_sql_query(request, data_dictionary_path=data_dictionary_path)
-            
-            # If execute_query is False, ensure we're not executing the query
-            if not request.execute_query and response.query_output:
-                response.query_output = []
-                
-            return response
-            
-        elif model == "gemini" or model == "google":
-            # For exact Gemini model aliases only - check key first
-            print("Unified API: Routing to Gemini endpoint")
-            
-            # When client is specified, verify the API key strictly before proceeding
-            if client_id:
-                from config.client_manager import client_manager
-                try:
-                    # This will use client-specific .env file to look for CLIENT_{CLIENT_ID}_GEMINI_API_KEY
-                    gemini_config = client_manager.get_llm_config(client_id, 'gemini')
-                    
-                    # Double check key is not empty
-                    if not gemini_config or not gemini_config.get('api_key') or not gemini_config.get('api_key').strip():
-                        error_msg = f"Client '{client_id}' gemini API key not configured"
-                        print(f"❌ Error: {error_msg}")
-                        raise HTTPException(status_code=400, detail=error_msg)
-                except ValueError as e:
-                    error_msg = f"Client '{client_id}' gemini API key not configured"
-                    print(f"Error: {error_msg}")
-                    raise HTTPException(status_code=400, detail=error_msg)
-            
-            # Use default model name
-            request.model = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")  # Use environment variable or default
-            print(f"Using default Gemini model: {request.model}")
-                
-            # Call Gemini endpoint with data_dictionary_path from client context
-            response = await generate_sql_query_gemini(request, data_dictionary_path=data_dictionary_path)
-            
-            # If execute_query is False, ensure we're not executing the query
-            if not request.execute_query and response.query_output:
-                response.query_output = []
-                
-            return response
-            
-        elif model == "claude" or model == "anthropic":
+        # Only support Claude
+        if model == "claude" or model == "anthropic":
             # For exact Claude model aliases only - check key first
             print("Unified API: Routing to Claude endpoint")
             
@@ -1166,7 +644,7 @@ async def unified_query_endpoint(
             # Invalid model name - return error with clear, concise guidance
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid model name. Please use one of these valid options: 'openai', 'claude', 'gemini' or leave empty for claude."
+                detail=f"Invalid model name. Only Claude is supported. Please use 'claude' or leave empty for default."
             )
                 
     except Exception as e:
