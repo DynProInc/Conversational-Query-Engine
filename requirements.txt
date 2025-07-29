@@ -20,6 +20,9 @@ numpy==2.2.6
 
 # Database
 snowflake-connector-python==3.15.0
+sqlalchemy==2.0.27
+alembic==1.13.1
+psycopg2-binary==2.9.9
 
 # SQL parsing and analysis
 sqlglot==24.0.0
