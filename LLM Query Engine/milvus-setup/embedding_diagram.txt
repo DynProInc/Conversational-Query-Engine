@@ -1,0 +1,66 @@
+Multi-Client Embedding System Architecture
+=======================================
+
+┌───────────────────────┐      ┌───────────────────────┐      ┌───────────────────────┐
+│   client_registry.csv │◄─────┤   Client Management   │◄─────┤  Health Check System  │
+└───────────┬───────────┘      └───────────────────────┘      └───────────────────────┘
+            │                                                         ▲
+            │                                                         │
+            ▼                                                         │
+┌───────────────────────┐      ┌───────────────────────┐      ┌───────────────────────┐
+│  generate_client_     │      │                       │      │                       │
+│  embeddings.py        │─────►│  schema_processor.py  │─────►│  check_embedding      │
+└───────────┬───────────┘      └───────────┬───────────┘      │  _status.py           │
+            │                              │                  └───────────────────────┘
+            │                              │                            ▲
+            │                              │                            │
+            ▼                              ▼                            │
+┌───────────────────────┐      ┌───────────────────────┐      ┌───────────────────────┐
+│  Client-specific      │      │  SchemaRecord class   │      │  embedding_health     │
+│  data dictionaries    │─────►│  - generate_combined  │─────►│  _check.py            │
+└───────────┬───────────┘      │    _text()            │      └───────────────────────┘
+            │                  └───────────┬───────────┘
+            │                              │
+            │                              │
+            ▼                              ▼
+┌───────────────────────┐      ┌───────────────────────┐      ┌───────────────────────┐
+│  client_rag_manager.py│◄─────┤  multi_client_rag.py  │◄─────┤  Milvus Vector DB    │
+└───────────────────────┘      └───────────────────────┘      └───────────────────────┘
+
+
+Data Flow for Client Embedding Generation:
+------------------------------------------
+
+1. client_registry.csv
+   - Source of truth for client information
+   - Contains client_id, client_name, data_dictionary_path, active status
+
+2. generate_client_embeddings.py
+   - Loads clients from registry
+   - Processes only active clients
+   - For each client:
+     a. Loads data dictionary from registry path
+     b. Processes dictionary using schema_processor.py
+     c. Generates embeddings using SentenceTransformer
+     d. Saves embeddings and record info to disk
+
+3. schema_processor.py
+   - Defines SchemaRecord class with combined text generation
+   - Processes CSV data into structured schema records
+   - Creates embeddings-ready text from all fields
+
+4. check_embedding_status.py
+   - Checks if embeddings exist and are up-to-date
+   - Uses client_registry.csv to find active clients
+   - Reports embedding health metrics
+
+5. multi_client_rag.py
+   - Creates Milvus collections for each client
+   - Uploads embeddings to vector database
+   - Provides vector search capabilities
+
+6. client_rag_manager.py
+   - Acts as a facade for multi_client_rag.py
+   - Manages client initialization
+   - Loads client dictionary paths from registry
+   - Provides health status reporting

@@ -1,0 +1,58 @@
+etcd:
+  endpoints:
+    - localhost:2379
+  rootPath: by-dev
+  metaSubPath: meta
+  kvSubPath: kv
+
+minio:
+  address: localhost:9000
+  accessKeyID: minioadmin
+  secretAccessKey: minioadmin
+  useSSL: false
+  bucketName: milvus-bucket
+
+common:
+  dataPath: /var/lib/milvus
+  metaPath: /var/lib/milvus/meta
+  logPath: /var/lib/milvus/logs
+  defaultPartitionName: _default
+  
+log:
+  level: info
+  file:
+    maxSize: 300
+    maxBackups: 10
+    maxAge: 30
+    compress: true
+  format: text
+
+security:
+  authorizationEnabled: false
+
+system:
+  resourceUsageMaxCpuPercentage: 80
+  resourceUsageMaxMemPercentage: 80
+  gracefulTime: 5000
+
+client:
+  clientMaxReceiveSize: 104857600
+  connectTimeoutMs: 10000
+
+rag:
+  # RAG-specific configuration
+  retrievalStrategy: cosine
+  indexType: HNSW
+  nprobe: 16
+  m: 48  # HNSW M parameter (edges per node)
+  efConstruction: 200
+  useRawDataForReranking: true
+  replicasPerCollection: 1
+  
+multiClient:
+  # Multi-client specific settings
+  collectionPrefix: "{client_id}_"
+  isolationLevel: collection
+  maxCollectionsPerClient: 10
+  connectionPoolSize: 10
+  adminUserAllowedAll: false

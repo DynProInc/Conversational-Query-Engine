@@ -1,0 +1,11 @@
+File,Type,Description,Key Features
+database_schema_rag_pipeline.py,Core Implementation,"Complete RAG system implementation with Milvus integration, embedding generation, vector search, and LLM response generation","DatabaseSchemaRAG class, schema embedding, similarity search, token optimization"
+docker-compose.yml,Infrastructure,"Complete Milvus setup with Docker Compose including etcd, MinIO, and health checks","Milvus Standalone, persistent volumes, service dependencies, auto-restart"
+setup_milvus.sh,Setup Script,Automated installation script for Milvus with dependency checking and service validation,"Docker verification, automated setup, health checks, user guidance"
+requirements.txt,Dependencies,Python package dependencies for the RAG system,"PyMilvus, OpenAI, Pandas, Sentence Transformers, development tools"
+config_template.py,Configuration,Comprehensive configuration management with environment variable support,"Dataclass configs, environment overrides, production settings"
+.env.template,Environment,Environment variables template for secure configuration management,"API keys, Milvus settings, RAG parameters, system configs"
+milvus-cluster-k8s.yaml,Production Deployment,Kubernetes deployment for production Milvus cluster with horizontal scaling,"Multi-replica setup, auto-scaling, load balancing, resource management"
+database_schema.csv,Sample Data,Sample database schema data for testing and development,"Real schema structure, multiple tables, various data types"
+README.md,Documentation,"Comprehensive documentation with setup, usage, and production guidance","Quick start, API reference, troubleshooting, performance metrics"
+quick_start.py,Example,Interactive quick start example demonstrating the complete RAG pipeline,"Step-by-step demo, test queries, error handling, next steps"

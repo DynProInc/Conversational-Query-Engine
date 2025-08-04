@@ -69,15 +69,23 @@ def nlq_to_snowflake_gemini(prompt: str,
             limit_pattern = re.compile(r'LIMIT\s+\d+', re.IGNORECASE)
             limit_match = limit_pattern.search(sql)
             
+            # Check if this is a partition-based query (using ROW_NUMBER, QUALIFY, or PARTITION BY)
+            partition_pattern = re.compile(r'(ROW_NUMBER\(\)\s+OVER\s*\(|QUALIFY|PARTITION\s+BY)', re.IGNORECASE)
+            is_partition_query = partition_pattern.search(sql)
+            
             if limit_match:
                 # A LIMIT already exists in the query - respect it as it's from the LLM following the user's prompt
                 # Extract the limit value for logging
                 limit_value = int(re.search(r'LIMIT\s+(\d+)', sql, re.IGNORECASE).group(1))
                 print(f"\nPreserving user-specified limit: LIMIT {limit_value}")
-            elif limit_rows > 0:
-                # No LIMIT clause found, add one using the limit_rows parameter (second priority)
+            elif limit_rows > 0 and not is_partition_query:
+                # Only add a LIMIT clause if:
+                # 1. limit_rows is positive
+                # 2. This is NOT a partition-based query (which already has its own row limiting logic)
                 sql = f"{sql} LIMIT {limit_rows}"
                 print(f"\nAdded limit clause: LIMIT {limit_rows}")
+            elif is_partition_query:
+                print("\nSkipping global LIMIT for partition-based query (using ROW_NUMBER/QUALIFY)")
             # If no limit in query and limit_rows is 0, don't add any limit
                 
             gemini_result["sql"] = sql

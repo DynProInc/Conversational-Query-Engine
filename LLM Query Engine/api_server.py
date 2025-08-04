@@ -11,6 +11,7 @@ import json
 import pandas as pd
 import datetime
 from typing import Dict, List, Optional, Union, Any
+from decimal import Decimal
 
 import fastapi
 from fastapi import FastAPI, HTTPException, Request
@@ -19,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from fastapi.encoders import jsonable_encoder
 
 # Import our existing functionality
 from nlq_to_snowflake import nlq_to_snowflake
@@ -30,6 +32,9 @@ from nlq_to_snowflake_claude import nlq_to_snowflake_claude
 # Import multi-client support
 from config.client_integration import with_client_context
 from config.client_manager import client_manager
+
+# Import health check utilities
+from health_check_utils import check_openai_health, check_snowflake_health, check_claude_health, check_gemini_health
 
 # Load environment variables
 load_dotenv()
@@ -58,6 +63,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 from prompt_query_history_route import router as prompt_query_history_router
 app.include_router(prompt_query_history_router)
 
+# Import and include the feedback router
+from routes.feedback_route import router as feedback_router
+app.include_router(feedback_router)
+
 # Import and include the Gemini query router
 from gemini_query_route import router as gemini_query_router
 app.include_router(gemini_query_router)
@@ -76,6 +85,11 @@ class QueryRequest(BaseModel):
     model: Optional[str] = None  # For specifying a specific model
     include_charts: bool = False  # Whether to include chart recommendations
     edited_query: Optional[str] = None  # For user-edited SQL queries
+    use_rag: bool = False  # Whether to use RAG for context retrieval
+    feedback_enhancement_mode: str = "never"  # Options: "never", "client_scoped", "high_confidence", "time_bounded", "explicit", "client_exact"
+    max_feedback_entries: Optional[int] = None  # Maximum number of feedback entries to include (works with all feedback modes)
+    confidence_threshold: Optional[float] = None  # Minimum similarity threshold for fuzzy matching (0.0-1.0, default: 0.85)
+    feedback_time_window_minutes: Optional[int] = None  # Time window for feedback in minutes (1-∞, default: 20 minutes)
 
 class QueryResponse(BaseModel):
     prompt: str
@@ -141,7 +155,9 @@ async def generate_sql_query(request: QueryRequest, data_dictionary_path: Option
             execute_query=request.execute_query,
             limit_rows=request.limit_rows,
             model=model_to_use,  # Pass the model explicitly rather than modifying env var
-            include_charts=request.include_charts  # Add the include_charts parameter
+            include_charts=request.include_charts,  # Add the include_charts parameter
+            client_id=request.client_id,  # Add client_id parameter for RAG
+            use_rag=request.use_rag      # Add use_rag parameter
         )
         generated_sql = result.get("sql", "")
         if all(k in result for k in ["prompt_tokens", "completion_tokens", "total_tokens"]):
@@ -272,20 +288,42 @@ async def generate_sql_query(request: QueryRequest, data_dictionary_path: Option
 async def generate_sql_query_claude(request: QueryRequest, data_dictionary_path: Optional[str] = None):
     """Generate SQL from natural language using Claude and optionally execute against Snowflake"""
     try:
-        # Use our modular Claude implementation
+        # Use the client-specific model if available, or fall back to environment variable
         claude_model = request.model if request.model else os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
         
         # Use the client-specific dictionary path from the context if available
         dict_path = data_dictionary_path if data_dictionary_path else request.data_dictionary_path
-        print(f"Claude endpoint using dictionary path: {dict_path}")
+        if not dict_path:
+            raise ValueError(f"No data dictionary path available for client '{request.client_id}'")
             
+        # Log whether we're using RAG or full dictionary
+        context_type = "RAG" if request.use_rag else "Full Dictionary"
+        print(f"Claude endpoint using {context_type} context for client {request.client_id}")
+        
+        # Import directly from our updated claude_query_generator and nlq_to_snowflake_claude modules
+        from claude_query_generator import natural_language_to_sql_claude
+        from nlq_to_snowflake_claude import nlq_to_snowflake_claude
+        
+        # Generate SQL using our updated Claude implementation with RAG support
+        claude_result = natural_language_to_sql_claude(
+            query=request.prompt,
+            data_dictionary_path=dict_path,
+            client_id=request.client_id,
+            use_rag=request.use_rag,
+            limit_rows=request.limit_rows,
+            model=claude_model,
+            include_charts=request.include_charts
+        )
+        
+        # Execute SQL and process results using nlq_to_snowflake_claude
         result = nlq_to_snowflake_claude(
             prompt=request.prompt,
             data_dictionary_path=dict_path,
             execute_query=request.execute_query,
             limit_rows=request.limit_rows,
             model=claude_model,
-            include_charts=request.include_charts
+            include_charts=request.include_charts,
+            claude_result=claude_result  # Pass pre-generated SQL result
         )
         
         # Check for errors
@@ -481,8 +519,10 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
             data_dictionary_path=dict_path,
             model=gemini_model,
             log_tokens=True,
+            client_id=request.client_id,  # Add client_id parameter for RAG
+            use_rag=request.use_rag,      # Add use_rag parameter
             limit_rows=request.limit_rows,
-            include_charts=request.include_charts  # Add include_charts parameter
+            include_charts=request.include_charts
         )
         
         # Extract SQL and check for errors
@@ -497,6 +537,27 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
             print(error_msg)
             raise Exception(error_msg)
         print(f"Generated SQL:\n{sql}")
+        
+        # Additional safety check for JSON-like SQL before execution
+        if isinstance(sql, str) and sql.strip().startswith('{') and ('"sql"' in sql or "'sql'" in sql):
+            print("WARNING: SQL appears to be a JSON object, attempting to extract the actual SQL query")
+            try:
+                import json
+                import re
+                # Try JSON parsing first
+                try:
+                    json_data = json.loads(sql)
+                    if "sql" in json_data and isinstance(json_data["sql"], str):
+                        sql = json_data["sql"]
+                        print(f"Extracted SQL from JSON:\n{sql}")
+                except json.JSONDecodeError:
+                    # Try regex extraction as fallback
+                    sql_match = re.search(r'"sql"\s*:\s*"(.+?)(?=",|"\s*})', sql, re.DOTALL)
+                    if sql_match:
+                        sql = sql_match.group(1).replace("\\\"", '"')
+                        print(f"Extracted SQL using regex:\n{sql}")
+            except Exception as e:
+                print(f"Failed to extract SQL from JSON: {str(e)}")
         
         # Check if we should execute SQL
         df = None
@@ -596,8 +657,8 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
             execution_time_ms=execution_time_ms,
             user_hint="SQL query generated only. Execution skipped." if not request.execute_query else 
                   ("Query executed successfully." if len(query_output) > 0 else "Query executed but no results returned."),
-            chart_recommendations=result.get("chart_recommendations", None),  # Include chart recommendations
-            chart_error=result.get("chart_error", None)  # Include chart errors
+            chart_recommendations=result.get("chart_recommendations", []) if request.include_charts else [],  # Include chart recommendations with safe default
+            chart_error=result.get("chart_error", None) if request.include_charts else None  # Include chart errors only if charts were requested
         )
         
         # Successful result
@@ -1022,7 +1083,30 @@ async def health_check():
     Health check endpoint: checks OpenAI, Claude, Gemini APIs and Snowflake connectivity.
     Returns generic error messages rather than specific error details.
     """
+    # Check all model APIs and database
+    openai_ok, openai_msg = check_openai_health()
+    claude_ok, claude_msg = check_claude_health()
+    gemini_ok, gemini_msg = check_gemini_health()
+    snowflake_ok, snowflake_msg = check_snowflake_health()
 
+    # Determine overall system status
+    all_ok = openai_ok and claude_ok and gemini_ok and snowflake_ok
+    status = "healthy" if all_ok else "degraded"
+    
+    # Include status for all components
+    details = {
+        "openai": {"ok": openai_ok, "msg": openai_msg},
+        "claude": {"ok": claude_ok, "msg": claude_msg},
+        "gemini": {"ok": gemini_ok, "msg": gemini_msg},
+        "snowflake": {"ok": snowflake_ok, "msg": snowflake_msg},
+    }
+    
+    # Return complete health status
+    return {
+        "status": status,
+        "models": ["openai", "claude", "gemini"],
+        "details": details
+    }
 
 @app.get("/health/client")
 async def all_clients_health_check():
@@ -1078,31 +1162,6 @@ async def all_clients_health_check():
         error_msg = f"Failed to check health for all clients: {str(e)}"
         print(f"ERROR: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
-    # Check all model APIs and database
-    openai_ok, openai_msg = check_openai_health()
-    claude_ok, claude_msg = check_claude_health()
-    gemini_ok, gemini_msg = check_gemini_health()
-    snowflake_ok, snowflake_msg = check_snowflake_health()
-
-    # Determine overall system status
-    all_ok = openai_ok and claude_ok and gemini_ok and snowflake_ok
-    status = "healthy" if all_ok else "degraded"
-    
-    # Include status for all components
-    details = {
-        "openai": {"ok": openai_ok, "msg": openai_msg},
-        "claude": {"ok": claude_ok, "msg": claude_msg},
-        "gemini": {"ok": gemini_ok, "msg": gemini_msg},
-        "snowflake": {"ok": snowflake_ok, "msg": snowflake_msg},
-    }
-    
-    # Return complete health status
-    return {
-        "status": status,
-        "models": ["openai", "claude", "gemini"],
-        "details": details
-    }
-
 
 @app.get("/health/client/{client_id}")
 async def client_health_check(client_id: str):
@@ -1268,6 +1327,9 @@ async def unified_query_endpoint(
         QueryResponse: The query response from the selected model
     """
     try:
+        # Initialize response data dictionary that will be used throughout the function
+        response_data = {}
+        
         # Print client information for debugging
         print(f"\nUnified API: Request for client_id = {request.client_id}")
         
@@ -1321,6 +1383,32 @@ async def unified_query_endpoint(
                 edited=True
             )
             
+        # Store original prompt for logging purposes
+        original_prompt = request.prompt
+        
+        # Enhance prompt with feedback if available
+        from routes.prompt_enhancer import build_final_prompt
+        enhanced_prompt, has_feedback, feedback_info = build_final_prompt(
+            request.prompt, 
+            feedback_mode=request.feedback_enhancement_mode,
+            client_id=request.client_id, 
+            max_feedback_entries=request.max_feedback_entries,
+            confidence_threshold=request.confidence_threshold,
+            feedback_time_window_minutes=request.feedback_time_window_minutes
+        )
+        if has_feedback:
+            print(f"Unified API: Enhanced prompt with feedback for client {request.client_id} using mode {request.feedback_enhancement_mode}")
+            request.prompt = enhanced_prompt
+            
+            # Store all feedback information in the response
+            response_data["feedback_info"] = feedback_info
+            
+            # For backward compatibility
+            response_data["original_prompt"] = original_prompt
+            if feedback_info.get("feedback_entries") and len(feedback_info["feedback_entries"]) > 0:
+                # Use the first feedback entry text for backward compatibility
+                response_data["used_feedback"] = feedback_info["feedback_entries"][0]["text"]
+        
         # Extract the model from the request
         model = request.model.lower() if request.model else ""
         client_id = request.client_id if hasattr(request, 'client_id') else None
@@ -1343,8 +1431,29 @@ async def unified_query_endpoint(
                 if comparison_response.gemini:
                     comparison_response.gemini.query_output = []
                 
+            # Log execution for comparison response
+            import uuid
+            from services.feedback_manager import FeedbackManager
+            
+            exec_id = str(uuid.uuid4())
+            FeedbackManager.log_execution(
+                exec_id=exec_id,
+                client_id=client_id or "unknown",
+                prompt=original_prompt,  # Use original prompt without feedback for logging
+                model="compare",
+                generated_query="Comparison of multiple models",
+                success=True,
+                error_message=""
+            )
+            
+            # Add execution_id to the response for feedback reference
+            response_dict = comparison_response.model_dump()
+            response_dict["execution_id"] = exec_id
+            
             # Return the comparison response directly
-            return comparison_response
+            # Use custom JSON encoder to handle Decimal objects
+            json_compatible_response = jsonable_encoder(response_dict)
+            return JSONResponse(content=json_compatible_response)
             
         # Strict model name validation - only allow exact matches
         elif model == "openai" or model == "gpt":
@@ -1379,7 +1488,28 @@ async def unified_query_endpoint(
             if not request.execute_query and response.query_output:
                 response.query_output = []
                 
-            return response
+            # Log execution before returning response
+            import uuid
+            from services.feedback_manager import FeedbackManager
+            
+            exec_id = str(uuid.uuid4())
+            FeedbackManager.log_execution(
+                exec_id=exec_id,
+                client_id=client_id or "unknown",
+                prompt=original_prompt,  # Use original prompt without feedback for logging
+                model=response.model,
+                generated_query=response.query,
+                success=response.success,
+                error_message=response.error_message or ""
+            )
+            
+            # Add execution_id to the response for feedback reference
+            response_dict = response.model_dump()
+            response_dict["execution_id"] = exec_id
+            
+            # Use custom JSON encoder to handle Decimal objects
+            json_compatible_response = jsonable_encoder(response_dict)
+            return JSONResponse(content=json_compatible_response)
             
         elif model == "gemini" or model == "google":
             # For exact Gemini model aliases only - check key first
@@ -1413,7 +1543,28 @@ async def unified_query_endpoint(
             if not request.execute_query and response.query_output:
                 response.query_output = []
                 
-            return response
+            # Log execution before returning response
+            import uuid
+            from services.feedback_manager import FeedbackManager
+            
+            exec_id = str(uuid.uuid4())
+            FeedbackManager.log_execution(
+                exec_id=exec_id,
+                client_id=client_id or "unknown",
+                prompt=original_prompt,  # Use original prompt without feedback for logging
+                model=response.model,
+                generated_query=response.query,
+                success=response.success,
+                error_message=response.error_message or ""
+            )
+            
+            # Add execution_id to the response for feedback reference
+            response_dict = response.model_dump()
+            response_dict["execution_id"] = exec_id
+            
+            # Use custom JSON encoder to handle Decimal objects
+            json_compatible_response = jsonable_encoder(response_dict)
+            return JSONResponse(content=json_compatible_response)
             
         elif model == "claude" or model == "anthropic":
             # For exact Claude model aliases only - check key first
@@ -1447,7 +1598,28 @@ async def unified_query_endpoint(
             if not request.execute_query and response.query_output:
                 response.query_output = []
                 
-            return response
+            # Log execution before returning response
+            import uuid
+            from services.feedback_manager import FeedbackManager
+            
+            exec_id = str(uuid.uuid4())
+            FeedbackManager.log_execution(
+                exec_id=exec_id,
+                client_id=client_id or "unknown",
+                prompt=original_prompt,  # Use original prompt without feedback for logging
+                model=response.model,
+                generated_query=response.query,
+                success=response.success,
+                error_message=response.error_message or ""
+            )
+            
+            # Add execution_id to the response for feedback reference
+            response_dict = response.model_dump()
+            response_dict["execution_id"] = exec_id
+            
+            # Use custom JSON encoder to handle Decimal objects
+            json_compatible_response = jsonable_encoder(response_dict)
+            return JSONResponse(content=json_compatible_response)
         
         elif model == "":
             # Handle empty model parameter - default to Claude but verify key exists first
@@ -1485,7 +1657,28 @@ async def unified_query_endpoint(
             if not request.execute_query and response.query_output:
                 response.query_output = []
                 
-            return response
+            # Log execution before returning response
+            import uuid
+            from services.feedback_manager import FeedbackManager
+            
+            exec_id = str(uuid.uuid4())
+            FeedbackManager.log_execution(
+                exec_id=exec_id,
+                client_id=client_id or "unknown",
+                prompt=original_prompt,  # Use original prompt without feedback for logging
+                model=response.model,
+                generated_query=response.query,
+                success=response.success,
+                error_message=response.error_message or ""
+            )
+            
+            # Add execution_id to the response for feedback reference
+            response_dict = response.model_dump()
+            response_dict["execution_id"] = exec_id
+            
+            # Use custom JSON encoder to handle Decimal objects
+            json_compatible_response = jsonable_encoder(response_dict)
+            return JSONResponse(content=json_compatible_response)
             
         else:
             # Invalid model name - return error with clear, concise guidance
@@ -1516,13 +1709,71 @@ if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="LLM SQL Query Engine API Server")
     parser.add_argument("--port", type=int, default=8000, help="Port to run the API server on (default: 8000)")
+    parser.add_argument("--with-rag", action="store_true", help="Enable RAG embedding API endpoints")
     args = parser.parse_args()
 
     # Include the prompt query history endpoints directly in our API
     app.include_router(history_router, prefix="")  # Access via /prompt_query_history
+    
+    # Optionally include RAG embedding API endpoints
+    if args.with_rag:
+        # Check and start Milvus Docker containers if needed
+        try:
+            # Import Milvus container utilities
+            sys.path.append(os.path.join(os.path.dirname(__file__), 'milvus-setup'))
+            from milvus_container_utils import check_milvus_status, start_milvus_containers
+            
+            # Check if Milvus containers are running
+            container_status = check_milvus_status()
+            all_running = all(status == "Running" for status in container_status.values())
+            
+            if all_running:
+                print("✅ Milvus Docker containers are already running")
+            else:
+                print("⚠️ Milvus Docker containers are not running. Attempting to start...")
+                # Try to start the containers
+                if start_milvus_containers(wait_time=15):
+                    print("✅ Milvus Docker containers started successfully")
+                    # Show status of each container
+                    container_status = check_milvus_status()
+                    for container, state in container_status.items():
+                        print(f"  {container}: {state}")
+                else:
+                    print("❌ Failed to start Milvus Docker containers")
+                    print("The server will continue, but RAG functionality may be limited")
+        except Exception as e:
+            print(f"⚠️ Error checking/starting Milvus containers: {str(e)}")
+            print("The server will continue, but RAG functionality may be limited")
+        
+        # Now try to initialize RAG API
+        try:
+            # Import the router directly from rag_api
+            from rag_api import router as rag_router, init_success
+            
+            if not init_success:
+                print("⚠️ Failed to initialize RAG Manager")
+                print("The server will continue without RAG embedding endpoints")
+            else:
+                # Include the router in the app
+                app.include_router(rag_router)
+                
+                # Verify the router was included by checking the routes
+                rag_routes = [route for route in app.routes if str(route.path).startswith('/rag/')]
+                
+                if rag_routes:
+                    print(f"✅ RAG embedding API endpoints successfully enabled:")
+                    for route in rag_routes:
+                        print(f"  {route.path} [{', '.join(route.methods)}]")
+                else:
+                    print("⚠️ No RAG routes were registered")
+        except Exception as e:
+            print(f"Warning: Failed to load RAG embedding API: {str(e)}")
+            print("The server will continue without RAG embedding endpoints")
 
     import uvicorn
     print(f"Starting API server on port {args.port}")
-    uvicorn.run("api_server:app", host="0.0.0.0", port=args.port, reload=True)
+    # Use the app object directly instead of a string reference
+    # This ensures the same app instance with all routers is used
+    uvicorn.run(app, host="0.0.0.0", port=args.port, reload=False)
 
 

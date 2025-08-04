@@ -26,7 +26,7 @@ except ImportError:
     import anthropic
 
 
-def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100, include_charts: bool = False) -> str:
+def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: int = 100, include_charts: bool = False, sql_context: Optional[Dict[str, Any]] = None) -> str:
     """
     Generate system prompt for Claude with table schema information
     
@@ -35,6 +35,7 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         query: Natural language query
         limit_rows: Default row limit if not specified in query
         include_charts: Whether to include chart recommendations
+        sql_context: Optional SQL context from RAG with query intent and recommendations
         
     Returns:
         Formatted system prompt for Claude
@@ -42,6 +43,50 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
     
     # Format tables info into string
     tables_context = ""
+    
+    # Add SQL context if available
+    sql_context_str = ""
+    if sql_context and isinstance(sql_context, dict):
+        sql_context_str = "\n## QUERY ANALYSIS AND RECOMMENDATIONS\n\n"
+        
+        # Add query intent if available
+        if 'query_intent' in sql_context:
+            intent = sql_context['query_intent']
+            sql_context_str += "### Query Intent Analysis\n"
+            if 'operation' in intent:
+                sql_context_str += f"- Operation: {intent['operation']}\n"
+            if 'aggregation' in intent and intent['aggregation']:
+                sql_context_str += f"- Aggregation: {intent['aggregation']}\n"
+            if 'filtering' in intent and intent['filtering']:
+                sql_context_str += f"- Filtering: {', '.join(intent['filtering'])}\n"
+            if 'sorting' in intent and intent['sorting']:
+                sql_context_str += f"- Sorting: {intent['sorting']}\n"
+            if 'grouping' in intent and intent['grouping']:
+                sql_context_str += f"- Grouping: {intent['grouping']}\n"
+            if 'limit' in intent and intent['limit']:
+                sql_context_str += f"- Limit: {intent['limit']}\n"
+            sql_context_str += "\n"
+        
+        # Add recommended tables if available
+        if 'recommended_tables' in sql_context and sql_context['recommended_tables']:
+            sql_context_str += "### Recommended Tables\n"
+            for i, table in enumerate(sql_context['recommended_tables'], 1):
+                sql_context_str += f"{i}. {table['full_name']} (relevance: {table['relevance_score']:.2f})\n"
+            sql_context_str += "\n"
+        
+        # Add column suggestions if available
+        if 'column_suggestions' in sql_context and sql_context['column_suggestions']:
+            sql_context_str += "### Recommended Columns\n"
+            for table_name, suggestions in sql_context['column_suggestions'].items():
+                if 'select' in suggestions and suggestions['select']:
+                    sql_context_str += f"- For SELECT: {', '.join(suggestions['select'])}\n"
+                if 'where' in suggestions and suggestions['where']:
+                    sql_context_str += f"- For WHERE: {', '.join(suggestions['where'])}\n"
+                if 'group_by' in suggestions and suggestions['group_by']:
+                    sql_context_str += f"- For GROUP BY: {', '.join(suggestions['group_by'])}\n"
+            sql_context_str += "\n"
+    
+    # Format tables info
     for table in tables:
         # Include schema in table name if available
         if table['schema']:
@@ -72,61 +117,76 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
     
     # Create prompt template for Claude - matching OpenAI's detailed chart instructions
     prompt = f"""
-        You are an expert SQL query generator for Snowflake database.
+        Human: I need you to generate a Snowflake SQL query based on user intent,optimized SQL query for the following natural language request. Use only the tables and columns provided below.
 
-        Your task is to convert natural language questions into valid SQL queries that can run on Snowflake, and then recommend appropriate chart types for visualizing the results.
+## DATABASE SCHEMA
+{tables_context}
+{sql_context_str}
+## NATURAL LANGUAGE QUERY
+{query}
 
-        Use the following data dictionary to understand the database schema:
-
-        {tables_context}
-
-        ## CORE RULES (Apply to Both SQL and Charts)
+## REQUIREMENTS (Apply to Both SQL and Charts)
 
         ### Column-Table Validation Framework
-        1. **Single Table Queries**: Verify ALL columns exist in selected table before query generation
-        2. **Multi-Table Queries**: Identify table for each column, ensure proper JOIN relationships exist
-        3. **Error Handling**: Format as `-- ERROR: Column '[name]' not found in table '[table_name]'`
-        4. **Resolution Process**: 
+        1. Single Table Queries: Verify ALL columns exist in selected table before query generation
+        2. Multi-Table Queries: Identify table for each column, ensure proper JOIN relationships exist
+        3. Error Handling: Format as `-- ERROR: Column '[name]' not found in table '[table_name]'`
+        4. Resolution Process: 
         - Select primary table based on query intent
         - Find alternative columns in same table if missing
         - Add JOINs for cross-table column access
         - Use business context for disambiguation
 
         ### Time-Based Data Handling (Universal)
-        - **Multi-year data**: ALWAYS use YYYY-MM format (e.g., "2024-05") for proper chronological ordering
-        - **SQL**: Create/use year-month columns from date fields for time-based queries
-        - **Charts**: Use full date format column as x-axis, NOT month names alone
-        - **Examples**: TRANSACTION_YEAR_MONTH, DATE_TRUNC('month', date_column)
+        - Multi-year or year data: ALWAYS use YYYY-MM format (e.g., "2024-05") for proper chronological ordering
+        - SQL: Create/use year-month columns from date fields for time-based queries
+        - Charts: Use full date format column as x-axis, NOT month names alone
+        - Examples: TRANSACTION_YEAR_MONTH, DATE_TRUNC('month', date_column)
 
         ### Row Limits and Partitioning
-        **Priority Order**:
-        1. **Explicit number** (e.g., "top 5") → LIMIT that exact number
-        2. **Partition keywords** ("each", "every", "per", "by") → ROW_NUMBER() OVER (PARTITION BY [group] ORDER BY [metric]) WHERE rn <= X
-        3. **"Top/first" without number** → LIMIT {limit_rows}
-        4. **Default** → LIMIT {limit_rows}
+        Priority Order:
+        1. Explicit number (e.g., "top 5") → LIMIT that exact number
+        2. Partition keywords ("each", "every", "per", "by") → ROW_NUMBER() OVER (PARTITION BY [group] ORDER BY [metric]) WHERE rn <= X
+        3. "Top/first" without number → LIMIT {limit_rows}
+        4. Default → LIMIT {limit_rows}
 
         ### JOIN Logic
-        - **Default**: INNER JOIN unless context suggests otherwise
-        - **Preservation**: LEFT JOIN for "all X even without Y" scenarios
-        - **Auto-detection**: Use schema foreign keys for relationships
-        - **Multi-table**: Chain JOINs using common keys with table aliases
-
+        - Default: INNER JOIN unless context suggests otherwise
+        - Preservation: LEFT JOIN for "all X even without Y" scenarios
+        - Auto-detection: Use schema foreign keys for relationships
+        - Multi-table: Chain JOINs using common keys with table aliases always
+         Make sure that you never return two columns with the same name, especially
+         after joining two tables. You can differentiate the same column name by
+         applying column_name + table_name or used alis tables always.
+        
+        Before generating SQL, identify:
+        - Primary Objective: What user wants to achieve
+        - Query Type: aggregation|filtering|joining|ranking|time_series|comparison|distribution
+        - Key Metrics: What to measure/analyze
+        - Grouping Dimensions: How data should be segmented
+        - Expected Output: single_value|list|trend|comparison|distribution etc.
+        
         ## PHASE 1: SQL GENERATION
 
         ### Basic Requirements
         1. Only SELECT queries with proper Snowflake syntax
-        2. Fully qualified table names (SCHEMA.TABLE_NAME)
-        3. Uppercase column names, individual column listing
-        4. Proper indentation and formatting
-        5. end qu
+        2. DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP, etc.) to the
+        database    
+        3. Fully qualified table names (SCHEMA.TABLE_NAME)
+        4. be careful do not query for columns that do not exist in the table
+        5. Use table alias for table names in the query
+        6. Uppercase column names, individual column listing
+        7. Proper indentation and formatting
+        8. end query with ;
 
         ### Numeric Value Handling
-        - **Type conversion**: CAST(field AS DECIMAL) or CAST(field AS NUMERIC)
-        - **Aggregations**: Always use SUM, AVG, etc. with GROUP BY
-        - **Division safety**: Use NULLIF() to prevent division by zero
+        - Type conversion: Monetary=NUMERIC(15,2), Quantities=INTEGER, Percentages=NUMERIC(5,2),
+         Rates=NUMERIC(8,4), use COALESCE(field,0) for NULL safety, always specify precision to prevent truncation across all databases.
+        - Aggregations: Always use SUM, AVG, etc. with GROUP BY
+        - Division safety: Use NULLIF() to prevent division by zero
         - Percentages: `(new_value - old_value) / NULLIF(old_value, 0) * 100`
         - Ratios: `numerator / NULLIF(denominator, 0)`
-        - **Naming**: Uppercase for aggregations (TOTAL_SALES), original casing for regular columns
+        - Naming: Uppercase for aggregations (TOTAL_SALES), original casing for regular columns
 
         ### SQL Formatting Standards
         - Spaces between keywords and identifiers: `SELECT column FROM table`
@@ -150,14 +210,14 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
 
         ### Chart Selection Rules
         1. Analyze SQL output structure (columns, data types, aggregations)
-        2. Provide EXACTLY 2 chart recommendations ordered by priority
+        2. Provide atmost 2 chart recommendations ordered by priority
         3. Match chart type to data structure using rules below
 
         ### Chart Type Framework
         Each chart type follows this structure:
-        - **Required Data**: Specific column types and count needed
-        - **Best Use Cases**: When to recommend this chart type
-        - **Scale Considerations**: How to handle multiple measures
+        - Required Data: Specific column types and count needed
+        - Best Use Cases: When to recommend this chart type
+        - Scale Considerations: How to handle multiple measures
 
         Generate a SQL query and chart recommendations for: {query}
         """
@@ -165,47 +225,46 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
     chart_instructions = """
         ### Chart Type Definitions
 
-        **Bar Charts**: Categorical comparisons (≤15 categories)
+        Bar Charts: Categorical comparisons (≤15 categories)
         - Required: 1 categorical column + 1+ numeric measures
         - Best for: Category comparisons, time periods
         - Multi-scale: Convert to mixed chart if needed
 
-        **Line Charts**: Trends over continuous ranges
+        Line Charts: Trends over continuous ranges
         - Required: 1 continuous axis + 1+ numeric measures  
         - Best for: Time trends, continuous data
-        - Multi-scale: Use dual Y-axis configuration
+        - Multi-scale: Use 2-4 Y-axis configuration
 
-        **Pie Charts**: Composition/parts of whole (≤7 categories)
+        Pie Charts: Composition/parts of whole (≤7 categories)
         - Required: 1 categorical column (≤7 values) + 1 numeric measure
         - Best for: Proportions, part-to-whole relationships
-        - Multi-scale: Not applicable
 
-        **Scatter Plots**: Relationships between variables
+        Scatter Plots: Relationships between variables
         - Required: 2+ numeric measures
         - Best for: Correlation analysis, distribution patterns
         - Multi-scale: Use different axis scales
 
-        **Area Charts**: Cumulative totals over time/categories
+        Area Charts: Cumulative totals over time/categories
         - Required: 1 continuous axis + 1+ numeric measures
         - Best for: Cumulative trends, stacked compositions
         - Multi-scale: Convert to mixed chart if needed
 
-        **Mixed/Combo Charts**: Multi-measure comparisons
+        Mixed/Combo Charts: Multi-measure comparisons
         - Required: 1 shared axis + multiple measures (different scales)
         - Best for: Different but related metrics
         - Multi-scale: Primary purpose of this chart type
 
-        **KPI Cards**: Single numeric values
+        KPI Cards: Single numeric values
         - Required: 1 numeric measure
         - Best for: Key metrics, minimal display
         - Multi-scale: Not applicable
 
-        **Tables**: Categorical data without numeric measures
+        Tables: Categorical data without numeric measures
         - Required: Multiple categorical columns
         - Best for: Detailed data display
         - Multi-scale: Not applicable
 
-        **Histogram Charts**: Distribution analysis of continuous variables
+        Histogram Charts: Distribution analysis of continuous variables
         - Required: Numerical continuous data only (no categorical)
         - Best for: Frequency/spread/skewness/outliers in large datasets
         - Use auto-binning (Sturges/Freedman-Diaconis) for proper bin sizing
@@ -222,7 +281,7 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         - Avoid overlapping distributions (use separate plots/density plots)
         - Skip for small datasets (use box/dot plots instead)
 
-        **Box Plot Charts**: Distribution comparison between groups
+        Box Plot Charts: Distribution comparison between groups
         - Required: Numerical data (can group by categorical)
           if one columns then use null for x_axis,
           other wise use categorical column for x_axis
@@ -237,16 +296,16 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
             - Consider combining with histograms/violin plots for distribution shape details
 
         ### Multi-Scale Detection (All Chart Types)
-        **Scale Detection Rules**:
+        Scale Detection Rules:
         - Trigger: Scale ratio ≥ 100x (larger_value / smaller_value ≥ 100)
         - Examples: Sales $50K vs Orders 25 (2000x ratio → secondary axis)
         - Action: Use secondary Y-axis or convert to mixed chart
         - if required Use normalization to bring scales together
 
-        **Chart-Specific Scale Handling**:
-        - **Bar/Line/Area**: Convert to mixed chart or use dual Y-axis
-        - **Mixed**: Assign measures to appropriate axes
-        - **Configuration**: Always include scale detection parameters
+        Chart-Specific Scale Handling:
+        - Bar/Line/Area: Convert to mixed chart or use dual Y-axis
+        - Mixed: Assign measures to appropriate axes
+        - Configuration: Always include scale detection parameters
 
         ### Enhanced Configuration
         All charts with multiple measures must include:
@@ -297,7 +356,7 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         ]
         }
 
-        **Example with Multi-Scale Detection**:
+        Example with Multi-Scale Detection:
         {
         "sql": "SELECT MONTH_NAME, SUM(SALES) AS TOTAL_SALES, COUNT(ORDER_ID) AS ORDER_COUNT FROM ORDERS GROUP BY MONTH_NAME ORDER BY MONTH_NUMBER;",
         "chart_recommendations": [{
@@ -410,7 +469,7 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                 
                 # Exit early if we have no text to parse
                 if not full_text:
-                    print("DEBUG: Empty text content from Claude response")
+                    # Removed debug print statement
                     return {
                         "sql": sql_query,
                         "model": model,
@@ -461,7 +520,7 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
 
                 # Debug print
                 print("[Claude SQL Extraction] Final SQL to execute:\n", sql_query)
-                print("[Claude SQL Extraction] repr of SQL:\n", repr(sql_query))
+               
 
                 # For chart recommendations, try to parse JSON - exactly matching OpenAI implementation
                 chart_recommendations = []
@@ -485,14 +544,12 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                             # Parse the cleaned JSON response
                             json_data = json.loads(cleaned_text)
                             json_parsing_success = True
-                            print("Successfully parsed JSON after cleaning control characters")
                         except json.JSONDecodeError:
                             # If that still fails, try with the original but stricter cleanup
                             # Replace all non-printable characters
                             ultra_clean = ''.join(c for c in full_text if c.isprintable())
                             json_data = json.loads(ultra_clean)
                             json_parsing_success = True
-                            print("Successfully parsed JSON after strict character cleaning")
                         
                         # Extract SQL query and chart recommendations
                         if "sql" in json_data:
@@ -515,7 +572,7 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
                         
                     except json.JSONDecodeError as e:
                         # Fallback if JSON parsing fails
-                        print(f"Error parsing JSON response: {str(e)}")
+                        # Error parsing JSON response - debug print removed
                         
                         # Never use JSON-looking text as SQL
                         if full_text.strip().startswith('{') and full_text.strip().endswith('}'):
@@ -791,8 +848,8 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
 
 
 def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None, api_key: Optional[str] = None, 
-                               model: str = None, log_tokens: bool = True,
-                               limit_rows: int = 100, include_charts: bool = False) -> Dict[str, Any]:
+                               model: str = None, log_tokens: bool = True, client_id: str = None,
+                               use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Claude
     
@@ -802,11 +859,18 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
         api_key: Anthropic API key (will use environment variable if not provided)
         model: Claude model to use
         log_tokens: Whether to log token usage
+        client_id: Client ID for RAG context retrieval
+        use_rag: Whether to use RAG for context retrieval
+        limit_rows: Maximum rows to return
+        include_charts: Whether to include chart recommendations
         
     Returns:
         Dictionary with SQL query, token usage and other metadata
     """
-    
+    import logging
+    import os  # Ensure os is imported at function scope
+    import sys  # Import sys at function scope
+    logger = logging.getLogger("claude_query")
     
     # Set default API key from environment if not provided
     if not api_key:
@@ -823,22 +887,167 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
         # Track execution time
         start_time = datetime.datetime.now()
         
-        # Load data dictionary
-        df = load_data_dictionary(data_dictionary_path)
+        # Initialize function-level SQL context variable
+        function_sql_context = None
         
-        # Format data dictionary for prompt
-        tables = format_data_dictionary(df)
+        # Determine if we should use RAG
+        context_type = "RAG" if use_rag else "Full Dictionary"
+        logger.info(f"Using {context_type} for query: '{query}'")
         
-        # Generate prompt and SQL query
-        prompt = generate_sql_prompt(tables, query, limit_rows=limit_rows, include_charts=include_charts)
+        # Get context either from RAG or full dictionary
+        if use_rag and client_id:
+            try:
+                logger.info(f"Retrieving RAG context for client {client_id}")
+                
+                # Access RAG functionality directly
+                try:
+                    # Add milvus-setup to path if needed
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    milvus_setup_dir = os.path.join(current_dir, "milvus-setup")
+                    if milvus_setup_dir not in sys.path:
+                        sys.path.append(milvus_setup_dir)
+                    
+                    # Import the RAG manager directly
+                    logger.info(f"Importing RAG embedding module from {milvus_setup_dir}")
+                    from rag_embedding import RAGManager
+                    
+                    # Create a RAG manager instance
+                    logger.info(f"Creating RAG manager instance for client {client_id}")
+                    rag_manager = RAGManager()
+                    
+                    # Execute the enhanced query
+                    # Note: RAG manager's enhanced_query has a default top_k=10
+                    top_k_value = 10  # Match the default in RAG manager
+                    logger.info(f"Executing RAG enhanced query for client {client_id} with top_k={top_k_value}")
+                    success, message, results, sql_context = rag_manager.enhanced_query(
+                        client_id=client_id,
+                        query_text=query,
+                        top_k=top_k_value
+                    )
+                    
+                    # Format the response like the API would
+                    rag_data = {
+                        "success": success,
+                        "message": message,
+                        "results": results if success and results else [],
+                        "sql_context": sql_context if success and sql_context else None
+                    }
+                    
+                    # Store the SQL context at the function level to ensure it's available for the prompt
+                    function_sql_context = sql_context if success and sql_context else None
+                    
+                    # Log the sql_context specifically
+                    logger.info(f"SQL Context type: {type(sql_context)}")
+                    logger.info(f"SQL Context is None: {sql_context is None}")
+                    if sql_context:
+                        logger.info(f"SQL Context keys: {sql_context.keys() if isinstance(sql_context, dict) else 'Not a dict'}")
+                    else:
+                        logger.info("SQL Context is None or empty")
+                    
+                    if success and results:
+                        logger.info(f"Successfully retrieved RAG results: {len(results)} items")
+                        
+                        # Print the raw RAG results structure
+                        logger.info("=== RAW RAG RESULTS STRUCTURE ===")
+                        import json
+                        logger.info(json.dumps(results, indent=2))
+                        logger.info("=== END RAW RAG RESULTS STRUCTURE ===")
+                        
+                        # Print the SQL context if available
+                        if sql_context:
+                            logger.info("=== RAG SQL CONTEXT ===")
+                            logger.info(json.dumps(sql_context, indent=2))
+                            logger.info("=== END RAG SQL CONTEXT ===")
+                        
+                        # Group results by table
+                        table_dict = {}
+                        for item in results:
+                            table_name = item.get("table_name")
+                            if not table_name:
+                                logger.warning("Missing table_name in RAG result item, skipping")
+                                continue
+                                
+                            if table_name not in table_dict:
+                                table_dict[table_name] = {
+                                    "name": table_name,
+                                    "schema": item.get("schema_name", ""),
+                                    "description": "Table from RAG context",
+                                    "columns": []
+                                }
+                                
+                            # Add column information
+                            table_dict[table_name]["columns"].append({
+                                "name": item.get("column_name", ""),
+                                "type": item.get("data_type", ""),
+                                "description": item.get("description", ""),
+                                "business_name": item.get("column_name", "")
+                            })
+                            
+                        # Convert dictionary to list format expected by generate_sql_prompt
+                        tables = list(table_dict.values())
+                        logger.info(f"Retrieved {len(tables)} tables from RAG")
+                        
+                        # Print the RAG embeddings that will go into the prompt
+                        logger.info("=== RAG EMBEDDINGS START ===")
+                        for table in tables:
+                            logger.info(f"Table: {table['name']}")
+                            for column in table['columns']:
+                                logger.info(f"  - {column['name']} ({column['type']}): {column['description']}")
+                        logger.info("=== RAG EMBEDDINGS END ===")
+                    else:
+                        logger.warning(f"RAG query failed: {message}")
+                        raise Exception(f"RAG query failed: {message}")
+                    
+                    # Check if we need to fall back to the full dictionary
+                    if not tables or len(tables) == 0:
+                        logger.warning("RAG results empty or invalid, falling back to full dictionary")
+                        df = load_data_dictionary(data_dictionary_path)
+                        tables = format_data_dictionary(df)
+                except Exception as e:
+                    logger.error(f"Error accessing RAG functionality directly: {str(e)}")
+                    logger.warning("Falling back to full dictionary due to RAG error")
+                    df = load_data_dictionary(data_dictionary_path)
+                    tables = format_data_dictionary(df)
+            except Exception as e:
+                # Error handling
+                logger.error(f"Error using RAG: {str(e)}, falling back to full dictionary")
+                df = load_data_dictionary(data_dictionary_path)
+                tables = format_data_dictionary(df)
+        else:
+            # Use traditional full dictionary approach
+            logger.info(f"Using full dictionary from {data_dictionary_path}")
+            df = load_data_dictionary(data_dictionary_path)
+            tables = format_data_dictionary(df)
+        
+        # Generate prompt and SQL query with SQL context if available
+        logger.info(f"SQL context before prompt generation: {type(function_sql_context)}")
+        if function_sql_context:
+            logger.info(f"SQL context has keys: {function_sql_context.keys() if isinstance(function_sql_context, dict) else 'Not a dict'}")
+            if 'recommended_tables' in function_sql_context:
+                logger.info(f"Number of recommended tables: {len(function_sql_context['recommended_tables'])}")
+                for i, table in enumerate(function_sql_context['recommended_tables'][:3]):
+                    logger.info(f"Recommended table {i+1}: {table['full_name']} (score: {table['relevance_score']:.2f})")
+        
+        prompt = generate_sql_prompt(tables, query, limit_rows=limit_rows, include_charts=include_charts, 
+                               sql_context=function_sql_context)
+        
+        # Log only the prompt length to avoid excessive logging
+        logger.info(f"Generated prompt for Claude with length: {len(prompt)} characters")
+        
         result = generate_sql_query_claude(api_key, prompt, model=model, query_text=query, log_tokens=log_tokens, include_charts=include_charts)
         
         
         
         # Ensure 'sql' key always exists and contains a valid string
         if 'sql' not in result or result['sql'] is None or not isinstance(result['sql'], str):
-            
             result['sql'] = "SELECT 'No valid SQL query was generated' AS message"
+        
+        # Process escape sequences in the SQL query
+        # This handles cases where the query contains literal \n instead of actual newlines
+        if '\\n' in result['sql']:
+            result['sql'] = result['sql'].encode().decode('unicode_escape')
+            logger.info("Processed SQL query to handle escape sequences")
+            print("[Claude Query Generator] Processed SQL with escape sequences")
         
         # Add additional metadata
         result.update({

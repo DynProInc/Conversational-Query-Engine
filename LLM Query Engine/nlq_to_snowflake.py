@@ -23,7 +23,8 @@ load_dotenv()
 
 
 def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str = None, 
-                     limit_rows: int = 100, execute_query: bool = True, include_charts: bool = False) -> Dict[str, Any]:
+                     limit_rows: int = 100, execute_query: bool = True, include_charts: bool = False,
+                     client_id: str = None, use_rag: bool = False) -> Dict[str, Any]:
     """
     End-to-end pipeline to convert natural language to SQL and execute in Snowflake
     
@@ -34,6 +35,8 @@ def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str =
         limit_rows: Maximum number of rows to return (adds LIMIT if not in query)
         execute_query: Whether to execute the SQL in Snowflake (True) or just return SQL (False)
         include_charts: Whether to include chart recommendations from LLM
+        client_id: Client ID for RAG context retrieval
+        use_rag: Whether to use RAG for context retrieval
         
     Returns:
         Dictionary with SQL, results (if executed), and metadata
@@ -57,7 +60,9 @@ def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str =
             data_dictionary_path=data_dictionary_path,
             model=model,
             limit_rows=limit_rows,
-            include_charts=include_charts
+            include_charts=include_charts,
+            client_id=client_id,  # Add client_id parameter for RAG
+            use_rag=use_rag       # Add use_rag parameter
         )
         
         # Extract the SQL and clean it

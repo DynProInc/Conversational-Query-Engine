@@ -545,10 +545,11 @@ LLM Query Engine/
 ├── error_hint_utils.py              # User-friendly error messages
 ├── prompt_query_history_api.py      # Query history tracking
 ├── prompt_query_history_route.py    # Query history API endpoints
+├── rag_api.py                       # RAG system API endpoints
+├── sql_structure_utils.py           # SQL validation and structure analysis
+├── execute_query_route.py           # SQL execution with validation
 ├── generate_query_report.py         # Usage reporting
 ├── requirements.txt                 # Package dependencies
-├── test_token_logging_comprehensive.py  # Comprehensive token logging tests
-├── test_api.py                      # API endpoint tests
 ├── config/
 │   └── clients/                     # Client-specific configurations
 │       ├── env/                      # Client environment files (.env)
@@ -556,7 +557,24 @@ LLM Query Engine/
 │       │   ├── mts/                   # MTS client-specific dictionary
 │       │   └── penguin/               # Penguin client-specific dictionary
 │       ├── client_registry.csv       # Client registration information
-│       └── llm_api_keys.csv          # API keys for different clients
+├── milvus-setup/                    # RAG system implementation with Milvus
+│   ├── docker-compose.yml            # Milvus container configuration
+│   ├── rag_embedding.py              # Core RAG functionality
+│   ├── multi_client_rag.py           # Client-specific RAG implementation
+│   ├── schema_processor.py           # Processes database schemas for embeddings
+│   ├── generate_client_embeddings.py # Creates vector embeddings for clients
+│   ├── rag_integration.py            # Integrates RAG with query generators
+│   ├── rag_manager.py                # CLI tool for RAG collection management
+│   ├── milvus_container_utils.py     # Docker container management utilities
+│   ├── client_rag_manager.py         # Client-specific RAG management
+│   ├── check_milvus_connection.py    # Milvus connection verification
+│   ├── check_milvus_status.py        # Container status checking
+│   ├── setup_milvus_windows.ps1      # Windows setup script for Milvus
+│   ├── setup_milvus_containers.ps1   # PowerShell script for container setup
+│   ├── setup.sh                      # Linux/Mac setup script
+│   ├── scripts/                      # Additional setup scripts
+│   │   └── setup_milvus_containers.ps1 # Container setup script (alternative)
+│   └── SETUP_GUIDE.md                # Detailed RAG setup instructions
 ├── static/
 │   ├── chart_viewer.html            # Enhanced interactive chart visualization
 │   └── styles.css                    # Styling for web interface
@@ -612,13 +630,183 @@ Optimized chart recommendations include:
 - No hardcoded model names anywhere in the codebase
 - Client-specific environment variables for model selection (e.g., `CLIENT_MTS_OPENAI_MODEL`)
 - Strict validation of client-specific API keys with consistent error messages
-- Specific model name responses rather than generic provider names
+- Specific model name responses rather than generic provider names (e.g., "gpt-4o", "claude-3-5-sonnet-20241022")
 - Support for "all" as a valid model parameter to compare results across providers
+
+## RAG System for Token Optimization
+
+The system includes a Retrieval-Augmented Generation (RAG) implementation that significantly reduces token usage while improving query relevance:
+
+### Overview
+
+- Uses SentenceTransformer embeddings stored in Milvus vector database
+- Reduces token usage from ~20,000+ to ~400-800 tokens per query
+- Improves SQL generation quality with more relevant schema context
+- Maintains client isolation with client-specific collections
+
+### Architecture
+
+1. **Vector Database**: Milvus v2.2.11 with three container services:
+   - milvus-standalone: Main Milvus service
+   - milvus-etcd: For metadata storage
+   - milvus-minio: For vector data storage
+
+2. **Embedding Configuration**:
+   - Metric Type: IP (Inner Product similarity)
+   - Index Type: IVF_FLAT
+   - Parameters: {"nlist": 64} for optimal balance of speed and accuracy
+   - Search Parameters: nprobe=8 with limit=8 results
+
+3. **Integration with Query Generators**:
+   - Enhances all LLM providers (OpenAI, Claude, Gemini)
+   - Automatically retrieves relevant schema information
+   - Falls back to standard processing if RAG fails
+
+### Running with RAG Enabled
+
+```bash
+# Start the API server with RAG enabled
+python api_server.py --with-rag
+
+# Generate embeddings for a client
+python -m milvus-setup.generate_client_embeddings --client_id CLIENT_ID
+```
+
+### RAG Management Commands
+
+```bash
+# Rebuild all collections for active clients
+python -m milvus-setup.rag_manager --rebuild
+
+# Rebuild a specific client's collection
+python -m milvus-setup.rag_manager --rebuild --client mts
+
+# Drop all collections
+python -m milvus-setup.rag_manager --drop
+
+# Verify collections and entity counts
+python -m milvus-setup.rag_manager --verify
+
+# Test a RAG query for a specific client
+python -m milvus-setup.rag_manager --test --client mts --query "Show me all customer orders"
+```
+
+For detailed setup instructions, see `milvus-setup/SETUP_GUIDE.md`.
+
+## Client-Specific Health Checks
+
+The system includes comprehensive health check functionality:
+
+### Client-Specific Health Endpoint
+
+```
+GET /health/client/{client_id}
+```
+
+Verifies:
+- Client existence
+- API key configuration for OpenAI, Claude, and Gemini
+- Snowflake connection parameters
+- Returns detailed health status with timestamps
+
+### System-Wide Clients Health Check
+
+```
+GET /health/client
+```
+
+Provides:
+- Consolidated health status across all clients
+- Overall system health (healthy/degraded/unhealthy)
+- Individual client status details
+- Client count and timestamp
+
+## SQL Validation
+
+The system implements strict SQL validation to ensure only read operations are allowed:
+
+- Frontend validation with clear UI warnings
+- Backend validation to prevent disallowed operations
+- Support for SELECT, SHOW, DESCRIBE, and EXPLAIN operations only
+- Client-specific Snowflake account information display
+- Dynamic updating of connection information when client selection changes
+
+## Feedback System
+
+The system includes a comprehensive feedback collection and management system to continuously improve query generation:
+
+### Feedback Collection
+
+- **Types of Feedback**: Supports multiple feedback types:
+  - Thumbs up/down for quick sentiment capture
+  - Suggestions for improvements
+  - Corrections with SQL query fixes
+  - Detailed text feedback
+
+- **Feedback Endpoints**:
+  ```
+  POST /feedback/
+  ```
+  Allows users to submit feedback with:
+  - Execution ID reference
+  - Feedback type
+  - Optional text explanation
+  - Optional corrected SQL query
+  - User identification
+
+### Feedback Retrieval and Analysis
+
+- **Feedback History**:
+  ```
+  GET /feedback/history
+  ```
+  Provides paginated access to feedback with:
+  - Filtering by client ID
+  - Optional inclusion of execution details
+  - Sorting by timestamp (newest first)
+
+- **Execution History**:
+  ```
+  GET /feedback/executions
+  ```
+  Retrieves execution history with:
+  - Pagination and filtering options
+  - Properly formatted SQL queries
+  - Success/failure status
+
+- **Execution Details**:
+  ```
+  GET /feedback/executions/{execution_id}
+  ```
+  Gets detailed information about specific executions including any associated feedback
+
+### Feedback Integration
+
+The system uses collected feedback to improve future query generation:
+
+- **Context-Aware Suggestions**: Automatically retrieves relevant past feedback for similar prompts
+- **Similarity Matching**: Uses fuzzy matching to find feedback for similar queries
+- **Time-Window Filtering**: Prioritizes recent feedback within configurable time windows
+- **Client-Specific Learning**: Optionally restricts feedback application to the same client
+
+### Directory Structure
+
+```
+├── feedback/                        # Feedback system data storage
+│   └── feedback.csv                  # Feedback data storage file
+├── routes/
+│   └── feedback_route.py             # API routes for feedback submission and retrieval
+├── services/
+│   └── feedback_manager.py           # Core feedback management functionality
+├── utils/
+│   └── file_csv_logger.py            # CSV logging utility for feedback and executions
+```
 
 ## Maintenance and Best Practices
 
 - **Token Logging**: Always ensure that token logging is implemented correctly across all providers for cost tracking.
-- **Error Handling**: All LLM and database operations include robust error handling.
+- **Error Handling**: All LLM and database operations include robust error handling with consistent error messaging.
 - **Testing**: Use the comprehensive test scripts to verify functionality after changes.
 - **Dependencies**: Keep the dependencies updated for security and feature improvements.
 - **Client Isolation**: Maintain strict client isolation for API keys, models, and data dictionaries.
+- **RAG System**: Monitor token usage savings and regularly update embeddings when schemas change.

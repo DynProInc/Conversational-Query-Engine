@@ -1,0 +1,197 @@
+# Kubernetes deployment for production Milvus cluster
+# This provides horizontal scaling capabilities
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: milvus
+
+---
+apiVersion: milvus.io/v1beta1
+kind: Milvus
+metadata:
+  name: milvus-cluster
+  namespace: milvus
+  labels:
+    app: milvus
+spec:
+  mode: cluster
+  dependencies:
+    etcd:
+      inCluster:
+        replicas: 3
+        resources:
+          limits:
+            cpu: 1
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        pvcDeletion: false
+    pulsar:
+      inCluster:
+        replicas: 3
+        resources:
+          limits:
+            cpu: 2
+            memory: 4Gi
+          requests:
+            cpu: 1
+            memory: 2Gi
+    storage:
+      inCluster:
+        replicas: 4
+        resources:
+          limits:
+            cpu: 1
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        pvcDeletion: false
+
+  components:
+    # Proxy nodes (entry points)
+    proxy:
+      replicas: 3
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+
+    # Query nodes (for search operations)
+    queryNode:
+      replicas: 3
+      resources:
+        limits:
+          cpu: 4
+          memory: 8Gi
+        requests:
+          cpu: 2
+          memory: 4Gi
+
+    # Data nodes (for data ingestion)
+    dataNode:
+      replicas: 2
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+
+    # Index nodes (for vector indexing)
+    indexNode:
+      replicas: 2
+      resources:
+        limits:
+          cpu: 4
+          memory: 8Gi
+        requests:
+          cpu: 2
+          memory: 4Gi
+
+    # Coordinators
+    rootCoord:
+      replicas: 1
+      resources:
+        limits:
+          cpu: 1
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+
+    dataCoord:
+      replicas: 1
+      resources:
+        limits:
+          cpu: 1
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+
+    queryCoord:
+      replicas: 1
+      resources:
+        limits:
+          cpu: 1
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+
+    indexCoord:
+      replicas: 1
+      resources:
+        limits:
+          cpu: 1
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+
+  config:
+    common:
+      retentionDuration: 432000  # 5 days in seconds
+    etcd:
+      rootPath: milvus-cluster
+    minio:
+      bucketName: milvus-bucket
+    pulsar:
+      topic: milvus-cluster
+
+---
+# Horizontal Pod Autoscaler for query nodes
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: milvus-querynode-hpa
+  namespace: milvus
+spec:
+  scaleTargetRef:
+    apiVersion: milvus.io/v1beta1
+    kind: Milvus
+    name: milvus-cluster
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# Service to expose Milvus cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: milvus-cluster-service
+  namespace: milvus
+spec:
+  type: LoadBalancer
+  selector:
+    app: milvus
+    component: proxy
+  ports:
+  - name: milvus
+    port: 19530
+    targetPort: 19530
+    protocol: TCP
+  - name: metrics
+    port: 9091
+    targetPort: 9091
+    protocol: TCP

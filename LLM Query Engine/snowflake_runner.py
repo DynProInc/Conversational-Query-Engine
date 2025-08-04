@@ -4,8 +4,14 @@ Snowflake Query Runner - Execute SQL queries against Snowflake
 import os
 import pandas as pd
 import snowflake.connector
+import logging
 from dotenv import load_dotenv
 from typing import Dict, List, Any, Optional
+
+# Configure logging to suppress Snowflake connector INFO messages
+logging.getLogger('snowflake.connector').setLevel(logging.WARNING)
+logging.getLogger('snowflake.connector.connection').setLevel(logging.WARNING)
+logging.getLogger('snowflake.connector.cursor').setLevel(logging.WARNING)
 
 # Load environment variables
 load_dotenv()
@@ -38,9 +44,7 @@ def execute_query(query: str, print_results: bool = True, client_id: str = None)
             schema = snowflake_params.get('schema', '')      # Optional
             role = snowflake_params.get('role', '')         # Optional - role for the connection
             
-            print(f"[Snowflake Runner] Using client-specific credentials for client: {client_id}")
-            if role:
-                print(f"[Snowflake Runner] Using Snowflake role: {role}")
+            # Client-specific credentials and role information prints removed
             
             # Verify essential credentials are available
             if not all([user, password, account, warehouse]):
@@ -106,8 +110,14 @@ def execute_query(query: str, print_results: bool = True, client_id: str = None)
         # Debug print: Show the SQL to be executed and its repr
         print("[Snowflake Runner] About to execute SQL:")
         print(query)
-        print("[Snowflake Runner] repr of SQL:")
-        print(repr(query))
+        
+        # Process escape sequences in the SQL query
+        # This handles cases where the query contains literal \n instead of actual newlines
+        if '\\n' in query:
+            processed_query = query.encode().decode('unicode_escape')
+            print("[Snowflake Runner] Processed SQL with escape sequences")
+        else:
+            processed_query = query
         
         # First ensure warehouse is active before executing query
         if warehouse:
@@ -119,8 +129,8 @@ def execute_query(query: str, print_results: bool = True, client_id: str = None)
         else:
             print("[Snowflake Runner] WARNING: No warehouse specified, query may fail")
             
-        # Execute the actual query
-        cursor.execute(query)
+        # Execute the query using the processed query with proper newlines
+        cursor.execute(processed_query)
         
         # Get column names
         column_names = [col[0] for col in cursor.description] if cursor.description else []

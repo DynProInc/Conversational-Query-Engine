@@ -27,7 +27,8 @@ def nlq_to_snowflake_claude(prompt: str,
                      execute_query: bool = True,
                      limit_rows: int = 100,
                      model: str = "claude-3-5-sonnet-20241022",
-                     include_charts: bool = False) -> Dict[str, Any]:
+                     include_charts: bool = False,
+                     claude_result: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     End-to-end pipeline to convert natural language to SQL using Claude and execute in Snowflake
     
@@ -51,14 +52,15 @@ def nlq_to_snowflake_claude(prompt: str,
     print(f"Converting: '{prompt}' to SQL using Claude...")
     
     try:
-        # Generate SQL using Claude
-        claude_result = natural_language_to_sql_claude(
-            query=prompt,
-            data_dictionary_path=data_dictionary_path,
-            model=model,
-            limit_rows=limit_rows,
-            include_charts=include_charts
-        )
+        # Use pre-generated result if provided, otherwise generate SQL using Claude
+        if not claude_result:
+            claude_result = natural_language_to_sql_claude(
+                query=prompt,
+                data_dictionary_path=data_dictionary_path,
+                model=model,
+                limit_rows=limit_rows,
+                include_charts=include_charts
+            )
         
         # Extract the SQL and ensure it's a valid string
         sql = claude_result.get("sql", "")

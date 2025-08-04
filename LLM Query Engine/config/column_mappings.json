@@ -1,0 +1,26 @@
+{
+    "mts": {
+        "db_schema": ["DB_SCHEMA", "SCHEMA"],
+        "table_name": ["TABLE_NAME", "VIEW_NAME", "OBJECT_NAME"],
+        "column_name": ["COLUMN_NAME"],
+        "data_type": ["DATA_TYPE", "TYPE"],
+        "description": ["DESCRIPTION"],
+        "distinct_values": ["DISTINCT_VALUES"]
+    },
+    "penguin": {
+        "db_schema": ["DB_SCHEMA"],
+        "table_name": ["TABLE_NAME", "VIEW_NAME", "OBJECT_NAME"],
+        "column_name": ["COLUMN_NAME"],
+        "data_type": ["DATA_TYPE"],
+        "description": ["DESCRIPTION"],
+        "distinct_values": ["DISTINCT_VALUES"]
+    },
+    "_default": {
+        "db_schema": ["DB_SCHEMA", "SCHEMA", "DATABASE_SCHEMA"],
+        "table_name": ["TABLE_NAME", "TABLENAME", "TABLE", "VIEW_NAME", "VIEWNAME", "VIEW", "OBJECT_NAME"],
+        "column_name": ["COLUMN_NAME", "COLUMNNAME", "COLUMN", "FIELD_NAME", "FIELD"],
+        "data_type": ["DATA_TYPE", "DATATYPE", "TYPE", "COLUMN_TYPE"],
+        "description": ["DESCRIPTION", "DESC", "COLUMN_DESCRIPTION", "COMMENT"],
+        "distinct_values": ["DISTINCT_VALUES", "DISTINCT_VALS", "VALUES", "SAMPLE_VALUES"]
+    }
+}

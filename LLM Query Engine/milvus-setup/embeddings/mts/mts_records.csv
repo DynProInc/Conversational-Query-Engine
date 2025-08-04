@@ -1,0 +1,521 @@
+db_schema,table_name,column_name,data_type,description,combined_text
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,WORK_ORDER_STATUS,,Status of the work order associated with the transaction,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: WORK_ORDER_STATUS
+Description: Status of the work order associated with the transaction"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_DT,,Full date when the transaction occurred,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_DT
+Description: Full date when the transaction occurred"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_YEAR,,Year extracted from the transaction date,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_YEAR
+Description: Year extracted from the transaction date"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_MONTH,,Month number extracted from the transaction date,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_MONTH
+Description: Month number extracted from the transaction date"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_YEAR_MONTH,,Combined year and month for easier grouping,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_YEAR_MONTH
+Description: Combined year and month for easier grouping"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_MONTH_NUM_NAME,,Month number with its name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_MONTH_NUM_NAME
+Description: Month number with its name"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_MONTH_NAME,,Full name of the month,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_MONTH_NAME
+Description: Full name of the month"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_QUARTER,,Quarter in which the transaction occurred,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_QUARTER
+Description: Quarter in which the transaction occurred"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_DAY_NUM_OF_MONTH,,Day number in the month,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_DAY_NUM_OF_MONTH
+Description: Day number in the month"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_DAY_OF_MONTH,,Alias for day-of-month,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_DAY_OF_MONTH
+Description: Alias for day-of-month"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,TRANSACTION_WEEK_OF_YEAR,,Week number within the year,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: TRANSACTION_WEEK_OF_YEAR
+Description: Week number within the year"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CUSTOMER_NAME,,Name of the customer associated with the transaction,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CUSTOMER_NAME
+Description: Name of the customer associated with the transaction"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,PARENT_CUSTOMER_NAME,,Parent or corporate customer name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: PARENT_CUSTOMER_NAME
+Description: Parent or corporate customer name"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,ACCOUNT_TYPE_NAME,,Type of account,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: ACCOUNT_TYPE_NAME
+Description: Type of account"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,ACCOUNT_GROUP,,Group to which the account belongs for business segmentation,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: ACCOUNT_GROUP
+Description: Group to which the account belongs for business segmentation"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,STORE_NUMBER,,Unique store identifier where the transaction occurred,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: STORE_NUMBER
+Description: Unique store identifier where the transaction occurred"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,STORE_NAME,,Name of the store,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: STORE_NAME
+Description: Name of the store"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,STORE_NUM_NAME,,Combined store number and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: STORE_NUM_NAME
+Description: Combined store number and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CITY,,City in which the store is located,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CITY
+Description: City in which the store is located"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,STATE,,State or province of the store location,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: STATE
+Description: State or province of the store location"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,REGION,,Geographical region,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: REGION
+Description: Geographical region"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,FORM_TYPE_CODE,,Code representing the form or document type,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: FORM_TYPE_CODE
+Description: Code representing the form or document type"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,FORM_TYPE_NAME,,Name or description of the form type,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: FORM_TYPE_NAME
+Description: Name or description of the form type"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,SALES_REP_NUMBER,,Identifier for the sales representative,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: SALES_REP_NUMBER
+Description: Identifier for the sales representative"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,SALES_REP_NAME,,Full name of the sales representative,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: SALES_REP_NAME
+Description: Full name of the sales representative"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,SALES_REP_NUM_NAME,,Combined string of sales rep number and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: SALES_REP_NUM_NAME
+Description: Combined string of sales rep number and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CATEGORY_CODE,,Internal or vendor-specific code for the product category,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CATEGORY_CODE
+Description: Internal or vendor-specific code for the product category"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CATEGORY_NAME,,Name of the product category,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CATEGORY_NAME
+Description: Name of the product category"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CATEGORY_CODE_NAME,,Combined code and name of the category,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CATEGORY_CODE_NAME
+Description: Combined code and name of the category"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,GROUP_ID,,Identifier for the category group,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: GROUP_ID
+Description: Identifier for the category group"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CATEGORY_GROUP_NAME,,Name of the broader group under which categories fall,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CATEGORY_GROUP_NAME
+Description: Name of the broader group under which categories fall"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CATEGORY_GROUP_ID_NAME,,Combined group ID and group name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CATEGORY_GROUP_ID_NAME
+Description: Combined group ID and group name"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CLASS_ID,,ID representing a more specific product classification,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CLASS_ID
+Description: ID representing a more specific product classification"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CLASS_NAME,,Name of the product class,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CLASS_NAME
+Description: Name of the product class"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,CLASS_ID_NAME,,Combined class ID and class name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: CLASS_ID_NAME
+Description: Combined class ID and class name"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,VENDOR_NUMBER,,Unique number identifying the vendor or supplier,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: VENDOR_NUMBER
+Description: Unique number identifying the vendor or supplier"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,VENDOR_NAME,,Name of the vendor or supplier,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: VENDOR_NAME
+Description: Name of the vendor or supplier"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_QUANTITY,,Total quantity sold on the transaction date,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_QUANTITY
+Description: Total quantity sold on the transaction date"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_COST,,Total cost for the quantity sold,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_COST
+Description: Total cost for the quantity sold"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_SALE,,Total revenue from sales on that date,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_SALE
+Description: Total revenue from sales on that date"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_GROSS_PROFIT,,Total gross profit for that day,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_GROSS_PROFIT
+Description: Total gross profit for that day"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_GROSS_PROFIT_PCT,,Gross profit percentage for the day,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_GROSS_PROFIT_PCT
+Description: Gross profit percentage for the day"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_FEE_QUANTITY,,Total quantity sold in the fee category,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_FEE_QUANTITY
+Description: Total quantity sold in the fee category"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_FEE_COST,,Total cost of fee-based items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_FEE_COST
+Description: Total cost of fee-based items"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_FEE_SALE,,Total sales for fee-based items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_FEE_SALE
+Description: Total sales for fee-based items"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_FEE_GROSS_PROFIT,,Gross profit from fee-based items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_FEE_GROSS_PROFIT
+Description: Gross profit from fee-based items"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_FEE_GROSS_PROFIT_PCT,,Gross profit percentage from fee-based items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_FEE_GROSS_PROFIT_PCT
+Description: Gross profit percentage from fee-based items"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_CAT88_QUANTITY,,Quantity sold for category 88 items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_CAT88_QUANTITY
+Description: Quantity sold for category 88 items"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_CAT88_COST,,Total cost for category 88 items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_CAT88_COST
+Description: Total cost for category 88 items"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_CAT88_SALE,,Total sale value for category 88 items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_CAT88_SALE
+Description: Total sale value for category 88 items"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_TOTAL_CAT88_GROSS_PROFIT,,Gross profit from category 88 items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_TOTAL_CAT88_GROSS_PROFIT
+Description: Gross profit from category 88 items"
+REPORTING_UAT.GOLD_SALES,V_SMM_DAILY_SALES,DAILY_CAT88_GROSS_PROFIT_PCT,,Gross profit percentage for category 88 items,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_DAILY_SALES
+Column: DAILY_CAT88_GROSS_PROFIT_PCT
+Description: Gross profit percentage for category 88 items"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_DT,,The date on which the transaction occurred,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_DT
+Description: The date on which the transaction occurred"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_YEAR,,Year extracted from the transaction date,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_YEAR
+Description: Year extracted from the transaction date"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_MONTH,,Month extracted from the transaction date,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_MONTH
+Description: Month extracted from the transaction date"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_YEAR_MONTH,,Combination of transaction year and month,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_YEAR_MONTH
+Description: Combination of transaction year and month"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_MONTH_NUM_NAME,,Numeric representation and name of the transaction month,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_MONTH_NUM_NAME
+Description: Numeric representation and name of the transaction month"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_MONTH_NAME,,Name of the transaction month,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_MONTH_NAME
+Description: Name of the transaction month"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_QUARTER,,Quarter in which the transaction took place,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_QUARTER
+Description: Quarter in which the transaction took place"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_DAY_NUM_OF_MONTH,,Numeric day of the month when the transaction occurred,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_DAY_NUM_OF_MONTH
+Description: Numeric day of the month when the transaction occurred"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_DAY_OF_MONTH,,Day of the month the transaction occurred,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_DAY_OF_MONTH
+Description: Day of the month the transaction occurred"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,TRANSACTION_WEEK_OF_YEAR,,Week number within the year when the transaction occurred,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: TRANSACTION_WEEK_OF_YEAR
+Description: Week number within the year when the transaction occurred"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,FORM_TYPE_CODE,,Code representing the form type of the transaction,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: FORM_TYPE_CODE
+Description: Code representing the form type of the transaction"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,POS_PREFIX,,Prefix identifying the Point of Sale,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: POS_PREFIX
+Description: Prefix identifying the Point of Sale"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,WORK_ORDER_NUMBER,,Unique identifier for the work order,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: WORK_ORDER_NUMBER
+Description: Unique identifier for the work order"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,STORE_NUMBER,,Numerical ID of the store,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: STORE_NUMBER
+Description: Numerical ID of the store"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,STORE_NAME,,Name of the store,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: STORE_NAME
+Description: Name of the store"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,STORE_NUM_NAME,,Combined representation of store number and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: STORE_NUM_NAME
+Description: Combined representation of store number and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,STORE_CITY,,City where the store is located,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: STORE_CITY
+Description: City where the store is located"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,STORE_STATE,,State where the store is located,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: STORE_STATE
+Description: State where the store is located"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,REGION,,Geographical region assigned to the store,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: REGION
+Description: Geographical region assigned to the store"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,SALES_REP_NUMBER,,Unique identifier for the sales representative,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: SALES_REP_NUMBER
+Description: Unique identifier for the sales representative"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,SALES_REP_NAME,,Name of the sales representative,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: SALES_REP_NAME
+Description: Name of the sales representative"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,SALES_REP_NUM_NAME,,Combined representation of sales rep number and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: SALES_REP_NUM_NAME
+Description: Combined representation of sales rep number and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,STORE_MANAGER_NAME,,Name of the store manager,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: STORE_MANAGER_NAME
+Description: Name of the store manager"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,AREA_MANAGER_NUMBER,,Unique identifier for the area manager,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: AREA_MANAGER_NUMBER
+Description: Unique identifier for the area manager"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,AREA_MANAGER_NAME,,Name of the area manager,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: AREA_MANAGER_NAME
+Description: Name of the area manager"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,AREA_MANAGER_NUM_NAME,,Combined representation of area manager number and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: AREA_MANAGER_NUM_NAME
+Description: Combined representation of area manager number and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,REGIONAL_MANAGER_NUMBER,,Unique identifier for the regional manager,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: REGIONAL_MANAGER_NUMBER
+Description: Unique identifier for the regional manager"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,REGIONAL_MANAGER_NAME,,Name of the regional manager,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: REGIONAL_MANAGER_NAME
+Description: Name of the regional manager"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,REGIONAL_MANAGER_NUM_NAME,,Combined representation of regional manager number and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: REGIONAL_MANAGER_NUM_NAME
+Description: Combined representation of regional manager number and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CUSTOMER_ID,,Unique identifier for the customer,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CUSTOMER_ID
+Description: Unique identifier for the customer"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CUSTOMER_NAME,,Name of the customer,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CUSTOMER_NAME
+Description: Name of the customer"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,PARENT_CUSTOMER_NAME,,Name of the parent company or customer,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: PARENT_CUSTOMER_NAME
+Description: Name of the parent company or customer"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,ACCOUNT_TYPE_NAME,,Classification of the customer account,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: ACCOUNT_TYPE_NAME
+Description: Classification of the customer account"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,ACCOUNT_GROUP,,Grouping label for accounts,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: ACCOUNT_GROUP
+Description: Grouping label for accounts"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CATEGORY_CODE,,Code representing the product category,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CATEGORY_CODE
+Description: Code representing the product category"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CATEGORY_NAME,,Name of the product category,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CATEGORY_NAME
+Description: Name of the product category"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CATEGORY_CODE_NAME,,Combined category code and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CATEGORY_CODE_NAME
+Description: Combined category code and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CATEGORY_GROUP_ID,,Unique identifier for the category group,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CATEGORY_GROUP_ID
+Description: Unique identifier for the category group"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CATEGORY_GROUP_NAME,,Name of the category group,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CATEGORY_GROUP_NAME
+Description: Name of the category group"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CATEGORY_GROUP_ID_NAME,,Combined category group ID and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CATEGORY_GROUP_ID_NAME
+Description: Combined category group ID and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CLASS_ID,,Identifier for the product class,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CLASS_ID
+Description: Identifier for the product class"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CLASS_NAME,,Name of the product class,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CLASS_NAME
+Description: Name of the product class"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,CLASS_ID_NAME,,Combined class ID and name,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: CLASS_ID_NAME
+Description: Combined class ID and name"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,ITEM_NUMBER,,Unique number identifying the item,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: ITEM_NUMBER
+Description: Unique number identifying the item"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,ITEM_DESCRIPTION,,Description of the item,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: ITEM_DESCRIPTION
+Description: Description of the item"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,ITEM_NUM_DESCRIPTION,,Combined item number and description,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: ITEM_NUM_DESCRIPTION
+Description: Combined item number and description"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,SIZE,,Size or volume specification of the item,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: SIZE
+Description: Size or volume specification of the item"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,DAILY_SALES,,Daily sales amount of the item or transaction,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: DAILY_SALES
+Description: Daily sales amount of the item or transaction"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,GROSS_PROFIT,,Gross profit earned on the transaction,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: GROSS_PROFIT
+Description: Gross profit earned on the transaction"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,QUANTITY,,Number of units sold,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: QUANTITY
+Description: Number of units sold"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,COST,,Cost price of the item,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: COST
+Description: Cost price of the item"
+REPORTING_UAT.GOLD_SALES,V_SMM_ITEM_DAILY_SALE,GP_PERCENT,,Gross profit expressed as a percentage,"Database: REPORTING_UAT
+Schema: GOLD_SALES
+Table: V_SMM_ITEM_DAILY_SALE
+Column: GP_PERCENT
+Description: Gross profit expressed as a percentage"

@@ -247,10 +247,20 @@
                 <small style="color: #666; display: block; margin-top: 3px;">Maximum number of rows to return (1-10000)</small>
             </div>
             
+            <!-- Feedback mode is now shown only after query execution -->
+            <input type="hidden" id="feedback-mode" value="never">
+            
             <div class="form-group">
                 <label>
                     <input type="checkbox" id="include-charts" checked>
                     Include chart recommendations
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="use-rag">
+                    Use RAG for context retrieval
                 </label>
             </div>
 
@@ -830,6 +840,14 @@
             if (mode === 'nlq') {
                 requestData.prompt = prompt;
                 requestData.model = model;
+                
+                // Add feedback enhancement mode
+                const feedbackMode = document.getElementById('feedback-mode').value;
+                requestData.feedback_enhancement_mode = feedbackMode;
+                
+                // Add RAG flag
+                const useRag = document.getElementById('use-rag').checked;
+                requestData.use_rag = useRag;
             } else { // SQL mode
                 requestData.query = sql; // Changed from edited_query to query per backend API
                 if (originalPrompt) {
@@ -843,7 +861,7 @@
             // Call the API
             // Select appropriate endpoint based on mode
             // Use port 8001 for API endpoints
-            const endpoint = mode === 'nlq' ? 'http://localhost:8001/query/unified' : 'http://localhost:8001/execute-query';
+            const endpoint = mode === 'nlq' ? 'http://localhost:8002/query/unified' : 'http://localhost:8002/execute-query';
             
             fetch(endpoint, {
                 method: 'POST',
@@ -937,11 +955,114 @@
                     <p>Model Used: ${data.model_used || 'Not specified'}</p>
                     <p>Success: ${data.success ? 'Yes' : 'No'}</p>
                     <p>Token Usage: ${data.token_usage || 'Not available'}</p>
+                    <p>Feedback Mode: ${data.feedback_enhancement_mode || requestData.feedback_enhancement_mode || 'Not specified'}</p>
+                    <p>Used RAG: ${data.use_rag || requestData.use_rag ? 'Yes' : 'No'}</p>
                     <p>Chart Recommendations: ${data.chart_recommendations ? 'Available (' + data.chart_recommendations.length + ')' : 'Not available'}</p>
                     <p>Data Insights: ${data.data_insights ? 'Available (' + data.data_insights.length + ')' : 'Not available'}</p>
+                    <p>Execution ID: ${data.execution_id || 'Not available'}</p>
+                    ${data.used_feedback ? `<div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+                        <h4>Feedback Used for Enhancement</h4>
+                        <p><strong>Client:</strong> ${data.client_id || requestData.client_id}</p>
+                        <p><strong>Original Prompt:</strong> ${data.original_prompt || requestData.prompt}</p>
+                        <p><strong>Applied Feedback:</strong> ${data.used_feedback}</p>
+                    </div>` : ''}
                 `;
                 const resultsContainer = document.getElementById('results');
                 resultsContainer.insertBefore(debugInfo, resultsContainer.firstChild);
+                
+                // Add feedback submission section if we have an execution_id
+                if (data.execution_id) {
+                    const resultsContainer = document.getElementById('results');
+                    
+                    // Check if feedback section already exists
+                    const existingFeedbackSection = document.getElementById('feedback-section-' + data.execution_id);
+                    const existingOptionsSection = document.getElementById('feedback-options-section-' + data.execution_id);
+                    
+                    // Only create feedback sections if they don't already exist
+                    if (!existingFeedbackSection) {
+                        // Remove any other feedback sections that might exist from previous queries
+                        const oldFeedbackSections = document.querySelectorAll('[id^="feedback-section-"]');
+                        oldFeedbackSections.forEach(section => section.remove());
+                        
+                        const feedbackSection = document.createElement('div');
+                        feedbackSection.id = 'feedback-section-' + data.execution_id;
+                        feedbackSection.className = 'card';
+                        feedbackSection.style.marginBottom = '20px';
+                        feedbackSection.style.backgroundColor = '#f5fff5';
+                        feedbackSection.style.padding = '15px';
+                        feedbackSection.style.borderLeft = '4px solid #4CAF50';
+                        
+                        feedbackSection.innerHTML = `
+                            <h3>Provide Feedback</h3>
+                            <p>Your feedback helps improve future query results. Execution ID: <strong>${data.execution_id}</strong></p>
+                            
+                            <div class="feedback-rating" style="margin-bottom: 15px;">
+                                <button onclick="submitFeedback('${data.execution_id}', 'thumbs_up')" 
+                                        style="background-color: #4CAF50; margin-right: 10px;">
+                                    👍 Thumbs Up
+                                </button>
+                                <button onclick="submitFeedback('${data.execution_id}', 'thumbs_down')" 
+                                        style="background-color: #f44336;">
+                                    👎 Thumbs Down
+                                </button>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="feedback-text">Detailed Feedback:</label>
+                                <textarea id="feedback-text" rows="3" placeholder="What could be improved? Any suggestions?"></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="corrected-query">Corrected SQL Query (Optional):</label>
+                                <textarea id="corrected-query" rows="3" placeholder="Provide a corrected SQL query if applicable"></textarea>
+                            </div>
+                            
+                            <button onclick="submitDetailedFeedback('${data.execution_id}')" 
+                                    style="background-color: #2196F3;">
+                                Submit Detailed Feedback
+                            </button>
+                        `;
+                        
+                        resultsContainer.insertBefore(feedbackSection, resultsContainer.firstChild.nextSibling);
+                    }
+                    
+                    // Only create feedback options section if it doesn't already exist
+                    if (!existingOptionsSection) {
+                        // Remove any other feedback options sections that might exist
+                        const oldOptionsSections = document.querySelectorAll('[id^="feedback-options-section-"]');
+                        oldOptionsSections.forEach(section => section.remove());
+                        
+                        // Add feedback enhancement options for next query
+                        const feedbackOptionsSection = document.createElement('div');
+                        feedbackOptionsSection.id = 'feedback-options-section-' + data.execution_id;
+                        feedbackOptionsSection.className = 'card';
+                        feedbackOptionsSection.style.marginBottom = '20px';
+                        feedbackOptionsSection.style.backgroundColor = '#e6f7ff';
+                        feedbackOptionsSection.style.padding = '15px';
+                        feedbackOptionsSection.style.borderLeft = '4px solid #1890ff';
+                        
+                        feedbackOptionsSection.innerHTML = `
+                            <h3>Feedback Options for Next Query</h3>
+                            <p>Control how feedback is applied to your next query:</p>
+                            
+                            <div class="form-group">
+                                <label for="next-feedback-mode">Feedback Enhancement Mode:</label>
+                                <select id="next-feedback-mode" onchange="updateFeedbackMode(this.value)">
+                                    <option value="never">Never (No Feedback)</option>
+                                    <option value="client_scoped">Client Scoped (Only Same Client)</option>
+                                    <option value="high_confidence">High Confidence (Multiple Occurrences)</option>
+                                    <option value="time_bounded">Time Bounded (Recent Only)</option>
+                                    <option value="explicit">Explicit (Exact Match Only)</option>
+                                    <option value="client_exact">Client Exact (Same Client + Exact Match)</option>
+                                </select>
+                            </div>
+                        `;
+                        
+                        // Insert after the feedback section or as the second element if no feedback section
+                        const insertAfter = existingFeedbackSection || resultsContainer.firstChild.nextSibling;
+                        resultsContainer.insertBefore(feedbackOptionsSection, insertAfter.nextSibling);
+                    }
+                }
                 
                 // Data structure preview for debugging chart issues
                 if (data.query_output && data.query_output.length > 0) {
@@ -4158,7 +4279,7 @@
                 document.getElementById('results').style.display = 'none';
                 
                 // Call the API
-                fetch('http://localhost:8001/execute-query', {
+                fetch('http://localhost:8002/execute-query', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4561,6 +4682,97 @@
                 button.style.pointerEvents = '';
                 button.innerHTML = originalText;
             }, delay);
+        }
+        // Simple feedback submission function (thumbs up/down)
+        function submitFeedback(executionId, feedbackType) {
+            console.log(`Submitting ${feedbackType} feedback for execution ${executionId}`);
+            
+            // Prepare feedback data
+            const feedbackData = {
+                execution_id: executionId,
+                type: feedbackType,
+                text: feedbackType === 'thumbs_up' ? 'Good result' : 'Needs improvement',
+                corrected_query: '',
+                user_id: 'anonymous'
+            };
+            
+            // Submit to feedback endpoint
+            fetch('http://localhost:8002/feedback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(feedbackData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Feedback API responded with status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert(`Feedback submitted successfully! Feedback ID: ${data.feedback_id}`);
+                console.log('Feedback response:', data);
+            })
+            .catch(error => {
+                console.error('Error submitting feedback:', error);
+                alert(`Error submitting feedback: ${error.message}`);
+            });
+        }
+        
+        // Function to update the feedback mode from the results area
+        function updateFeedbackMode(mode) {
+            document.getElementById('feedback-mode').value = mode;
+            console.log(`Updated feedback mode to: ${mode}`);
+        }
+        
+        // Detailed feedback submission function
+        function submitDetailedFeedback(executionId) {
+            const feedbackText = document.getElementById('feedback-text').value.trim();
+            const correctedQuery = document.getElementById('corrected-query').value.trim();
+            
+            if (!feedbackText) {
+                alert('Please provide some feedback text');
+                return;
+            }
+            
+            console.log(`Submitting detailed feedback for execution ${executionId}`);
+            
+            // Prepare feedback data
+            const feedbackData = {
+                execution_id: executionId,
+                type: 'suggestion',
+                text: feedbackText,
+                corrected_query: correctedQuery,
+                user_id: 'anonymous'
+            };
+            
+            // Submit to feedback endpoint
+            fetch('http://localhost:8002/feedback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(feedbackData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Feedback API responded with status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert(`Detailed feedback submitted successfully! Feedback ID: ${data.feedback_id}`);
+                console.log('Feedback response:', data);
+                
+                // Clear the form
+                document.getElementById('feedback-text').value = '';
+                document.getElementById('corrected-query').value = '';
+            })
+            .catch(error => {
+                console.error('Error submitting feedback:', error);
+                alert(`Error submitting feedback: ${error.message}`);
+            });
         }
     </script>
     
