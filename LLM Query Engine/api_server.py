@@ -86,6 +86,7 @@ class QueryRequest(BaseModel):
     include_charts: bool = False  # Whether to include chart recommendations
     edited_query: Optional[str] = None  # For user-edited SQL queries
     use_rag: bool = False  # Whether to use RAG for context retrieval
+    top_k: int = 10  # Number of top results to return from RAG (default: 10)
     feedback_enhancement_mode: str = "never"  # Options: "never", "client_scoped", "high_confidence", "time_bounded", "explicit", "client_exact"
     max_feedback_entries: Optional[int] = None  # Maximum number of feedback entries to include (works with all feedback modes)
     confidence_threshold: Optional[float] = None  # Minimum similarity threshold for fuzzy matching (0.0-1.0, default: 0.85)
@@ -157,7 +158,8 @@ async def generate_sql_query(request: QueryRequest, data_dictionary_path: Option
             model=model_to_use,  # Pass the model explicitly rather than modifying env var
             include_charts=request.include_charts,  # Add the include_charts parameter
             client_id=request.client_id,  # Add client_id parameter for RAG
-            use_rag=request.use_rag      # Add use_rag parameter
+            use_rag=request.use_rag,     # Add use_rag parameter
+            top_k=request.top_k          # Add top_k parameter for RAG
         )
         generated_sql = result.get("sql", "")
         if all(k in result for k in ["prompt_tokens", "completion_tokens", "total_tokens"]):
@@ -312,7 +314,8 @@ async def generate_sql_query_claude(request: QueryRequest, data_dictionary_path:
             use_rag=request.use_rag,
             limit_rows=request.limit_rows,
             model=claude_model,
-            include_charts=request.include_charts
+            include_charts=request.include_charts,
+            top_k=request.top_k  # Pass top_k parameter to control RAG results
         )
         
         # Execute SQL and process results using nlq_to_snowflake_claude
@@ -522,7 +525,8 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
             client_id=request.client_id,  # Add client_id parameter for RAG
             use_rag=request.use_rag,      # Add use_rag parameter
             limit_rows=request.limit_rows,
-            include_charts=request.include_charts
+            include_charts=request.include_charts,
+            top_k=request.top_k           # Pass top_k parameter to control RAG results
         )
         
         # Extract SQL and check for errors

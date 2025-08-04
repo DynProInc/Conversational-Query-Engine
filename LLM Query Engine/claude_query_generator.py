@@ -849,7 +849,8 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
 
 def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None, api_key: Optional[str] = None, 
                                model: str = None, log_tokens: bool = True, client_id: str = None,
-                               use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False) -> Dict[str, Any]:
+                               use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False, 
+                               top_k: int = 10) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Claude
     
@@ -916,13 +917,11 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
                     rag_manager = RAGManager()
                     
                     # Execute the enhanced query
-                    # Note: RAG manager's enhanced_query has a default top_k=10
-                    top_k_value = 10  # Match the default in RAG manager
-                    logger.info(f"Executing RAG enhanced query for client {client_id} with top_k={top_k_value}")
+                    logger.info(f"Executing RAG enhanced query for client {client_id} with top_k={top_k}")
                     success, message, results, sql_context = rag_manager.enhanced_query(
                         client_id=client_id,
                         query_text=query,
-                        top_k=top_k_value
+                        top_k=top_k
                     )
                     
                     # Format the response like the API would

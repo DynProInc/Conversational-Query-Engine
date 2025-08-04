@@ -715,7 +715,7 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
             "execution_time_ms": execution_time_ms
         }
 
-def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[str] = None, api_key: Optional[str] = None, model: str = None, log_tokens: bool = True, client_id: str = None, use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False) -> Dict[str, Any]:
+def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[str] = None, api_key: Optional[str] = None, model: str = None, log_tokens: bool = True, client_id: str = None, use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False, top_k: int = 10) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Gemini, matching OpenAI logic for data dictionary and prompt construction.
     If data_dictionary_path is not provided, use the default 'data_dictionary.csv' in the current directory.
@@ -730,6 +730,7 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
         use_rag: Whether to use RAG for context retrieval
         limit_rows: Maximum rows to return
         include_charts: Whether to include chart recommendations
+        top_k: Number of results to return from RAG (default: 10)
         
     Returns:
         Dictionary with SQL query, token usage and other metadata
@@ -788,7 +789,7 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
                     
                     # Execute the enhanced query
                     # Note: RAG manager's enhanced_query has a default top_k=10
-                    top_k_value = 10  # Match the default in RAG manager
+                    top_k_value = top_k  # Use the provided top_k value
                     logger.info(f"Executing RAG enhanced query for client {client_id} with top_k={top_k_value}")
                     success, message, results, sql_context = rag_manager.enhanced_query(
                         client_id=client_id,
