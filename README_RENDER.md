@@ -105,7 +105,7 @@ Your deployed API will have the following main endpoints:
 2. **Import Errors**: Ensure all Python files are in the correct directory structure
 3. **Database Connection Issues**: Verify Snowflake credentials and network access
 4. **API Key Errors**: Check that all required environment variables are set
-5. **SQLAlchemy Compatibility Issues**: If you see `AssertionError: Class <class 'sqlalchemy.sql.elements.SQLCoreOperations'> directly inherits TypingOnly`, this is a Python 3.13 compatibility issue. The project is configured to use Python 3.11.0 to avoid this.
+5. **SQLAlchemy Compatibility Issues**: If you see `AssertionError: Class <class 'sqlalchemy.sql.elements.SQLCoreOperations'> directly inherits TypingOnly`, this is a Python 3.13 compatibility issue. The project is configured to use Python 3.11 to avoid this.
 
 ### Logs:
 

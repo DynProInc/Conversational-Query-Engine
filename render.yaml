@@ -5,10 +5,10 @@ services:
     plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api_server:app --host 0.0.0.0 --port $PORT
-    pythonVersion: "3.11.0"
+    pythonVersion: "3.11"
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11
       - key: PORT
         value: 8000
       # Add your environment variables here - you'll need to set these in Render dashboard

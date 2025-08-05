@@ -1,5 +1,5 @@
 # Python version requirement
-# Python 3.11.0 (compatible with SQLAlchemy and other dependencies)
+# Python 3.11 (compatible with SQLAlchemy and other dependencies)
 # Note: SQLAlchemy 2.0.23 is used for Python 3.13 compatibility 
 
 # API framework
