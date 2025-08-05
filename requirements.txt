@@ -1,6 +1,5 @@
 # Python version requirement
-# Python 3.11 (compatible with SQLAlchemy and other dependencies)
-# Note: SQLAlchemy 2.0.23 is used for Python 3.13 compatibility 
+# Using SQLAlchemy >=2.0.33 for Python 3.13 compatibility 
 
 # API framework
 fastapi==0.115.14
@@ -21,7 +20,7 @@ numpy==2.2.6
 
 # Database
 snowflake-connector-python==3.15.0
-sqlalchemy==2.0.23
+sqlalchemy>=2.0.33
 alembic==1.13.1
 psycopg2-binary==2.9.9
 
