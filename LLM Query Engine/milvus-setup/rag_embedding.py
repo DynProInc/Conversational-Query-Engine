@@ -7,6 +7,7 @@ This script provides a consolidated, final solution for:
 2. Milvus collection management (create, drop, rebuild)
 3. Embedding generation with proper error handling
 4. Client-specific RAG initialization and query
+5. Enhanced with Qwen3-Reranker for improved relevance
 
 Features:
 - No hardcoded client names or paths
@@ -15,6 +16,7 @@ Features:
 - Client-isolated collections with separate embeddings
 - Comprehensive console output for operations
 - FIXED: Proper entity data extraction from Milvus search results
+- NEW: Optional reranking with Qwen3-Reranker-0.6B
 """
 
 import os
@@ -59,6 +61,19 @@ schema_processor = import_module(
 # Import classes directly
 SchemaProcessor = schema_processor.SchemaProcessor
 
+# Import reranker if available
+try:
+    reranker_module = import_module(
+        os.path.join(os.path.dirname(__file__), "rag_reranker.py"),
+        "rag_reranker"
+    )
+    get_reranker = reranker_module.get_reranker
+    logger.info("Reranker module loaded successfully")
+    RERANKER_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"Reranker module not available: {e}")
+    RERANKER_AVAILABLE = False
+
 # Constants
 CLIENT_REGISTRY = os.path.join(parent_dir, "config", "clients", "client_registry.csv")
 COLUMN_MAPPINGS = os.path.join(parent_dir, "config", "column_mappings.json")
@@ -66,11 +81,12 @@ COLUMN_MAPPINGS = os.path.join(parent_dir, "config", "column_mappings.json")
 class RAGManager:
     """Complete RAG solution for multi-client systems"""
     
-    def __init__(self, milvus_host="localhost", milvus_port="19530"):
+    def __init__(self, milvus_host="localhost", milvus_port="19530", enable_reranking=True):
         """Initialize the RAG complete solution"""
         self.milvus_host = milvus_host
         self.milvus_port = milvus_port
         self.schema_processor = SchemaProcessor()
+        self.enable_reranking = enable_reranking
         
         # Connect to Milvus
         self._connect_to_milvus()
@@ -425,7 +441,7 @@ class RAGManager:
                 # Recommended values: For 10K vectors with nlist=100, use nprobe=10
                 #                     For 1M vectors with nlist=4096, use nprobe=10-100
                 if nlist <= 100:
-                    nprobe = 10
+                    nprobe = 8  # Using optimal value from memory
                 elif nlist <= 1024:
                     nprobe = 16
                 else:
@@ -437,17 +453,19 @@ class RAGManager:
                 }
                 logger.info(f"Using IVF_FLAT search parameters with nprobe={nprobe}")
             
+            # Retrieve more results than needed if reranker is available
+            search_limit = top_k * 3 if RERANKER_AVAILABLE else top_k
             
             results = collection.search(
                 data=[query_embedding],
                 anns_field="embedding",
                 param=search_params,
-                limit=top_k,
+                limit=search_limit,
                 output_fields=["db_schema", "table_name", "column_name", "data_type", 
                               "description", "distinct_values", "combined_text"]
             )
             
-            # FIXED: Process results with proper entity data extraction
+            # Process results with proper entity data extraction
             matches = []
             
             if results and len(results) > 0 and len(results[0]) > 0:
@@ -464,17 +482,13 @@ class RAGManager:
                         'score': 0.0
                     }
                     
-                    # FIXED: Proper entity data extraction
+                    # Proper entity data extraction
                     try:
                         # Get the score first
                         match['score'] = float(hit.score) if hasattr(hit, 'score') else 0.0
                         
-                        # Extract entity data - this is the key fix
+                        # Extract entity data
                         entity_dict = hit.entity
-                        
-                        # Debug: Print entity structure (remove after testing)
-                        logger.debug(f"Entity type: {type(entity_dict)}")
-                        logger.debug(f"Entity content: {entity_dict}")
                         
                         # Handle different entity formats
                         if isinstance(entity_dict, dict):
@@ -499,23 +513,34 @@ class RAGManager:
                                         logger.debug(f"Error extracting field {field}: {e}")
                                         match[field] = ''
                         
-                        # Additional debug logging
-                        logger.debug(f"Extracted match: {match}")
-                        
+                        # Add match to results list
+                        matches.append(match)
+                            
                     except Exception as e:
                         logger.error(f"Error processing hit: {e}")
                         logger.error(f"Hit type: {type(hit)}")
                         logger.error(f"Hit dir: {dir(hit)}")
-                        
-                        # Fallback: try to extract data using different methods
-                        try:
-                            if hasattr(hit, 'entity'):
-                                logger.debug(f"Entity exists, type: {type(hit.entity)}")
-                                logger.debug(f"Entity dir: {dir(hit.entity)}")
-                        except:
-                            pass
+                        continue
+            
+            # Apply reranking if available AND enabled
+            if RERANKER_AVAILABLE and self.enable_reranking and len(matches) > 0:
+                try:
+                    logger.info(f"Applying Qwen3 reranking to {len(matches)} matches")
+                    reranker = get_reranker(self.enable_reranking)
+                    reranked_matches = reranker.rerank(query_text, matches, enable_reranking=self.enable_reranking)
                     
-                    matches.append(match)
+                    # Limit to original top_k after reranking
+                    matches = reranked_matches[:top_k]
+                    logger.info(f"Reranking complete, returning top {top_k} matches")
+                except Exception as e:
+                    logger.error(f"Error during reranking, falling back to original matches: {e}")
+                    # Fallback to original top_k matches
+                    matches = matches[:top_k]
+            else:
+                # Limit to top_k if no reranking was applied
+                matches = matches[:top_k]
+                if not self.enable_reranking:
+                    logger.info(f"Reranking disabled, returning top {top_k} matches based on vector similarity")
                     
             return True, f"Found {len(matches)} relevant matches", matches
             
@@ -564,7 +589,7 @@ class RAGManager:
                 # Recommended values: For 10K vectors with nlist=100, use nprobe=10
                 #                     For 1M vectors with nlist=4096, use nprobe=10-100
                 if nlist <= 100:
-                    nprobe = 10
+                    nprobe = 8  # Using optimal value from memory
                 elif nlist <= 1024:
                     nprobe = 16
                 else:
@@ -576,22 +601,25 @@ class RAGManager:
                 }
                 logger.info(f"Using IVF_FLAT search parameters with nprobe={nprobe}")
             
+            # Retrieve more results than needed if reranker is available
+            search_limit = top_k * 3 if RERANKER_AVAILABLE else top_k
             
             results = collection.search(
                 data=[query_embedding],
                 anns_field="embedding",
                 param=search_params,
-                limit=top_k,
+                limit=search_limit,
                 output_fields=["db_schema", "table_name", "column_name", "data_type", 
                               "description", "distinct_values", "combined_text"]
             )
             
-            # Process results and group by table
+            # FIXED: Process results with proper entity data extraction
             matches = []
             table_context = {}
             
             if results and len(results) > 0 and len(results[0]) > 0:
                 for hit in results[0]:
+                    # Create a match dictionary with default empty values
                     match = {
                         'table_name': '',
                         'column_name': '',
@@ -603,13 +631,17 @@ class RAGManager:
                         'score': 0.0
                     }
                     
+                    # FIXED: Proper entity data extraction
                     try:
-                        # Get the score and entity data
+                        # Get the score first
                         match['score'] = float(hit.score) if hasattr(hit, 'score') else 0.0
+                        
+                        # Extract entity data - this is the key fix
                         entity_dict = hit.entity
                         
-                        # Extract entity data
+                        # Handle different entity formats
                         if isinstance(entity_dict, dict):
+                            # Direct dictionary access
                             for field in match.keys():
                                 if field != 'score' and field in entity_dict:
                                     value = entity_dict[field]
@@ -630,6 +662,7 @@ class RAGManager:
                                         logger.debug(f"Error extracting field {field}: {e}")
                                         match[field] = ''
                         
+                        # Add match to results list
                         matches.append(match)
                         
                         # Build table context for SQL generation
@@ -651,13 +684,36 @@ class RAGManager:
                             })
                             table_context[table_key]['total_relevance'] += match['score']
                             table_context[table_key]['column_count'] += 1
-                        
+                            
                     except Exception as e:
                         logger.error(f"Error processing hit: {e}")
+                        logger.error(f"Hit type: {type(hit)}")
+                        logger.error(f"Hit dir: {dir(hit)}")
+                        continue
+            
+            # Apply reranking if available AND enabled
+            if RERANKER_AVAILABLE and self.enable_reranking and len(matches) > 0:
+                try:
+                    logger.info(f"Applying Qwen3 reranking to {len(matches)} matches")
+                    reranker = get_reranker(self.enable_reranking)
+                    reranked_matches = reranker.rerank(query_text, matches, enable_reranking=self.enable_reranking)
+                    
+                    # Limit to original top_k after reranking
+                    matches = reranked_matches[:top_k]
+                    logger.info(f"Reranking complete, returning top {top_k} matches")
+                except Exception as e:
+                    logger.error(f"Error during reranking, falling back to original matches: {e}")
+                    # Fallback to original top_k matches
+                    matches = matches[:top_k]
+            else:
+                # Limit to top_k if no reranking was applied
+                matches = matches[:top_k]
+                if not self.enable_reranking:
+                    logger.info(f"Reranking disabled, returning top {top_k} matches based on vector similarity")
             
             # Generate SQL context
             sql_context = self._generate_sql_context(query_text, table_context)
-            
+                    
             return True, f"Found {len(matches)} relevant matches", matches, sql_context
             
         except Exception as e:

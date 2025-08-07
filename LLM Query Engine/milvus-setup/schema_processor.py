@@ -232,11 +232,24 @@ class SchemaProcessor:
         
         # Handle case where a file path is passed instead of DataFrame
         if isinstance(csv_data, str):
-            try:
-                self.logger.info(f"Loading CSV from path: {csv_data}")
-                df_data = pd.read_csv(csv_data)
-            except Exception as e:
-                self.logger.error(f"Failed to load CSV file {csv_data}: {e}")
+            # Try multiple encodings in order of likelihood
+            encodings = ['utf-8', 'latin1', 'cp1252', 'ISO-8859-1']
+            df_data = None
+            
+            for encoding in encodings:
+                try:
+                    self.logger.info(f"Loading CSV from path: {csv_data} with encoding: {encoding}")
+                    df_data = pd.read_csv(csv_data, encoding=encoding)
+                    self.logger.info(f"Successfully loaded CSV with encoding: {encoding}")
+                    break
+                except UnicodeDecodeError:
+                    self.logger.warning(f"Failed to load CSV with encoding: {encoding}, trying next encoding")
+                except Exception as e:
+                    self.logger.error(f"Failed to load CSV file {csv_data} with encoding {encoding}: {e}")
+                    continue
+            
+            if df_data is None:
+                self.logger.error(f"Failed to load CSV file {csv_data} with any encoding")
                 return []
         else:
             df_data = csv_data

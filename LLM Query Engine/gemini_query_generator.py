@@ -178,6 +178,7 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         ### Numeric Value Handling
         - Type conversion: Monetary=NUMERIC(15,2), Quantities=INTEGER, Percentages=NUMERIC(5,2),
           Rates=NUMERIC(8,4), use COALESCE(field,0) for NULL safety, always specify precision to prevent truncation across all databases
+         dont used TRY_CAST
         - Aggregations: Always use SUM, AVG, etc. with GROUP BY
         - Division safety: Use NULLIF() to prevent division by zero
         - Percentages: [(new_value - old_value) / NULLIF(old_value, 0) * 100](cci:1://file:///c:/Users/git_manoj/Conversational-Query-Engine/LLM%20Query%20Engine/gemini_query_generator.py:28:0-174:17)
@@ -715,6 +716,7 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
             "execution_time_ms": execution_time_ms
         }
 
+def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[str] = None, api_key: Optional[str] = None, model: str = None, log_tokens: bool = True, client_id: str = None, use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False, top_k: int = 10, enable_reranking: bool = True) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Gemini, matching OpenAI logic for data dictionary and prompt construction.
     If data_dictionary_path is not provided, use the default 'data_dictionary.csv' in the current directory.
@@ -730,6 +732,7 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
         limit_rows: Maximum rows to return
         include_charts: Whether to include chart recommendations
         top_k: Number of results to return from RAG (default: 10)
+        enable_reranking: Whether to enable reranking of RAG results (default: True)
         
     Returns:
         Dictionary with SQL query, token usage and other metadata
@@ -782,6 +785,9 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
                     logger.info(f"Importing RAG embedding module from {milvus_setup_dir}")
                     from rag_embedding import RAGManager
                     
+                    # Create a RAG manager instance with enable_reranking parameter
+                    logger.info(f"Creating RAG manager instance for client {client_id} with enable_reranking={enable_reranking}")
+                    rag_manager = RAGManager(enable_reranking=enable_reranking)
                     
                     # Execute the enhanced query
                     # Note: RAG manager's enhanced_query has a default top_k=10

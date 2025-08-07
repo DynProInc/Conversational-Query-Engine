@@ -8,7 +8,7 @@ This script combines the LLM query generator with Snowflake execution:
 4. Returns the results
 """
 import os
-import sys
+import time
 import pandas as pd
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -24,7 +24,8 @@ load_dotenv()
 
 def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str = None, 
                      limit_rows: int = 100, execute_query: bool = True, include_charts: bool = False,
-                     client_id: str = None, use_rag: bool = False, top_k: int = 10) -> Dict[str, Any]:
+                     client_id: str = None, use_rag: bool = False, top_k: int = 10, 
+                     enable_reranking: bool = True) -> Dict[str, Any]:
     """
     End-to-end pipeline to convert natural language to SQL and execute in Snowflake
     
@@ -38,10 +39,14 @@ def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str =
         client_id: Client ID for RAG context retrieval
         use_rag: Whether to use RAG for context retrieval
         top_k: Number of top results to return from RAG (default: 10)
+        enable_reranking: Whether to enable reranking of RAG results (default: True)
         
     Returns:
         Dictionary with SQL, results (if executed), and metadata
     """
+    # Start timing the execution
+    start_time = time.time()
+    
     # Ensure dictionary path is provided
     if not data_dictionary_path:
         # Raise an error instead of silently falling back to MTS dictionary
@@ -64,7 +69,8 @@ def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str =
             include_charts=include_charts,
             client_id=client_id,  # Add client_id parameter for RAG
             use_rag=use_rag,      # Add use_rag parameter
-            top_k=top_k           # Add top_k parameter for RAG
+            top_k=top_k,          # Add top_k parameter for RAG
+            enable_reranking=enable_reranking  # Add enable_reranking parameter
         )
         
         # Extract the SQL and clean it
@@ -162,6 +168,11 @@ def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str =
         except Exception as log_err:
             print(f"Error logging token usage: {str(log_err)}")
 
+        # Calculate execution time and add to response
+        execution_time_ms = (time.time() - start_time) * 1000
+        response["execution_time_ms"] = execution_time_ms
+        print(f"Total execution time: {execution_time_ms:.2f} ms")
+        
         # Always include chart-related fields in the response with appropriate values
         # This ensures consistency in response structure regardless of parameter combinations
         if include_charts:
@@ -183,9 +194,12 @@ def nlq_to_snowflake(prompt: str, model: str = None, data_dictionary_path: str =
         
     except Exception as e:
         print(f"Error: {str(e)}")
+        # Calculate execution time even for errors
+        execution_time_ms = (time.time() - start_time) * 1000
         error_response = {
             "error": str(e),
-            "success": False
+            "success": False,
+            "execution_time_ms": execution_time_ms
         }
         
         # Always include chart-related fields for consistent response structure

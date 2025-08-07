@@ -24,10 +24,29 @@ def nlq_to_snowflake_gemini(prompt: str,
                      execute_query: bool = True,
                      limit_rows: int = 100,
                      model: str = None,
-                     include_charts: bool = False) -> Dict[str, Any]:
+                     include_charts: bool = False,
+                     client_id: Optional[str] = None,
+                     use_rag: bool = False,
+                     top_k: int = 5,
+                     enable_reranking: bool = True) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Gemini, then optionally execute in Snowflake.
     Handles chart recommendations if include_charts is True and execute_query is True.
+    
+    Args:
+        prompt: Natural language question to convert to SQL
+        data_dictionary_path: Path to data dictionary CSV/Excel file
+        execute_query: Whether to execute the SQL in Snowflake (True) or just return SQL (False)
+        limit_rows: Maximum number of rows to return (adds LIMIT if not in query)
+        model: Gemini model to use
+        include_charts: Whether to include chart recommendations from LLM
+        client_id: Client identifier for client-specific RAG context
+        use_rag: Whether to use RAG for SQL generation
+        top_k: Number of top results to retrieve from RAG
+        enable_reranking: Whether to enable reranking of RAG results (default: True)
+        
+    Returns:
+        Dictionary with SQL, results (if executed), and metadata
     """
     # Use environment variable if model not specified
     if model is None:
@@ -47,7 +66,11 @@ def nlq_to_snowflake_gemini(prompt: str,
             model=model,
             log_tokens=True,
             limit_rows=limit_rows,
-            include_charts=include_charts
+            include_charts=include_charts,
+            client_id=client_id,          # Pass client_id parameter for RAG
+            use_rag=use_rag,              # Pass use_rag parameter
+            top_k=top_k,                  # Pass top_k parameter to control RAG results
+            enable_reranking=enable_reranking  # Pass enable_reranking parameter to control reranking
         )
         sql = gemini_result.get("sql", "")
         if not isinstance(sql, str):

@@ -10,9 +10,11 @@ import time
 import json
 import pandas as pd
 import datetime
+from typing import Dict, List, Optional, Union, Any, Tuple
 from decimal import Decimal
 
 import fastapi
+from fastapi import FastAPI, HTTPException, Request, Path
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -73,6 +75,10 @@ app.include_router(gemini_query_router)
 from execute_query_route import router as execute_query_router
 app.include_router(execute_query_router)
 
+# Import and include the embedding API router
+from embedding_api import router as embedding_router
+app.include_router(embedding_router)
+
 # Define request and response models
 class QueryRequest(BaseModel):
     client_id: Optional[str] = "mts"  # Default to 'mts' client for backward compatibility
@@ -85,6 +91,7 @@ class QueryRequest(BaseModel):
     edited_query: Optional[str] = None  # For user-edited SQL queries
     use_rag: bool = False  # Whether to use RAG for context retrieval
     top_k: int = 10  # Number of top results to return from RAG (default: 10)
+    enable_reranking: bool = False  # Whether to apply reranking to RAG results
     feedback_enhancement_mode: str = "never"  # Options: "never", "client_scoped", "high_confidence", "time_bounded", "explicit", "client_exact"
     max_feedback_entries: Optional[int] = None  # Maximum number of feedback entries to include (works with all feedback modes)
     confidence_threshold: Optional[float] = None  # Minimum similarity threshold for fuzzy matching (0.0-1.0, default: 0.85)
@@ -157,6 +164,8 @@ async def generate_sql_query(request: QueryRequest, data_dictionary_path: Option
             include_charts=request.include_charts,  # Add the include_charts parameter
             client_id=request.client_id,  # Add client_id parameter for RAG
             use_rag=request.use_rag,     # Add use_rag parameter
+            top_k=request.top_k,         # Add top_k parameter for RAG
+            enable_reranking=request.enable_reranking  # Add enable_reranking parameter to control reranking
         )
         generated_sql = result.get("sql", "")
         if all(k in result for k in ["prompt_tokens", "completion_tokens", "total_tokens"]):
@@ -312,6 +321,8 @@ async def generate_sql_query_claude(request: QueryRequest, data_dictionary_path:
             limit_rows=request.limit_rows,
             model=claude_model,
             include_charts=request.include_charts,
+            top_k=request.top_k,  # Pass top_k parameter to control RAG results
+            enable_reranking=request.enable_reranking  # Pass enable_reranking parameter to control reranking
         )
         
         # Execute SQL and process results using nlq_to_snowflake_claude
@@ -322,6 +333,8 @@ async def generate_sql_query_claude(request: QueryRequest, data_dictionary_path:
             limit_rows=request.limit_rows,
             model=claude_model,
             include_charts=request.include_charts,
+            claude_result=claude_result,  # Pass pre-generated SQL result
+            enable_reranking=request.enable_reranking  # Pass enable_reranking parameter to control reranking
         )
         
         # Check for errors
@@ -521,6 +534,8 @@ async def generate_sql_query_gemini(request: QueryRequest, data_dictionary_path:
             use_rag=request.use_rag,      # Add use_rag parameter
             limit_rows=request.limit_rows,
             include_charts=request.include_charts,
+            top_k=request.top_k,          # Pass top_k parameter to control RAG results
+            enable_reranking=request.enable_reranking  # Pass enable_reranking parameter to control reranking
         )
         
         # Extract SQL and check for errors
@@ -1697,6 +1712,154 @@ async def unified_query_endpoint(
         )
 
 
+
+@app.get("/client/dictionary/{client_id}", response_model=Dict[str, Any])
+async def get_client_dictionary(client_id: str = Path(..., description="Client ID to retrieve dictionary data for")):
+    """
+    Get the complete data dictionary for a specific client
+    
+    Args:
+        client_id: The client identifier
+        data_dictionary_path: Path to the client's data dictionary (set by with_client_context)
+        
+    Returns:
+        Dictionary containing the client's data dictionary content organized by tables
+    """
+    try:
+        # Read the client registry directly
+        client_registry_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                                         "config", "clients", "client_registry.csv")
+        
+        if not os.path.exists(client_registry_path):
+            raise HTTPException(status_code=404, detail="Client registry not found")
+            
+        # Read the client registry
+        client_df = pd.read_csv(client_registry_path)
+        
+        # Find the client by ID
+        client_row = client_df[client_df['client_id'] == client_id]
+        
+        if client_row.empty:
+            raise HTTPException(status_code=404, detail=f"Client '{client_id}' not found")
+            
+        # Check if client is active - handle all variations of 'true'
+        active_value = str(client_row.iloc[0]['active']).strip().lower()
+        is_active = active_value in ['true', 't', '1', 'yes', 'y']
+            
+        if not is_active:
+            raise HTTPException(status_code=403, detail=f"Client '{client_id}' is not active")
+            
+        # Get the dictionary path
+        dict_path = client_row.iloc[0]['data_dictionary_path']
+        
+        if not dict_path or not os.path.exists(dict_path):
+            raise HTTPException(status_code=404, detail=f"Data dictionary not found for client '{client_id}'")
+            
+        # Get client name for response
+        client_name = client_row.iloc[0]['client_name']
+        
+        # Verify file exists and is accessible
+        if not os.path.isfile(dict_path):
+            raise HTTPException(status_code=404, detail=f"Dictionary file not found at path: {dict_path}")
+            
+        # Try multiple encodings with detailed error reporting
+        encodings_to_try = ['utf-8', 'latin1', 'cp1252', None]  # None means use system default
+        last_error = None
+        
+        for encoding in encodings_to_try:
+            try:
+                # If encoding is None, don't specify it (use system default)
+                if encoding is None:
+                    df = pd.read_csv(dict_path)
+                else:
+                    df = pd.read_csv(dict_path, encoding=encoding)
+                    
+                # If we got here, reading succeeded
+                print(f"Successfully read dictionary for client '{client_id}' using encoding: {encoding or 'system default'}")
+                break
+            except UnicodeDecodeError as e:
+                last_error = f"Unicode decode error with {encoding} encoding: {str(e)}"
+                continue
+            except Exception as e:
+                last_error = f"Error reading dictionary: {str(e)}"
+                break
+        else:
+            # This runs if the for loop completes without a break (all encodings failed)
+            raise HTTPException(status_code=500, detail=f"Failed to read dictionary file with any encoding. Last error: {last_error}")
+            
+        # Convert the dataframe to a list of dictionaries for the response
+        # This preserves the original structure without any validation or transformation
+        dictionary_data = df.to_dict(orient='records')
+        
+        # Create a simple result object with the raw data
+        result = dictionary_data
+        
+        return {
+            "client_id": client_id,
+            "client_name": client_name,
+            "dictionary_path": dict_path,
+            "data": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving dictionary data: {str(e)}")
+
+@app.get("/clients/dictionaries", response_model=Dict[str, Any])
+async def get_all_client_dictionaries():
+    """
+    Get the complete data dictionaries for all active clients
+    
+    Returns:
+        Dictionary containing all clients' data dictionary content
+    """
+    try:
+        # Read the client registry directly
+        client_registry_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                                         "config", "clients", "client_registry.csv")
+        
+        if not os.path.exists(client_registry_path):
+            raise HTTPException(status_code=404, detail="Client registry not found")
+            
+        # Read the client registry
+        client_df = pd.read_csv(client_registry_path)
+        
+        # Filter active clients - handle all variations of 'true'
+        active_clients = client_df[client_df['active'].astype(str).str.strip().str.lower().isin(['true', 't', '1', 'yes', 'y'])]
+        
+        result = {}
+        for _, client_row in active_clients.iterrows():
+            client_id = client_row['client_id']
+            client_name = client_row['client_name']
+            
+            try:
+                # Get client dictionary using the existing endpoint
+                client_dict = await get_client_dictionary(client_id)
+                result[client_id] = client_dict
+            except HTTPException as e:
+                # Include error information in the response
+                result[client_id] = {
+                    "client_id": client_id,
+                    "client_name": client_name,
+                    "error": e.detail,
+                    "status_code": e.status_code
+                }
+            except Exception as e:
+                # Include any other errors
+                result[client_id] = {
+                    "client_id": client_id,
+                    "client_name": client_name,
+                    "error": str(e),
+                    "status_code": 500
+                }
+        
+        return {
+            "clients": result
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving client dictionaries: {str(e)}")
 
 # Main entry point to run the server directly
 if __name__ == "__main__":

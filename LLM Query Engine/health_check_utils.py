@@ -40,6 +40,7 @@ def check_claude_health(api_key: Optional[str] = None, model: Optional[str] = No
             max_tokens=10,
             messages=[{"role": "user", "content": "Hello"}]
         )
+        return True, "Connected to Claude API"
     except Exception as e:
         print(f"[ERROR] Claude API error: {str(e)}")
         return False, "Claude API connection error"

@@ -28,7 +28,8 @@ def nlq_to_snowflake_claude(prompt: str,
                      limit_rows: int = 100,
                      model: str = "claude-3-5-sonnet-20241022",
                      include_charts: bool = False,
-                     claude_result: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                     claude_result: Optional[Dict[str, Any]] = None,
+                     enable_reranking: bool = True) -> Dict[str, Any]:
     """
     End-to-end pipeline to convert natural language to SQL using Claude and execute in Snowflake
     
@@ -39,6 +40,8 @@ def nlq_to_snowflake_claude(prompt: str,
         limit_rows: Maximum number of rows to return (adds LIMIT if not in query)
         model: Claude model to use
         include_charts: Whether to include chart recommendations from LLM
+        claude_result: Optional pre-generated Claude result to use instead of generating a new one
+        enable_reranking: Whether to enable reranking of RAG results (default: True)
         
     Returns:
         Dictionary with SQL, results (if executed), and metadata
@@ -59,7 +62,8 @@ def nlq_to_snowflake_claude(prompt: str,
                 data_dictionary_path=data_dictionary_path,
                 model=model,
                 limit_rows=limit_rows,
-                include_charts=include_charts
+                include_charts=include_charts,
+                enable_reranking=enable_reranking  # Pass enable_reranking parameter to control reranking
             )
         
         # Extract the SQL and ensure it's a valid string

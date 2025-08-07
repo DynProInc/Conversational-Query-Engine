@@ -37,6 +37,18 @@ def load_data_dictionary(file_path: str) -> pd.DataFrame:
     if file_path.endswith('.xlsx') or file_path.endswith('.xls'):
         df = pd.read_excel(file_path)
     elif file_path.endswith('.csv'):
+        # Try different encodings to handle potential encoding issues
+        encodings_to_try = ['utf-8', 'latin1', 'ISO-8859-1', 'cp1252']
+        for encoding in encodings_to_try:
+            try:
+                print(f"Attempting to read CSV with {encoding} encoding")
+                df = pd.read_csv(file_path, encoding=encoding)
+                print(f"Successfully read CSV with {encoding} encoding")
+                break
+            except UnicodeDecodeError:
+                print(f"Failed to read with {encoding} encoding, trying next...")
+                if encoding == encodings_to_try[-1]:  # Last encoding in the list
+                    raise ValueError(f"Could not read CSV file with any of the attempted encodings: {encodings_to_try}")
     else:
         raise ValueError("Unsupported file format. Please provide an Excel or CSV file.")
     
@@ -308,6 +320,7 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         ### Numeric Value Handling
         - Type conversion: Monetary=NUMERIC(15,2), Quantities=INTEGER, Percentages=NUMERIC(5,2),
           Rates=NUMERIC(8,4), use COALESCE(field,0) for NULL safety, always specify precision to prevent truncation across all databases
+        - dont used TRY_CAST
         - Aggregations: Always use SUM, AVG, etc. with GROUP BY
         - Division safety: Use NULLIF() to prevent division by zero
         - Percentages: `(new_value - old_value) / NULLIF(old_value, 0) * 100`
@@ -694,6 +707,8 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
 def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = None, 
                        api_key: Optional[str] = None, model: str = None, log_tokens: bool = True,
                        model_provider: str = "openai", limit_rows: int = 100, include_charts: bool = False,
+                       client_id: str = None, use_rag: bool = False, top_k: int = 10,
+                       enable_reranking: bool = True) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL
     
@@ -763,6 +778,8 @@ def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = No
                 from rag_embedding import RAGManager
                 
                 # Create a RAG manager instance
+                print(f"Creating RAG manager instance for client {client_id} with enable_reranking={enable_reranking}")
+                rag_manager = RAGManager(enable_reranking=enable_reranking)
                 
                 # Execute the enhanced query
                 print(f"Executing RAG enhanced query for client {client_id} with top_k={top_k}")

@@ -182,6 +182,7 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         ### Numeric Value Handling
         - Type conversion: Monetary=NUMERIC(15,2), Quantities=INTEGER, Percentages=NUMERIC(5,2),
          Rates=NUMERIC(8,4), use COALESCE(field,0) for NULL safety, always specify precision to prevent truncation across all databases.
+         dont used TRY_CAST
         - Aggregations: Always use SUM, AVG, etc. with GROUP BY
         - Division safety: Use NULLIF() to prevent division by zero
         - Percentages: `(new_value - old_value) / NULLIF(old_value, 0) * 100`
@@ -850,6 +851,7 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
 def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None, api_key: Optional[str] = None, 
                                model: str = None, log_tokens: bool = True, client_id: str = None,
                                use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False, 
+                               top_k: int = 10, enable_reranking: bool = True) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Claude
     
@@ -863,6 +865,8 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
         use_rag: Whether to use RAG for context retrieval
         limit_rows: Maximum rows to return
         include_charts: Whether to include chart recommendations
+        top_k: Number of top results to retrieve from RAG (default: 10)
+        enable_reranking: Whether to enable reranking of RAG results (default: True)
         
     Returns:
         Dictionary with SQL query, token usage and other metadata
@@ -911,6 +915,9 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
                     logger.info(f"Importing RAG embedding module from {milvus_setup_dir}")
                     from rag_embedding import RAGManager
                     
+                    # Create a RAG manager instance with enable_reranking parameter
+                    logger.info(f"Creating RAG manager instance for client {client_id} with enable_reranking={enable_reranking}")
+                    rag_manager = RAGManager(enable_reranking=enable_reranking)
                     
                     # Execute the enhanced query
                     logger.info(f"Executing RAG enhanced query for client {client_id} with top_k={top_k}")

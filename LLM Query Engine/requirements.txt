@@ -44,3 +44,10 @@ seaborn==0.13.2
 # Authentication and security
 cryptography==45.0.3
 pyOpenSSL==25.1.0
+
+
+# LLM and Reranking
+transformers>=4.30.0
+torch>=2.0.0
+sentence-transformers>=2.2.0
+accelerate>=0.20.0  # For better performance with transformers

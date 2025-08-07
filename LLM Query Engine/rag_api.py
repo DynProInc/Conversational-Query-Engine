@@ -37,7 +37,7 @@ router = APIRouter(
 rag_manager = None
 error_message = None
 
-def init_rag_manager():
+def init_rag_manager(enable_reranking=True):
     """Initialize RAG Manager from rag_embedding.py"""
     global rag_manager, error_message
     
@@ -54,9 +54,9 @@ def init_rag_manager():
         rag_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(rag_module)
         
-        # Create RAGManager instance
-        rag_manager = rag_module.RAGManager()
-        logger.info("RAG Manager initialized successfully")
+        # Create RAGManager instance with enable_reranking parameter
+        rag_manager = rag_module.RAGManager(enable_reranking=enable_reranking)
+        logger.info(f"RAG Manager initialized successfully with enable_reranking={enable_reranking}")
         return True
     except Exception as e:
         error_message = str(e)
@@ -79,6 +79,7 @@ class QueryRequest(BaseModel):
     client_id: str = Field(..., description="Client ID for the collection")
     query: str = Field(..., description="Query text")
     top_k: int = Field(5, description="Number of results to return")
+    enable_reranking: bool = Field(False, description="Whether to apply reranking to search results")
 
 class QueryResult(BaseModel):
     table_name: str
@@ -217,6 +218,21 @@ async def query_collection(request: QueryRequest):
     """Query a collection"""
     manager = get_rag_manager()
     
+    # Create a new instance with enable_reranking parameter if needed
+    if hasattr(manager, 'enable_reranking') and manager.enable_reranking != request.enable_reranking:
+        # Create a new instance with the requested reranking setting
+        import importlib.util
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        milvus_setup_dir = os.path.join(current_dir, "milvus-setup")
+        spec = importlib.util.spec_from_file_location(
+            "rag_embedding", 
+            os.path.join(milvus_setup_dir, "rag_embedding.py")
+        )
+        rag_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rag_module)
+        manager = rag_module.RAGManager(enable_reranking=request.enable_reranking)
+        logger.info(f"Created new RAGManager with enable_reranking={request.enable_reranking}")
+    
     success, message, results = manager.query(
         request.client_id, 
         request.query, 
@@ -233,6 +249,21 @@ async def query_collection(request: QueryRequest):
 async def enhanced_query(request: QueryRequest):
     """Enhanced query with SQL context"""
     manager = get_rag_manager()
+    
+    # Create a new instance with enable_reranking parameter if needed
+    if hasattr(manager, 'enable_reranking') and manager.enable_reranking != request.enable_reranking:
+        # Create a new instance with the requested reranking setting
+        import importlib.util
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        milvus_setup_dir = os.path.join(current_dir, "milvus-setup")
+        spec = importlib.util.spec_from_file_location(
+            "rag_embedding", 
+            os.path.join(milvus_setup_dir, "rag_embedding.py")
+        )
+        rag_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rag_module)
+        manager = rag_module.RAGManager(enable_reranking=request.enable_reranking)
+        logger.info(f"Created new RAGManager with enable_reranking={request.enable_reranking}")
     
     success, message, results, sql_context = manager.enhanced_query(
         request.client_id, 
