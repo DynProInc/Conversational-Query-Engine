@@ -1,0 +1,218 @@
+digraph G {
+  // Graph formatting
+  rankdir = LR;
+  node [shape=box, style=filled, color="#2980B9", fillcolor="#A9CCE3", fontname="Arial"];
+  edge [color="#7F8C8D", fontname="Arial"];
+  
+  // Main API Server
+  api_server [label="api_server.py\nMain API Server", fillcolor="#D4E6F1", shape=box, style=filled];
+  
+  // Model components
+  llm_query_generator [label="llm_query_generator.py\nOpenAI Query Generator", fillcolor="#D5F5E3"];
+  claude_query_generator [label="claude_query_generator.py\nClaude Query Generator", fillcolor="#D5F5E3"];
+  gemini_query_generator [label="gemini_query_generator.py\nGemini Query Generator", fillcolor="#D5F5E3"];
+  
+  // End-to-end pipelines
+  nlq_to_snowflake [label="nlq_to_snowflake.py\nOpenAI Pipeline", fillcolor="#FADBD8"];
+  nlq_to_snowflake_claude [label="nlq_to_snowflake_claude.py\nClaude Pipeline", fillcolor="#FADBD8"];
+  nlq_to_snowflake_gemini [label="nlq_to_snowflake_gemini.py\nGemini Pipeline", fillcolor="#FADBD8"];
+  
+  // Supporting modules
+  snowflake_runner [label="snowflake_runner.py\nSnowflake Connector", fillcolor="#FCF3CF"];
+  token_logger [label="token_logger.py\nToken Usage Logger", fillcolor="#E8DAEF"];
+  health_check_utils [label="health_check_utils.py\nAPI Health Checks", fillcolor="#D6EAF8"];
+  error_hint_utils [label="error_hint_utils.py\nError Handling", fillcolor="#FDEBD0"];
+  prompt_query_history_api [label="prompt_query_history_api.py\nQuery History API", fillcolor="#FDEBD0"];
+  prompt_query_history_route [label="prompt_query_history_route.py\nQuery History Routes", fillcolor="#FDEBD0"];
+  
+  // RAG components
+  rag_embedding [label="rag_embedding.py\nRAG Vector Store Manager", fillcolor="#D5DBDB"];
+  milvus_query_engine [label="milvus_query_engine.py\nMilvus Search Interface", fillcolor="#D5DBDB"];
+  rag_api [label="rag_api.py\nRAG API Endpoints", fillcolor="#D5DBDB"];
+  schema_processor [label="schema_processor.py\nSchema Data Processor", fillcolor="#D5DBDB"];
+  
+  // Client management
+  client_manager [label="config/client_manager.py\nMulti-client Config Manager", fillcolor="#AED6F1"];
+  client_integration [label="config/client_integration.py\nClient Context Integration", fillcolor="#AED6F1"];
+  
+  // Chart components
+  chart_utils [label="chart_utils.py\nChart Generation Utilities", fillcolor="#FDEDEC"];
+  chart_recommendations [label="chart_recommendations.py\nLLM Chart Recommender", fillcolor="#FDEDEC"];
+  unified_chart_api [label="unified_chart_api.py\nChart API Interface", fillcolor="#FDEDEC"];
+  
+  // SQL validation
+  execute_query_route [label="execute_query_route.py\nSQL Execution API", fillcolor="#FCF3CF"];
+  sql_structure_utils [label="sql_structure_utils.py\nSQL Validation & Safety", fillcolor="#FCF3CF"];
+  
+  // Report generation
+  generate_query_report [label="generate_query_report.py\nUsage Reporting", fillcolor="#F5EEF8"];
+  
+  // Test modules
+  test_api [label="test_api.py\nAPI Testing", fillcolor="#F9E79F"];
+  test_token_logging [label="test_token_logging_comprehensive.py\nComprehensive Token Logging Tests", fillcolor="#F9E79F"];
+  
+  // Dependencies
+  
+  // API server dependencies
+  api_server -> nlq_to_snowflake;
+  api_server -> nlq_to_snowflake_claude;
+  api_server -> nlq_to_snowflake_gemini;
+  api_server -> token_logger;
+  api_server -> health_check_utils;
+  api_server -> prompt_query_history_api;
+  api_server -> prompt_query_history_route;
+  api_server -> error_hint_utils;
+  api_server -> execute_query_route;
+  api_server -> rag_api;
+  api_server -> client_manager;
+  api_server -> client_integration;
+  api_server -> unified_chart_api;
+  
+  // Pipeline dependencies
+  nlq_to_snowflake -> llm_query_generator;
+  nlq_to_snowflake -> snowflake_runner;
+  nlq_to_snowflake -> token_logger;
+  nlq_to_snowflake -> chart_recommendations [style=dashed];
+  
+  nlq_to_snowflake_claude -> claude_query_generator;
+  nlq_to_snowflake_claude -> snowflake_runner;
+  nlq_to_snowflake_claude -> token_logger;
+  nlq_to_snowflake_claude -> chart_recommendations [style=dashed];
+  
+  nlq_to_snowflake_gemini -> gemini_query_generator;
+  nlq_to_snowflake_gemini -> snowflake_runner;
+  nlq_to_snowflake_gemini -> token_logger;
+  nlq_to_snowflake_gemini -> chart_recommendations [style=dashed];
+  
+  // Cross-module dependencies
+  claude_query_generator -> llm_query_generator [style=dashed, label="reuses functions"];
+  gemini_query_generator -> llm_query_generator [style=dashed, label="reuses functions"];
+  
+  // Health check dependencies
+  health_check_utils -> snowflake_runner;
+  health_check_utils -> llm_query_generator;
+  health_check_utils -> claude_query_generator;
+  health_check_utils -> gemini_query_generator;
+  health_check_utils -> client_manager;
+  
+  // Query history dependencies
+  prompt_query_history_route -> prompt_query_history_api;
+  
+  // RAG dependencies
+  rag_api -> rag_embedding;
+  rag_api -> milvus_query_engine;
+  rag_embedding -> schema_processor;
+  milvus_query_engine -> rag_embedding [style=dashed];
+  
+  // Client context dependencies
+  client_integration -> client_manager;
+  nlq_to_snowflake -> client_manager [style=dashed];
+  nlq_to_snowflake_claude -> client_manager [style=dashed];
+  nlq_to_snowflake_gemini -> client_manager [style=dashed];
+  
+  // Chart dependencies
+  unified_chart_api -> chart_utils;
+  chart_recommendations -> chart_utils;
+  
+  // SQL validation dependencies
+  execute_query_route -> sql_structure_utils;
+  execute_query_route -> snowflake_runner;
+  
+  // Report generation dependencies
+  generate_query_report -> token_logger [style=dashed, label="reads logs"];
+  
+  // Test dependencies
+  test_token_logging -> nlq_to_snowflake;
+  test_token_logging -> nlq_to_snowflake_claude;
+  test_token_logging -> nlq_to_snowflake_gemini;
+  test_token_logging -> token_logger;
+  test_api -> api_server;
+  
+  // Subgraph for core components
+  subgraph cluster_core {
+    label="Core API Server";
+    style=filled;
+    color="#F2F3F4";
+    api_server;
+    execute_query_route;
+    prompt_query_history_route;
+  }
+  
+  // Subgraph for LLM providers
+  subgraph cluster_llm {
+    label="LLM Query Generators";
+    style=filled;
+    color="#F2F3F4";
+    llm_query_generator;
+    claude_query_generator;
+    gemini_query_generator;
+  }
+  
+  // Subgraph for pipelines
+  subgraph cluster_pipelines {
+    label="End-to-End NL→SQL Pipelines";
+    style=filled;
+    color="#F2F3F4";
+    nlq_to_snowflake;
+    nlq_to_snowflake_claude;
+    nlq_to_snowflake_gemini;
+  }
+  
+  // Subgraph for RAG system
+  subgraph cluster_rag {
+    label="RAG System (Milvus)";
+    style=filled;
+    color="#F2F3F4";
+    rag_embedding;
+    milvus_query_engine;
+    rag_api;
+    schema_processor;
+  }
+  
+  // Subgraph for client management
+  subgraph cluster_clients {
+    label="Multi-Client System";
+    style=filled;
+    color="#F2F3F4";
+    client_manager;
+    client_integration;
+  }
+  
+  // Subgraph for chart functionality
+  subgraph cluster_charts {
+    label="Chart Visualization";
+    style=filled;
+    color="#F2F3F4";
+    chart_utils;
+    chart_recommendations;
+    unified_chart_api;
+  }
+  
+  // Subgraph for utilities
+  subgraph cluster_utils {
+    label="Core Utilities";
+    style=filled;
+    color="#F2F3F4";
+    snowflake_runner;
+    token_logger;
+    health_check_utils;
+    error_hint_utils;
+    sql_structure_utils;
+  }
+  
+  // Subgraph for testing and reporting
+  subgraph cluster_test_report {
+    label="Testing and Reporting";
+    style=filled;
+    color="#F2F3F4";
+    test_api;
+    test_token_logging;
+    generate_query_report;
+  }
+  
+  // Graph title
+  labelloc="t";
+  label="Conversational-Query-Engine - Enhanced Module Dependencies";
+  fontsize=20;
+  fontname="Arial Bold";
+}

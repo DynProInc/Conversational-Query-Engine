@@ -715,7 +715,6 @@ def generate_sql_query_gemini(api_key: str, prompt: str, model: str = "models/ge
             "execution_time_ms": execution_time_ms
         }
 
-def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[str] = None, api_key: Optional[str] = None, model: str = None, log_tokens: bool = True, client_id: str = None, use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False, top_k: int = 10) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Gemini, matching OpenAI logic for data dictionary and prompt construction.
     If data_dictionary_path is not provided, use the default 'data_dictionary.csv' in the current directory.
@@ -783,9 +782,6 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
                     logger.info(f"Importing RAG embedding module from {milvus_setup_dir}")
                     from rag_embedding import RAGManager
                     
-                    # Create a RAG manager instance
-                    logger.info(f"Creating RAG manager instance for client {client_id}")
-                    rag_manager = RAGManager()
                     
                     # Execute the enhanced query
                     # Note: RAG manager's enhanced_query has a default top_k=10

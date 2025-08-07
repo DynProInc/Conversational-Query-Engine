@@ -37,7 +37,6 @@ def load_data_dictionary(file_path: str) -> pd.DataFrame:
     if file_path.endswith('.xlsx') or file_path.endswith('.xls'):
         df = pd.read_excel(file_path)
     elif file_path.endswith('.csv'):
-        df = pd.read_csv(file_path)
     else:
         raise ValueError("Unsupported file format. Please provide an Excel or CSV file.")
     
@@ -695,7 +694,6 @@ def generate_sql_query(api_key: str, prompt: str, model: str = "gpt-4",
 def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = None, 
                        api_key: Optional[str] = None, model: str = None, log_tokens: bool = True,
                        model_provider: str = "openai", limit_rows: int = 100, include_charts: bool = False,
-                       client_id: str = None, use_rag: bool = False, top_k: int = 10) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL
     
@@ -765,8 +763,6 @@ def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = No
                 from rag_embedding import RAGManager
                 
                 # Create a RAG manager instance
-                print(f"Creating RAG manager instance for client {client_id}")
-                rag_manager = RAGManager()
                 
                 # Execute the enhanced query
                 print(f"Executing RAG enhanced query for client {client_id} with top_k={top_k}")

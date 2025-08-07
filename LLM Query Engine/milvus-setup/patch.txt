@@ -1,0 +1,8 @@
+525c525
+< if RERANKER_AVAILABLE and len(matches) > 0:
+---
+> if RERANKER_AVAILABLE and self.enable_reranking and len(matches) > 0:
+538c538
+<                 matches = matches[:top_k]
+---
+>                 matches = matches[:top_k]\n                if not self.enable_reranking:\n                    logger.info(f"Reranking disabled, returning top {top_k} matches based on vector similarity")

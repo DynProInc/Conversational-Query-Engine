@@ -850,7 +850,6 @@ def generate_sql_query_claude(api_key: str, prompt: str, model: str = "claude-3-
 def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None, api_key: Optional[str] = None, 
                                model: str = None, log_tokens: bool = True, client_id: str = None,
                                use_rag: bool = False, limit_rows: int = 100, include_charts: bool = False, 
-                               top_k: int = 10) -> Dict[str, Any]:
     """
     End-to-end function to convert natural language to SQL using Claude
     
@@ -912,9 +911,6 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
                     logger.info(f"Importing RAG embedding module from {milvus_setup_dir}")
                     from rag_embedding import RAGManager
                     
-                    # Create a RAG manager instance
-                    logger.info(f"Creating RAG manager instance for client {client_id}")
-                    rag_manager = RAGManager()
                     
                     # Execute the enhanced query
                     logger.info(f"Executing RAG enhanced query for client {client_id} with top_k={top_k}")
