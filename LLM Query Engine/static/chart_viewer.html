@@ -257,14 +257,40 @@
                 </label>
             </div>
             
+            <!-- RAG Parameters Section -->
             <div class="form-group">
                 <label>
                     <input type="checkbox" id="use-rag">
                     Use RAG for context retrieval
                 </label>
             </div>
+            
+            <!-- New RAG parameters in a collapsible section -->
+            <div id="rag-parameters" style="margin-left: 20px; padding: 10px; border-left: 2px solid #e0e0e0; display: none;">
+                <div class="form-group">
+                    <label for="top-k">Top K Results:</label>
+                    <input type="number" id="top-k" value="10" min="1" max="50" style="width: 80px;">
+                    <small style="color: #666; display: block; margin-top: 3px;">Number of top results to return from RAG (1-50)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enable-reranking">
+                        Enable reranking of RAG results
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Feedback Parameters -->
+            <div class="form-group">
+                <label for="feedback-time-window">Feedback Time Window (minutes):</label>
+                <input type="number" id="feedback-time-window" value="30" min="1" max="1440" style="width: 80px;">
+                <small style="color: #666; display: block; margin-top: 3px;">Time window for feedback in minutes (1-1440)</small>
+            </div>
 
-            <button onclick="buttonWithSpinner(this, function() { executeQuery('nlq'); })" class="btn btn-success">Execute Query</button>
+            <div class="form-group">
+                <button onclick="buttonWithSpinner(this, function() { executeQuery('nlq'); })" class="btn btn-success">Execute Query</button>
+            </div>
             </div>
             
             <!-- SQL Editor Tab Content -->
@@ -324,13 +350,18 @@
                     </label>
                 </div>
                 
-                <button id="execute-sql-button" onclick="buttonWithSpinner(this, function() { executeQuery('sql'); })" class="btn btn-success">Execute SQL Query</button>
+                <div class="form-group">
+                    <button id="execute-sql-button" onclick="buttonWithSpinner(this, function() { executeQuery('sql'); })" class="btn btn-success">Execute SQL Query</button>
+                </div>
             </div>
         </div>
 
         <div class="card mb-4" id="sql-query-card">
     <div class="card-body">
-        <h5 class="card-title">SQL Query</h5>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h5 class="card-title" style="margin: 0;">SQL Query</h5>
+            <button id="save-query-btn-results" onclick="openSaveQueryModal()" class="btn btn-success" style="display: none;">Save Query</button>
+        </div>
         <pre id="sql-query" style="background:#f8f9fa; border-radius:4px; padding:12px; font-family:monospace; font-size:14px; overflow-x:auto; min-height:32px;">-- SQL will appear here --</pre>
         <div class="form-group" style="margin-top:15px;">
             <!-- Edit This Query button is initially hidden until a query is generated -->
@@ -361,6 +392,7 @@
                     <button class="tab-button" data-tab="charts-content">Charts</button>
                     <button class="tab-button" data-tab="insights-content">Insights</button>
                     <button class="tab-button" data-tab="raw-api-content">Raw API Response</button>
+                    <button class="tab-button" data-tab="saved-queries-content">Saved Queries</button>
                 </div>
                 <!-- Tab content -->
                 <div id="results-content" class="tab-content">
@@ -383,6 +415,37 @@
                     </div>
                 </div>
                 
+                <!-- Saved Queries Tab Content -->
+                <div id="saved-queries-content" class="tab-content" style="display: none;">
+                    <div class="card">
+                        <h2>Saved Queries</h2>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label for="saved-queries-filter">Filter by:</label>
+                            <select id="saved-queries-filter" onchange="filterSavedQueries()">
+                                <option value="all">All Queries</option>
+                                <option value="tag">Tag</option>
+                                <option value="folder">Folder</option>
+                            </select>
+                            <select id="saved-queries-tag-filter" style="display: none; margin-left: 10px;" onchange="filterSavedQueries()">
+                                <option value="">Select Tag</option>
+                            </select>
+                            <select id="saved-queries-folder-filter" style="display: none; margin-left: 10px;" onchange="filterSavedQueries()">
+                                <option value="">Select Folder</option>
+                            </select>
+                            <button onclick="loadSavedQueries()" class="btn btn-secondary" style="margin-left: 10px; padding: 3px 10px; font-size: 0.9rem;">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                        <div id="saved-queries-list" style="margin-top: 20px;">
+                            <!-- Saved queries will be loaded here -->
+                            <p>Loading saved queries...</p>
+                        </div>
+                    </div>
+                </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div id="raw-api-content" class="tab-content" style="display: none;">
                     <div class="card">
                         <h2>Raw API Responses</h2>
@@ -391,7 +454,7 @@
                             <button id="show-execute-response" class="tab-button" onclick="buttonWithSpinner(this, function() { showRawResponse('execute'); })">Execute-Query Response</button>
                         </div>
                         <div id="response-info" style="margin-bottom: 10px; font-weight: bold;"></div>
-                        <pre id="raw-api-response" style="background-color: #f5f5f5; padding: 15px; overflow-x: auto; white-space: pre-wrap;"></pre>
+                        <pre id="raw-api-response" style="background-color: #f5f5f5; padding: 15px; overflow-x: auto; white-space: pre-wrap; max-width: 100%; box-sizing: border-box;"></pre>
                     </div>
                 </div>
             </div>
@@ -625,6 +688,14 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM loaded, initializing tab functionality');
             updateSqlSnowflakeAccount();
+            
+            // Add event listener for RAG checkbox to toggle RAG parameters visibility
+            const useRagCheckbox = document.getElementById('use-rag');
+            const ragParameters = document.getElementById('rag-parameters');
+            
+            useRagCheckbox.addEventListener('change', function() {
+                ragParameters.style.display = this.checked ? 'block' : 'none';
+            });
             validateSqlInput(); // Initialize validation state
             
             // Add click handlers to all tab buttons
@@ -822,7 +893,13 @@
                 return;
             }
             
-            console.log(`Executing query with model=${model}, client=${clientId}, row_limit=${rowLimit}, include_charts=${includeCharts}`);
+            // Log all parameters for debugging
+            const useRag = document.getElementById('use-rag').checked;
+            const topK = useRag ? parseInt(document.getElementById('top-k').value) : 'N/A';
+            const enableReranking = useRag ? document.getElementById('enable-reranking').checked : 'N/A';
+            const feedbackTimeWindow = parseInt(document.getElementById('feedback-time-window').value);
+            
+            console.log(`Executing query with model=${model}, client=${clientId}, row_limit=${rowLimit}, include_charts=${includeCharts}, use_rag=${useRag}, top_k=${topK}, enable_reranking=${enableReranking}, feedback_time_window=${feedbackTimeWindow}`);
             
             // Show loading indicator
             document.getElementById('loading').style.display = 'flex'; // Use flex for better centering
@@ -845,9 +922,27 @@
                 const feedbackMode = document.getElementById('feedback-mode').value;
                 requestData.feedback_enhancement_mode = feedbackMode;
                 
-                // Add RAG flag
+                // Add RAG flag and parameters
                 const useRag = document.getElementById('use-rag').checked;
                 requestData.use_rag = useRag;
+                
+                if (useRag) {
+                    // Add top_k parameter
+                    const topK = parseInt(document.getElementById('top-k').value);
+                    if (!isNaN(topK) && topK >= 1 && topK <= 50) {
+                        requestData.top_k = topK;
+                    }
+                    
+                    // Add enable_reranking parameter
+                    const enableReranking = document.getElementById('enable-reranking').checked;
+                    requestData.enable_reranking = enableReranking;
+                }
+                
+                // Add feedback time window parameter
+                const feedbackTimeWindow = parseInt(document.getElementById('feedback-time-window').value);
+                if (!isNaN(feedbackTimeWindow) && feedbackTimeWindow >= 1 && feedbackTimeWindow <= 1440) {
+                    requestData.feedback_time_window_minutes = feedbackTimeWindow;
+                }
             } else { // SQL mode
                 requestData.query = sql; // Changed from edited_query to query per backend API
                 if (originalPrompt) {
@@ -933,10 +1028,14 @@
                     // Also store this for editing
                     originalSql = sqlToDisplay;
                     
-                    // Show the Edit This Query button now that we have a query
+                    // Show the Edit This Query and Save Query buttons now that we have a query
                     const editQueryBtn = document.getElementById('edit-query-btn');
+                    const saveQueryBtn = document.getElementById('save-query-btn-results');
                     if (editQueryBtn) {
                         editQueryBtn.style.display = 'inline-block';
+                    }
+                    if (saveQueryBtn) {
+                        saveQueryBtn.style.display = 'inline-block';
                     }
                 } else {
                     console.error('Cannot find sql-query element');
@@ -4126,22 +4225,683 @@
     </script>
     <!-- Function to copy generated SQL to the SQL Editor tab -->    
     <script>
+        // Function to copy generated SQL to the SQL Editor tab
         function copyToSQLEditor() {
-            const sqlText = document.querySelector('#results pre').innerText;
-            const originalPrompt = document.querySelector('#prompt').value;
-            
-            // Set values in SQL editor tab
-            document.querySelector('#sql-editor').value = sqlText;
-            document.querySelector('#original-prompt').value = originalPrompt;
-            
-            // Switch to SQL editor tab
+            const sqlQuery = document.getElementById('sql-query').innerText;
+            document.getElementById('sql-input').value = sqlQuery;
             showTab('sql-tab');
+            validateSqlInput();
         }
         
         // Store the current SQL query and chart recommendations for comparison
         // Global variables
         let originalSql = '';
         let originalChartRecommendations = [];
+        let currentQueryData = null; // Store current query data for saving
+        let savedQueriesList = []; // Store list of saved queries
+        let savedQueryTags = new Set(); // Store unique tags
+        let savedQueryFolders = new Set(); // Store unique folders
+        
+        // Functions for saved queries functionality
+        function openSaveQueryModal() {
+            document.getElementById('save-query-modal').style.display = 'block';
+        }
+        
+        function closeSaveQueryModal() {
+            document.getElementById('save-query-modal').style.display = 'none';
+        }
+        
+        // Save query to backend
+        async function saveQuery() {
+            const tags = document.getElementById('save-query-tags').value;
+            const folder = document.getElementById('save-query-folder').value;
+            const notes = document.getElementById('save-query-notes').value;
+            
+            if (!currentQueryData) {
+                alert('No query data available to save.');
+                return;
+            }
+            
+            const clientId = document.getElementById('client').value;
+            
+            // Get execution_id from currentQueryData (which is now updated by updateQueryMetrics)
+            let executionId = currentQueryData.execution_id || null;
+            console.log('Using execution_id from currentQueryData:', executionId);
+            
+            // Prepare data for saving
+            const saveData = {
+                client_id: clientId,
+                user_id: 'frontend_user', // Required field
+                prompt: currentQueryData.prompt || '',
+                sql_query: currentQueryData.sql_query || document.getElementById('sql-query').innerText,
+                tags: tags ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [], // Convert to array format
+                folder: folder,
+                notes: notes,
+                model: currentQueryData.model || document.getElementById('model').value,
+                execution_id: executionId || '', // Add execution_id from API response
+                // Required fields with default values if not available
+                prompt_tokens: currentQueryData.prompt_tokens || 0,
+                completion_tokens: currentQueryData.completion_tokens || 0,
+                total_tokens: currentQueryData.total_tokens || 0,
+                input_cost: currentQueryData.input_cost || 0.0,
+                output_cost: currentQueryData.output_cost || 0.0,
+                total_cost: currentQueryData.total_cost || 0.0,
+                query_executed: true
+            };
+            
+            try {
+                console.log('Saving query with data:', saveData);
+                
+                // Use the hardcoded API endpoint URL
+                const apiUrl = 'http://localhost:8002/saved_queries';
+                console.log(`Sending save query request to: ${apiUrl}`);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Client-ID': clientId  // Add client ID to request headers for consistency
+                    },
+                    body: JSON.stringify(saveData)
+                });
+                
+                console.log('Save query response status:', response.status);
+                const result = await response.json();
+                console.log('Save query response:', result);
+                
+                if (response.ok) {
+                    alert('Query saved successfully!');
+                    closeSaveQueryModal();
+                    loadSavedQueries(); // Refresh the saved queries list
+                } else {
+                    alert('Error saving query: ' + (result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving query:', error);
+                alert('Error saving query: ' + error.message);
+            }
+        }
+        
+        // Load saved queries from backend
+        async function loadSavedQueries() {
+            const clientId = document.getElementById('client').value;
+            const savedQueriesList = document.getElementById('saved-queries-list');
+            savedQueriesList.innerHTML = '<p>Loading saved queries...</p>';
+            
+            try {
+                const apiUrl = 'http://localhost:8002/saved_queries';
+                console.log('Loading saved queries for client:', clientId);
+                const response = await fetch(`${apiUrl}?client_id=${clientId}`);
+                console.log('Load queries response status:', response.status);
+                const data = await response.json();
+                console.log('Load queries response:', data);
+                
+                if (response.ok && data.queries && data.queries.length > 0) {
+                    // Store the queries globally
+                    window.savedQueriesList = data.queries;
+                    
+                    // Extract unique tags and folders
+                    savedQueryTags = new Set();
+                    savedQueryFolders = new Set();
+                    data.queries.forEach(query => {
+                        if (query.tags) {
+                            // Simplified tag handling - consistent with displaySavedQueries
+                            let cleanTags = [];
+                            
+                            if (Array.isArray(query.tags)) {
+                                // If it's already an array, just use the values directly
+                                cleanTags = query.tags.map(tag => {
+                                    if (typeof tag === 'string') {
+                                        return tag.trim();
+                                    }
+                                    return String(tag);
+                                }).filter(tag => tag); // Remove empty tags
+                            } else if (typeof query.tags === 'string') {
+                                // For string format, normalize by removing any nested brackets and quotes
+                                const normalizedTagsStr = query.tags
+                                    .replace(/\[+/g, '') // Remove all opening brackets
+                                    .replace(/\]+/g, '') // Remove all closing brackets
+                                    .replace(/["']+/g, '') // Remove all quotes
+                                    .replace(/\\+/g, ''); // Remove all backslashes
+                                    
+                                // Split by comma and clean
+                                cleanTags = normalizedTagsStr.split(',').map(tag => tag.trim()).filter(tag => tag);
+                            }
+                            
+                            // Add clean tags to the set
+                            cleanTags.forEach(tag => {
+                                if (tag) savedQueryTags.add(tag);
+                            });
+                        }
+                        if (query.folder) savedQueryFolders.add(query.folder);
+                    });
+                    
+                    // Update filter dropdowns
+                    updateFilterDropdowns();
+                    
+                    // Display the queries
+                    displaySavedQueries(data.queries);
+                } else {
+                    savedQueriesList.innerHTML = '<p>No saved queries found.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading saved queries:', error);
+                savedQueriesList.innerHTML = `<p>Error loading saved queries: ${error.message}</p>`;
+            }
+        }
+        
+        // Update filter dropdowns with tags and folders
+        function updateFilterDropdowns() {
+            const tagFilter = document.getElementById('saved-queries-tag-filter');
+            const folderFilter = document.getElementById('saved-queries-folder-filter');
+            
+            // Clear existing options except the first one
+            while (tagFilter.options.length > 1) tagFilter.remove(1);
+            while (folderFilter.options.length > 1) folderFilter.remove(1);
+            
+            // Add tags to dropdown
+            Array.from(savedQueryTags).sort().forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag;
+                option.textContent = tag;
+                tagFilter.appendChild(option);
+            });
+            
+            // Add folders to dropdown
+            Array.from(savedQueryFolders).sort().forEach(folder => {
+                const option = document.createElement('option');
+                option.value = folder;
+                option.textContent = folder;
+                folderFilter.appendChild(option);
+            });
+        }
+        
+        // Filter saved queries based on selection
+        function filterSavedQueries() {
+            const filterType = document.getElementById('saved-queries-filter').value;
+            const tagFilter = document.getElementById('saved-queries-tag-filter');
+            const folderFilter = document.getElementById('saved-queries-folder-filter');
+            
+            // Show/hide appropriate filter dropdown
+            tagFilter.style.display = filterType === 'tag' ? 'inline-block' : 'none';
+            folderFilter.style.display = filterType === 'folder' ? 'inline-block' : 'none';
+            
+            // Apply filter
+            let filteredQueries = window.savedQueriesList;
+            
+            if (filterType === 'tag' && tagFilter.value) {
+                filteredQueries = filteredQueries.filter(query => {
+                    if (!query.tags) return false;
+                    
+                    if (Array.isArray(query.tags)) {
+                        return query.tags.includes(tagFilter.value);
+                    } else if (typeof query.tags === 'string') {
+                        return query.tags.split(',').map(t => t.trim()).includes(tagFilter.value);
+                    }
+                    return false;
+                });
+            } else if (filterType === 'folder' && folderFilter.value) {
+                filteredQueries = filteredQueries.filter(query => 
+                    query.folder === folderFilter.value
+                );
+            }
+            
+            // Display filtered queries
+            displaySavedQueries(filteredQueries);
+        }
+        
+        // Display saved queries in the list
+        function displaySavedQueries(queries) {
+            const savedQueriesList = document.getElementById('saved-queries-list');
+            savedQueriesList.innerHTML = '';
+            
+            // Debug: Log the structure of the first query to see what fields are available
+            if (queries.length > 0) {
+                console.log('First query object structure:', queries[0]);
+                console.log('Query ID field:', queries[0].id);
+            }
+            
+            if (queries.length === 0) {
+                savedQueriesList.innerHTML = '<p>No saved queries found.</p>';
+                return;
+            }
+            
+            // Create a table for saved queries
+            const table = document.createElement('table');
+            table.className = 'saved-queries-table';
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            
+            // Create table header
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            ['Prompt', 'SQL Query', 'Tags', 'Folder', 'Actions'].forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                th.style.padding = '8px';
+                th.style.textAlign = 'left';
+                th.style.borderBottom = '1px solid #ddd';
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // Create table body
+            const tbody = document.createElement('tbody');
+            queries.forEach(query => {
+                const row = document.createElement('tr');
+                
+                // Prompt column
+                const promptCell = document.createElement('td');
+                promptCell.textContent = query.prompt || 'N/A';
+                promptCell.style.padding = '8px';
+                promptCell.style.borderBottom = '1px solid #ddd';
+                row.appendChild(promptCell);
+                
+                // SQL Query column
+                const sqlCell = document.createElement('td');
+                sqlCell.textContent = query.sql_query ? (query.sql_query.length > 50 ? query.sql_query.substring(0, 50) + '...' : query.sql_query) : 'N/A';
+                sqlCell.style.padding = '8px';
+                sqlCell.style.borderBottom = '1px solid #ddd';
+                row.appendChild(sqlCell);
+                
+                // Tags column
+                const tagsCell = document.createElement('td');
+                let tagsText = 'N/A';
+                if (query.tags) {
+                    // Simplified tag handling
+                    let cleanTags = [];
+                    
+                    if (Array.isArray(query.tags)) {
+                        // If it's already an array, just use the values directly
+                        cleanTags = query.tags.map(tag => {
+                            if (typeof tag === 'string') {
+                                return tag.trim();
+                            }
+                            return String(tag);
+                        }).filter(tag => tag); // Remove empty tags
+                    } else if (typeof query.tags === 'string') {
+                        // For string format, normalize by removing any nested brackets and quotes
+                        const normalizedTagsStr = query.tags
+                            .replace(/\[+/g, '') // Remove all opening brackets
+                            .replace(/\]+/g, '') // Remove all closing brackets
+                            .replace(/["']+/g, '') // Remove all quotes
+                            .replace(/\\+/g, ''); // Remove all backslashes
+                            
+                        // Split by comma and clean
+                        cleanTags = normalizedTagsStr.split(',').map(tag => tag.trim()).filter(tag => tag);
+                    }
+                    
+                    tagsText = cleanTags.length > 0 ? cleanTags.join(', ') : 'N/A';
+                }
+                tagsCell.textContent = tagsText;
+                tagsCell.style.padding = '8px';
+                tagsCell.style.borderBottom = '1px solid #ddd';
+                row.appendChild(tagsCell);
+                
+                // Folder column
+                const folderCell = document.createElement('td');
+                folderCell.textContent = query.folder || 'N/A';
+                folderCell.style.padding = '8px';
+                folderCell.style.borderBottom = '1px solid #ddd';
+                row.appendChild(folderCell);
+                
+                // Actions column
+                const actionsCell = document.createElement('td');
+                actionsCell.style.padding = '8px';
+                actionsCell.style.borderBottom = '1px solid #ddd';
+                
+                // Create a container div for buttons to control layout
+                const buttonContainer = document.createElement('div');
+                buttonContainer.style.display = 'flex';
+                buttonContainer.style.justifyContent = 'center';
+                buttonContainer.style.gap = '5px'; // Space between buttons
+                
+                // Execute button
+                const executeBtn = document.createElement('button');
+                executeBtn.textContent = 'Execute';
+                executeBtn.className = 'btn btn-primary';
+                executeBtn.style.padding = '3px 8px'; // Smaller padding
+                executeBtn.style.fontSize = '0.85rem'; // Smaller font
+                executeBtn.onclick = () => executeSavedQuery(query.id);
+                buttonContainer.appendChild(executeBtn);
+                
+                // Delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.className = 'btn btn-danger'; // Red color for delete
+                deleteBtn.style.padding = '3px 8px'; // Smaller padding
+                deleteBtn.style.fontSize = '0.85rem'; // Smaller font
+                deleteBtn.style.backgroundColor = '#dc3545'; // Ensure red background
+                deleteBtn.style.borderColor = '#dc3545'; // Ensure red border
+                deleteBtn.style.color = 'white'; // White text for better contrast
+                deleteBtn.onclick = () => deleteSavedQuery(query.id);
+                buttonContainer.appendChild(deleteBtn);
+                
+                // Add the button container to the cell
+                actionsCell.appendChild(buttonContainer);
+                
+                row.appendChild(actionsCell);
+                tbody.appendChild(row);
+            });
+            
+            table.appendChild(tbody);
+            savedQueriesList.appendChild(table);
+        }
+        
+        // Execute a saved query
+        async function executeSavedQuery(queryId) {
+            try {
+                // Check if queryId is valid
+                if (!queryId) {
+                    console.error('Invalid query ID:', queryId);
+                    alert('Error: Invalid query ID');
+                    return;
+                }
+                
+                // First get the execution data for the saved query
+                const apiUrl = 'http://localhost:8002/saved_queries';
+                console.log('Executing saved query with ID:', queryId);
+                console.log('API URL:', `${apiUrl}/execution_data/${queryId}`);
+                const response = await fetch(`${apiUrl}/execution_data/${queryId}`);
+                console.log('Execute saved query response status:', response.status);
+                const data = await response.json();
+                console.log('Execute saved query response:', data);
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to get execution data');
+                }
+                
+                // Now execute the query using the unified endpoint
+                const executionData = data.execution_data;
+                
+                // Update the UI to show what we're executing
+                document.getElementById('prompt').value = executionData.prompt || '';
+                document.getElementById('model').value = executionData.model || 'openai';
+                document.getElementById('client').value = executionData.client_id || 'mts';
+                
+                // Update RAG parameters in UI
+                const useRag = executionData.use_rag || false;
+                document.getElementById('use-rag').checked = useRag;
+                
+                // Show/hide RAG parameters section based on use_rag value
+                const ragParameters = document.getElementById('rag-parameters');
+                ragParameters.style.display = useRag ? 'block' : 'none';
+                
+                // Set top_k if available
+                if (executionData.top_k) {
+                    document.getElementById('top-k').value = executionData.top_k;
+                }
+                
+                // Set enable_reranking if available
+                document.getElementById('enable-reranking').checked = executionData.enable_reranking || false;
+                
+                // Set feedback time window if available
+                if (executionData.feedback_time_window_minutes) {
+                    document.getElementById('feedback-time-window').value = executionData.feedback_time_window_minutes;
+                }
+                
+                // Update include charts checkbox
+                document.getElementById('include-charts').checked = executionData.include_charts !== false; // Default to true if not specified
+                
+                // Show loading indicator
+                document.getElementById('loading').style.display = 'flex';
+                
+                // Make the API call to the unified endpoint
+                const unifiedApiUrl = 'http://localhost:8002/query/unified';
+                console.log('Sending saved query to unified endpoint:', unifiedApiUrl);
+                console.log('Execution data:', executionData);
+                
+                fetch(unifiedApiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Client-ID': executionData.client_id || 'mts'
+                    },
+                    body: JSON.stringify(executionData)
+                })
+                .then(response => {
+                    console.log('Unified endpoint response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`API responded with status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Unified endpoint response:', data);
+                    
+                    // Store the API response
+                    window.unifiedApiResponse = data;
+                    window.lastApiResponse = data;
+                    
+                    // Initialize or update currentQueryData with the saved query data
+                    if (!currentQueryData) {
+                        currentQueryData = {
+                            prompt: executionData.prompt || '',
+                            model: executionData.model || 'openai',
+                            client_id: executionData.client_id || 'mts',
+                            execution_id: data.execution_id || '',
+                            query_executed: true
+                        };
+                    } else {
+                        // Update the currentQueryData with the new execution_id
+                        currentQueryData.execution_id = data.execution_id || '';
+                    }
+                    
+                    // Update query metrics from the API response
+                    updateQueryMetrics(data);
+                    
+                    // Hide loading indicator
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('results').style.display = 'block';
+                    
+                    // Process the response exactly like executeQuery does
+                    // Display SQL
+                    let sqlToDisplay = data.sql || data.query || 'No SQL query available';
+                    const sqlQueryElement = document.getElementById('sql-query');
+                    if (sqlQueryElement) {
+                        const formattedSQL = formatSQLQuery(sqlToDisplay);
+                        sqlQueryElement.innerHTML = formattedSQL;
+                        originalSql = sqlToDisplay;
+                        
+                        // Show the Edit This Query and Save Query buttons
+                        const editQueryBtn = document.getElementById('edit-query-btn');
+                        const saveQueryBtn = document.getElementById('save-query-btn-results');
+                        if (editQueryBtn) {
+                            editQueryBtn.style.display = 'inline-block';
+                        }
+                        if (saveQueryBtn) {
+                            saveQueryBtn.style.display = 'inline-block';
+                        }
+                    }
+                    
+                    // Display query results
+                    document.getElementById('query-results').textContent = JSON.stringify(data.query_output, null, 2);
+                    
+                    // Update token metrics
+                    updateQueryMetrics(data);
+                    
+                    // Display charts if available
+                    const chartsContainer = document.getElementById('charts');
+                    chartsContainer.innerHTML = ''; // Clear previous charts
+                    
+                    if (data.chart_recommendations && data.chart_recommendations.length > 0) {
+                        // Switch to charts tab
+                        showTab('charts-content');
+                        
+                        // Render charts
+                        data.chart_recommendations.forEach((chartRec, index) => {
+                            // Create chart container
+                            const chartDiv = document.createElement('div');
+                            chartDiv.className = 'chart-card';
+                            
+                            try {
+                                // Create chart title
+                                const chartTitle = document.createElement('h3');
+                                chartTitle.textContent = chartRec.chart_config?.title || `Chart ${index + 1}`;
+                                chartDiv.appendChild(chartTitle);
+                                
+                                // Create chart reason
+                                const chartReason = document.createElement('p');
+                                chartReason.textContent = chartRec.reasoning || 'No reasoning provided';
+                                chartDiv.appendChild(chartReason);
+                                
+                                // Create plot div
+                                const plotDiv = document.createElement('div');
+                                plotDiv.id = `chart-${Date.now()}-${index}`;
+                                plotDiv.className = 'plot-container';
+                                chartDiv.appendChild(plotDiv);
+                                chartsContainer.appendChild(chartDiv);
+                                
+                                // Render chart
+                                renderChart(chartRec, data.query_output, plotDiv.id);
+                            } catch (chartError) {
+                                console.error(`Error rendering chart ${index + 1}:`, chartError);
+                                const errorMessage = document.createElement('p');
+                                errorMessage.style.color = 'red';
+                                errorMessage.textContent = `Error rendering chart: ${chartError.message}`;
+                                chartDiv.appendChild(errorMessage);
+                                chartsContainer.appendChild(chartDiv);
+                            }
+                        });
+                    } else {
+                        // No charts available
+                        const noCharts = document.createElement('div');
+                        noCharts.className = 'card';
+                        noCharts.style.padding = '15px';
+                        noCharts.style.marginBottom = '20px';
+                        noCharts.style.backgroundColor = '#f5f5f5';
+                        noCharts.style.borderLeft = '4px solid #9e9e9e';
+                        
+                        if (data.chart_error) {
+                            noCharts.innerHTML = `
+                                <h3>Chart Visualization Unavailable</h3>
+                                <p>${data.chart_error}</p>
+                            `;
+                        } else {
+                            noCharts.innerHTML = `
+                                <h3>Chart Visualization Unavailable</h3>
+                                <p>No chart recommendations available for this query result.</p>
+                            `;
+                        }
+                        chartsContainer.appendChild(noCharts);
+                    }
+                    
+                    // Switch to the results tab
+                    showTab('nlq-tab');
+                })
+                .catch(error => {
+                    console.error('Error executing saved query via unified endpoint:', error);
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('query-results').textContent = `Error executing query: ${error.message}`;
+                    document.getElementById('results').style.display = 'block';
+                    alert('Error executing saved query: ' + error.message);
+                });
+                
+            } catch (error) {
+                console.error('Error executing saved query:', error);
+                alert('Error executing saved query: ' + error.message);
+            }
+        }
+        
+        // Delete a saved query
+        async function deleteSavedQuery(queryId) {
+            if (!confirm('Are you sure you want to delete this saved query?')) {
+                return;
+            }
+            
+            // Check if queryId is valid
+            if (!queryId) {
+                console.error('Invalid query ID for deletion:', queryId);
+                alert('Error: Invalid query ID for deletion');
+                return;
+            }
+            
+            try {
+                const apiUrl = 'http://localhost:8002/saved_queries';
+                console.log('Deleting saved query with ID:', queryId);
+                console.log('Delete API URL:', `${apiUrl}/${queryId}`);
+                const response = await fetch(`${apiUrl}/${queryId}`, {
+                    method: 'DELETE'
+                });
+                
+                console.log('Delete query response status:', response.status);
+                const data = await response.json();
+                console.log('Delete query response:', data);
+                
+                if (response.ok) {
+                    alert('Query deleted successfully!');
+                    loadSavedQueries(); // Refresh the list
+                } else {
+                    alert('Error deleting query: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error deleting saved query:', error);
+                alert('Error deleting saved query: ' + error.message);
+            }
+        }
+        
+        // Add event listener to load saved queries when the tab is clicked
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedQueriesTabButton = document.querySelector('button[data-tab="saved-queries-content"]');
+            if (savedQueriesTabButton) {
+                savedQueriesTabButton.addEventListener('click', loadSavedQueries);
+            }
+        });
+        
+        // Update the executeQuery function to store query data for saving
+        const originalExecuteQuery = window.executeQuery;
+        window.executeQuery = function(mode) {
+            // Store the current query data for potential saving
+            currentQueryData = {
+                prompt: document.getElementById('prompt').value,
+                model: document.getElementById('model').value,
+                client_id: document.getElementById('client').value,
+                // Default values for required fields
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0,
+                input_cost: 0.0,
+                output_cost: 0.0,
+                total_cost: 0.0,
+                query_executed: true,
+                execution_id: '' // Initialize execution_id field
+                // sql_query will be added after execution when it's available
+            };
+            
+            // Call the original function
+            return originalExecuteQuery(mode);
+        };
+        
+        // Update token usage and costs when API response is received
+        const updateQueryMetrics = function(apiResponse) {
+            if (apiResponse) {
+                // Capture execution_id from API response
+                if (apiResponse.execution_id) {
+                    console.log('Capturing execution_id from API response:', apiResponse.execution_id);
+                    currentQueryData.execution_id = apiResponse.execution_id;
+                }
+                
+                if (apiResponse.token_usage) {
+                    currentQueryData.prompt_tokens = apiResponse.token_usage.prompt_tokens || 0;
+                    currentQueryData.completion_tokens = apiResponse.token_usage.completion_tokens || 0;
+                    currentQueryData.total_tokens = apiResponse.token_usage.total_tokens || 0;
+                    currentQueryData.input_cost = apiResponse.token_usage.input_cost || 0.0;
+                    currentQueryData.output_cost = apiResponse.token_usage.output_cost || 0.0;
+                    currentQueryData.total_cost = apiResponse.token_usage.total_cost || 0.0;
+                }
+                
+                // Store the actual model name from the API response
+                if (apiResponse.model_used) {
+                    console.log('Updating model name from API response:', apiResponse.model_used);
+                    currentQueryData.model = apiResponse.model_used;
+                }
+                
+                if (apiResponse.sql_query) {
+                    currentQueryData.sql_query = apiResponse.sql_query;
+                }
+            }
+        };
         
         // Store both types of API responses
         window.unifiedApiResponse = null; // From /query/unified endpoint
@@ -4406,6 +5166,12 @@
             // Debug information
             const resultsContainer = document.getElementById('results');
             
+            // Log the full response for debugging
+            console.log('Full API Response:', data);
+            
+            // Log all available properties in the response
+            console.log('Available properties in response:', Object.keys(data));
+            
             // Remove any existing debug info cards
             const existingDebugCards = resultsContainer.querySelectorAll('.card:not(:last-child)');
             existingDebugCards.forEach(card => card.remove());
@@ -4414,13 +5180,28 @@
             debugInfo.className = 'card';
             debugInfo.style.marginBottom = '20px';
             debugInfo.style.backgroundColor = '#f8f9fa';
+            // Format token usage for display
+            let tokenUsageDisplay = 'Not available';
+            if (data.token_usage) {
+                if (typeof data.token_usage === 'object') {
+                    tokenUsageDisplay = Object.entries(data.token_usage)
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join('<br>');
+                } else {
+                    tokenUsageDisplay = data.token_usage;
+                }
+            }
+
             debugInfo.innerHTML = `
                 <h3>API Response Debug Info</h3>
                 <p>Model Used: ${data.model_used || 'Not specified'}</p>
                 <p>Success: ${data.success ? 'Yes' : 'No'}</p>
-                <p>Token Usage: ${data.token_usage || 'Not available'}</p>
+                <p>Token Usage: <br>${tokenUsageDisplay}</p>
+                <p>Feedback Mode: ${data.feedback_mode || 'Not specified'}</p>
+                <p>Used RAG: ${data.used_rag ? 'Yes' : 'No'}</p>
                 <p>Chart Recommendations: ${data.chart_recommendations ? 'Available (' + data.chart_recommendations.length + ')' : 'Not available'}</p>
                 <p>Data Insights: ${data.data_insights ? 'Available (' + data.data_insights.length + ')' : 'Not available'}</p>
+                <p>Execution ID: ${data.execution_id || 'Not available'}</p>
             `;
             resultsContainer.insertBefore(debugInfo, resultsContainer.firstChild);
             
@@ -4776,6 +5557,29 @@
         }
     </script>
     
+    <!-- Save Query Modal -->
+    <div id="save-query-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div style="background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 60%; max-width: 600px; border-radius: 5px;">
+            <h2>Save Query</h2>
+            <div class="form-group">
+                <label for="save-query-tags">Tags (comma separated):</label>
+                <input type="text" id="save-query-tags" placeholder="performance, sales, regional" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+            </div>
+            <div class="form-group">
+                <label for="save-query-folder">Folder:</label>
+                <input type="text" id="save-query-folder" placeholder="Sales Analysis" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+            </div>
+            <div class="form-group">
+                <label for="save-query-notes">Notes:</label>
+                <textarea id="save-query-notes" rows="3" placeholder="Add any notes about this query..." style="width: 100%; padding: 8px; margin-bottom: 15px;"></textarea>
+            </div>
+            <div style="text-align: right;">
+                <button onclick="closeSaveQueryModal()" class="btn btn-secondary" style="margin-right: 10px;">Cancel</button>
+                <button onclick="saveQuery()" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+    
     <style>
         /* Inline spinner for buttons */
         .spinner-inline {
@@ -4798,5 +5602,51 @@
             pointer-events: none !important;
         }
     </style>
+    
+    <!-- Script to patch executeQuery function to update query metrics for saved queries -->
+    <script>
+        // Wait for the page to fully load before patching functions
+        document.addEventListener('DOMContentLoaded', function() {
+            // Store the original fetch then handler
+            const originalFetchThen = fetch;
+            
+            // Patch the fetch function to intercept API responses
+            window.fetch = function() {
+                const fetchPromise = originalFetchThen.apply(this, arguments);
+                
+                // Check if this is a query API call
+                const url = arguments[0];
+                if (url && (url.includes('/query/unified') || url.includes('/execute-query'))) {
+                    console.log('Intercepting query API call to:', url);
+                    
+                    // Intercept the response
+                    return fetchPromise.then(response => {
+                        // Clone the response so we can read it multiple times
+                        const clonedResponse = response.clone();
+                        
+                        // Process the cloned response
+                        clonedResponse.json().then(data => {
+                            console.log('Intercepted API response, updating query metrics');
+                            if (typeof updateQueryMetrics === 'function') {
+                                updateQueryMetrics(data);
+                            } else {
+                                console.warn('updateQueryMetrics function not available');
+                            }
+                        }).catch(err => {
+                            console.error('Error processing intercepted response:', err);
+                        });
+                        
+                        // Return the original response
+                        return response;
+                    });
+                }
+                
+                // For non-query API calls, just return the original promise
+                return fetchPromise;
+            };
+            
+            console.log('Patched fetch function to update query metrics after API responses');
+        });
+    </script>
 </body>
 </html>

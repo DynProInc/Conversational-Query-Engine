@@ -9,6 +9,9 @@ import re
 from typing import Dict, List, Any, Optional
 from token_logger import TokenLogger
 
+# Import cache utilities
+from cache_utils import cache_manager
+
 # Import Google GenerativeAI (Gemini) SDK
 gemini_available = False
 genai_with_token_counter = False
@@ -737,6 +740,23 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
     Returns:
         Dictionary with SQL query, token usage and other metadata
     """
+    # Check cache first
+    cache_context = {
+        'function': 'natural_language_to_sql_gemini',
+        'model': model,
+        'limit_rows': limit_rows,
+        'include_charts': include_charts,
+        'use_rag': use_rag,
+        'top_k': top_k,
+        'enable_reranking': enable_reranking
+    }
+    
+    cached_result = cache_manager.get(query, client_id, cache_context)
+    if cached_result is not None:
+        print(f"Cache HIT for Gemini query: '{query[:30]}...' - client: {client_id}")
+        return cached_result
+    
+    print(f"Cache MISS for Gemini query: '{query[:30]}...' - client: {client_id}")
     import os
     import datetime
     import logging
@@ -983,6 +1003,11 @@ def natural_language_to_sql_gemini(query: str, data_dictionary_path: Optional[st
             "query": query,
             "data_dictionary": data_dictionary_path
         })
+        
+        # Cache the result
+        ttl = cache_manager.config.QUERY_GENERATION_TTL
+        cache_manager.set(query, result, client_id, cache_context, ttl=ttl)
+        
         return result
     except Exception as e:
         execution_time_ms = (datetime.datetime.now() - start_time).total_seconds() * 1000

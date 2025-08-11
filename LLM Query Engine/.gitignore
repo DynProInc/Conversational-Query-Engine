@@ -99,6 +99,12 @@ celerybeat-schedule
 # token_usage.csv - keeping accessible for reporting
 *.log
 
+# Automatically generated files
+saved_queries.csv
+feedback/executions.csv
+feedback/feedback.csv
+cache/query_cache.csv
+
 # OS generated files
 .DS_Store
 Thumbs.db

@@ -12,6 +12,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+# Import cache utilities
+from cache_utils import cache_manager
+
 # Import SQL structure analysis tools
 from sql_structure_utils import is_column_structure_changed, validate_read_only_sql
 
@@ -71,6 +74,21 @@ async def execute_query(request: ExecuteQueryRequest, data_dictionary_path: Opti
     start_time = time.time()
     
     try:
+        # Check cache first for identical SQL queries
+        cache_context = {
+            'function': 'execute_query',
+            'limit_rows': request.limit_rows,
+            'include_charts': request.include_charts,
+            'model': request.model
+        }
+        
+        cached_result = cache_manager.get(request.query, request.client_id, cache_context)
+        if cached_result is not None:
+            print(f"Cache HIT for SQL execution: '{request.query[:30]}...' - client: {request.client_id}")
+            return ExecuteQueryResponse(**cached_result)
+        
+        print(f"Cache MISS for SQL execution: '{request.query[:30]}...' - client: {request.client_id}")
+        
         # Validate query for read-only operations
         sql = request.query
         validation_result = validate_read_only_sql(sql)
@@ -180,6 +198,10 @@ async def execute_query(request: ExecuteQueryRequest, data_dictionary_path: Opti
                     response.chart_recommendations = chart_recommendations
             except Exception as e:
                 response.chart_error = f"Error generating chart recommendations: {str(e)}"
+        
+        # Cache the successful response
+        ttl = cache_manager.config.SQL_EXECUTION_TTL
+        cache_manager.set(sql, response.dict(), request.client_id, cache_context, ttl=ttl)
         
         return response
         

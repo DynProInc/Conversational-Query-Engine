@@ -10,6 +10,9 @@ import traceback
 from typing import Dict, List, Any, Optional
 from token_logger import TokenLogger
 
+# Import cache utilities
+from cache_utils import cache_manager
+
 # Load environment variables from .env file
 dotenv.load_dotenv()
 
@@ -871,6 +874,23 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
     Returns:
         Dictionary with SQL query, token usage and other metadata
     """
+    # Check cache first
+    cache_context = {
+        'function': 'natural_language_to_sql_claude',
+        'model': model,
+        'limit_rows': limit_rows,
+        'include_charts': include_charts,
+        'use_rag': use_rag,
+        'top_k': top_k,
+        'enable_reranking': enable_reranking
+    }
+    
+    cached_result = cache_manager.get(query, client_id, cache_context)
+    if cached_result is not None:
+        print(f"Cache HIT for Claude query: '{query[:30]}...' - client: {client_id}")
+        return cached_result
+    
+    print(f"Cache MISS for Claude query: '{query[:30]}...' - client: {client_id}")
     import logging
     import os  # Ensure os is imported at function scope
     import sys  # Import sys at function scope
@@ -1051,14 +1071,20 @@ def natural_language_to_sql_claude(query: str, data_dictionary_path: str = None,
             logger.info("Processed SQL query to handle escape sequences")
             print("[Claude Query Generator] Processed SQL with escape sequences")
         
+        # Add execution time to result
+        end_time = datetime.datetime.now()
+        result["execution_time_ms"] = (end_time - start_time).total_seconds() * 1000
+        
         # Add additional metadata
         result.update({
-            "execution_time_ms": (datetime.datetime.now() - start_time).total_seconds() * 1000,
             "timestamp": datetime.datetime.now().isoformat(),
             "query": query,
             "data_dictionary": data_dictionary_path
         })
         
+        # Cache the result
+        ttl = cache_manager.config.QUERY_GENERATION_TTL
+        cache_manager.set(query, result, client_id, cache_context, ttl=ttl)
         
         return result
     

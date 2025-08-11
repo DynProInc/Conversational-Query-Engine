@@ -11,6 +11,9 @@ import dotenv
 from typing import Dict, List, Any, Optional, Union
 from token_logger import TokenLogger
 
+# Import cache utilities
+from cache_utils import cache_manager
+
 # Load environment variables from .env file
 dotenv.load_dotenv()
 
@@ -714,6 +717,7 @@ def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = No
     
     Args:
         query: Natural language query
+{{ ... }}
         data_dictionary_path: Path to data dictionary Excel/CSV
         api_key: OpenAI API key (will use environment variable if not provided)
         model: OpenAI model to use
@@ -727,6 +731,24 @@ def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = No
     Returns:
         Dictionary with SQL query, token usage and other metadata
     """
+    # Check cache first
+    cache_context = {
+        'function': 'natural_language_to_sql',
+        'model_provider': model_provider,
+        'model': model,
+        'limit_rows': limit_rows,
+        'include_charts': include_charts,
+        'use_rag': use_rag,
+        'top_k': top_k,
+        'enable_reranking': enable_reranking
+    }
+    
+    cached_result = cache_manager.get(query, client_id, cache_context)
+    if cached_result is not None:
+        print(f"Cache HIT for query: '{query[:30]}...' - client: {client_id}")
+        return cached_result
+    
+    print(f"Cache MISS for query: '{query[:30]}...' - client: {client_id}")
     # Choose appropriate API key and model provider
     if model_provider.lower() == "claude":
         # Import Claude functionality only when needed
@@ -981,12 +1003,16 @@ def natural_language_to_sql(query: str, data_dictionary_path: Optional[str] = No
         "execution_time_ms": (datetime.datetime.now() - start_time).total_seconds() * 1000
     })
     
+    # Cache the result
+    ttl = cache_manager.config.QUERY_GENERATION_TTL
+    cache_manager.set(query, result, client_id, cache_context, ttl=ttl)
+    
     return result
 
 
 # Example usage
 if __name__ == "__main__":
-    # Example usage
+    # ... (rest of the code remains the same)
     from pprint import pprint
     import sys
     import argparse

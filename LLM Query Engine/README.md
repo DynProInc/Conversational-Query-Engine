@@ -1,15 +1,16 @@
 # LLM Query Engine
 
-A powerful conversational query engine that converts natural language questions into SQL queries and executes them against Snowflake databases. Supports multiple LLM providers (OpenAI, Anthropic Claude, and Google Gemini) with strict client isolation and dynamic configuration.
+A powerful conversational query engine that converts natural language questions into SQL queries and executes them against Snowflake databases. Supports multiple LLM providers (OpenAI, Anthropic Claude, and Google Gemini) with strict client isolation, dynamic configuration, and RAG-enhanced context retrieval.
 
 ## Overview
 
 This system allows users to query data in Snowflake databases using natural language. The engine:
 - Converts natural language questions to SQL using state-of-the-art LLMs
-- Executes the generated SQL against Snowflake
+- Utilizes Retrieval-Augmented Generation (RAG) for efficient schema context retrieval
+- Executes the generated SQL against Snowflake with strict read-only validation
 - Returns the query results in a structured format with interactive visualizations
 - Tracks token usage and costs for all LLM interactions
-- Supports multiple clients with isolated configurations and API keys
+- Supports multiple clients with isolated configurations, API keys, and data dictionaries
 
 ## Architecture
 
@@ -19,25 +20,28 @@ The codebase follows a modular architecture to support multiple LLM providers an
 
 1. **API Server** (`api_server.py`): FastAPI server that exposes endpoints for:
    - Converting natural language to SQL
-   - Executing SQL against Snowflake
+   - Executing SQL against Snowflake with read-only validation
    - Client-specific and system-wide health checks
    - Model and client listings
    - Unified query endpoint with support for all models simultaneously
+   - RAG-enhanced context retrieval
 
 2. **LLM Query Generators**:
    - OpenAI implementation (`llm_query_generator.py`)
    - Claude implementation (`claude_query_generator.py`) 
    - Gemini implementation (`gemini_query_generator.py`)
+   - All with proper escape sequence handling for SQL generation
 
 3. **End-to-End Pipelines**:
    - OpenAI: `nlq_to_snowflake.py`
    - Claude: `nlq_to_snowflake_claude.py`
    - Gemini: `nlq_to_snowflake_gemini.py`
+   - All with strict client-specific API key validation and no automatic fallbacks
 
 4. **Database Connector** (`snowflake_runner.py`):
    - Handles Snowflake connectivity with client-specific credentials
    - Automatically activates the specified warehouse before query execution
-   - Executes SQL queries
+   - Executes SQL queries with read-only validation
    - Returns results as pandas DataFrames
 
 5. **Token Logger** (`token_logger.py`):
@@ -47,45 +51,85 @@ The codebase follows a modular architecture to support multiple LLM providers an
 
 ### Supporting Components
 
-1. **Health Checks** (`health_check_utils.py`):
+1. **RAG System** (`milvus-setup/`):
+   - Retrieval-Augmented Generation for efficient schema context
+   - Reduces token usage by 50-60% compared to full schema context
+   - Uses Milvus vector database with IP (Inner Product) metric
+   - Dynamic index selection based on dataset size:
+     - HNSW index for smaller datasets (<100,000 rows) with M=16 and efConstruction=200
+     - IVF_FLAT index for larger datasets (≥100,000 rows) with dynamic nlist values:
+       - nlist=100 for <50,000 rows
+       - nlist=1024 for 50,000-500,000 rows
+       - nlist=4096 for >500,000 rows
+   - Advanced reranking with multiple model options:
+     - Primary: BAAI/bge-reranker-large for highest accuracy
+     - Fallback models: BAAI/bge-reranker-base and Qwen/Qwen3-Reranker-0.6B
+     - Score fusion combining vector search and reranker scores
+   - Client-specific collections with isolated embeddings
+
+2. **Health Checks** (`health_check_utils.py`):
    - System-wide health endpoint (`/health`)
    - Client-specific health checks (`/health/client/{client_id}`)
    - Comprehensive client health dashboard (`/health/client`)
    - Verifies API keys, model configurations, and Snowflake connections
    - Returns detailed health status with timestamps
 
-2. **Client Manager** (`config/client_manager.py`):
+3. **Client Manager** (`config/client_manager.py`):
    - Manages multiple client configurations
    - Loads client-specific environment variables
    - Enforces strict client-specific API key validation with no automatic fallbacks
    - Provides client-specific data dictionary paths
+   - Prevents cross-client data leakage
 
-3. **Query History** (`prompt_query_history_api.py` & `prompt_query_history_route.py`):
+4. **SQL Validation** (`sql_structure_utils.py` & frontend):
+   - Frontend and backend validation for read-only operations
+   - Clear UI indicators for allowed operations (SELECT, SHOW, DESCRIBE, EXPLAIN only)
+   - Client-specific Snowflake account information display
+   - Dynamic validation messages
+
+5. **Query History** (`prompt_query_history_api.py` & `prompt_query_history_route.py`):
    - Maintains history of user queries
    - Provides context for subsequent queries
 
-4. **Error Handling** (`error_hint_utils.py`):
+6. **Error Handling** (`error_hint_utils.py`):
    - Provides user-friendly error messages
    - Suggests fixes for common issues
    - Consistent error messaging format across all providers
 
-5. **Reporting** (`generate_query_report.py`):
+7. **Reporting** (`generate_query_report.py`):
    - Generates usage reports from token logs
 
-6. **Chart Rendering** (`static/chart_viewer.html`):
+8. **Chart Rendering** (`static/chart_viewer.html`):
    - Interactive data visualizations
    - Supports multiple chart types (line, bar, scatter, pie, area, mixed)
-   - Proper handling of categorical X-axis values
+   - Proper handling of categorical X-axis values with ensureCategoricalXAxis function
+     - Ensures x-axis values are treated as true categories
+     - Applies specific settings for time-based discrete intervals (quarters, years, months)
+     - Implements Plotly.js settings (categoryorder, dtick, constrain) to prevent continuous scaling
+     - Includes null checks to prevent errors with chart types like pie charts
    - Smart scale detection and secondary axis support
+   - Enhanced RAG parameter controls in the UI:
+     - Collapsible section that appears when "Use RAG for context retrieval" is checked
+     - top_k: Number of top results to return from RAG (numeric input)
+     - enable_reranking: Option to enable reranking of RAG results (checkbox)
+     - feedback_time_window_minutes: Time window for feedback in minutes (numeric input)
+   - SQL validation with clear UI indicators:
+     - Prominent warning box showing allowed operations (SELECT, SHOW, DESCRIBE, EXPLAIN only)
+     - Client-specific Snowflake account information display
+     - Client-side validation to prevent disallowed operations
+     - Clear validation messages for forbidden operations
+  
 
 ## Data Flow
 
 1. User submits a natural language question through the API
-2. API server routes the request to the appropriate LLM provider
-3. LLM converts the question to SQL using context from the data dictionary
-4. SQL is optionally executed against Snowflake
-5. Results are returned to the user
-6. Token usage is logged for reporting and billing
+2. API server routes the request to the appropriate LLM provider based on client configuration
+3. If RAG is enabled, relevant schema context is retrieved from Milvus vector database
+4. LLM converts the question to SQL using the retrieved context
+5. SQL is validated for read-only operations and optionally executed against Snowflake
+6. Results are returned to the user with interactive visualizations
+7. Token usage is logged for reporting and billing
+8. Feedback can be collected to improve future queries
 
 ## Token Logging System
 
@@ -102,6 +146,104 @@ Token usage is logged to `token_usage.csv` with metrics including:
 - Token counts (prompt/completion/total)
 - Cost calculations
 - Execution status
+
+## Saved Queries System
+
+The system includes a comprehensive saved queries functionality that allows users to save, organize, retrieve, and execute queries:
+
+### Saved Query Features
+
+- **Query Organization**:
+  - Tag-based filtering
+  - Folder-based organization
+  - Search by content or metadata
+  - Sort by date, usage, or other attributes
+
+- **Query Execution**:
+  - Execute saved queries directly
+  - View execution history
+  - Compare results over time
+
+### Saved Queries API Endpoints
+
+- **Save a Query**:
+  ```
+  POST /saved_queries
+  ```
+  Saves a query with all associated metadata, tags, and folder information.
+
+- **Get All Saved Queries**:
+  ```
+  GET /saved_queries
+  ```
+  Retrieves all saved queries with optional filtering by user, tags, or folders.
+
+- **Get a Specific Saved Query**:
+  ```
+  GET /saved_queries/{query_id}
+  ```
+  Retrieves details for a specific saved query by its ID.
+
+- **Update a Saved Query**:
+  ```
+  PUT /saved_queries/{query_id}
+  ```
+  Updates metadata, tags, folder, or notes for an existing saved query.
+
+- **Delete a Saved Query**:
+  ```
+  DELETE /saved_queries/{query_id}
+  ```
+  Removes a saved query from the system.
+
+- **Execute a Saved Query**:
+  ```
+  POST /saved_queries/execute/{query_id}
+  ```
+  Executes a previously saved query and returns the results.
+
+- **Get All Tags**:
+  ```
+  GET /saved_queries/tags
+  ```
+  Retrieves all unique tags used across saved queries.
+
+- **Get All Folders**:
+  ```
+  GET /saved_queries/folders
+  ```
+  Retrieves all unique folders used for organizing saved queries.
+
+### Saved Queries Storage
+
+Saved queries are stored in `saved_queries.csv` with the following structure:
+- Unique query ID
+- User ID
+- Timestamp
+- Query text (prompt)
+- Generated SQL
+- Model used
+- Token usage statistics
+- Cost calculations
+- Execution status
+- Tags (as JSON array)
+- Folder name
+- Notes
+- Execution ID reference
+- RAG parameters (when applicable)
+
+This file is automatically created if it doesn't exist when the application starts and should be added to `.gitignore` to prevent it from being tracked in version control.
+
+## Automatically Generated Files
+
+The system automatically generates several files during operation that don't need to be tracked in version control:
+
+- **saved_queries.csv**: Stores user-saved queries with metadata as described above
+- **feedback/executions.csv**: Tracks query executions for the feedback system
+- **feedback/feedback.csv**: Stores user feedback on query results
+- **cache/query_cache.csv**: Caches query results to improve performance and reduce API costs
+
+These files are automatically created if they don't exist when the application starts. They should be added to `.gitignore` to prevent them from being tracked in version control.
 
 ## Setup and Configuration
 
@@ -130,12 +272,33 @@ numpy==2.2.6
 # Database
 snowflake-connector-python==3.15.0
 
+# Vector database and embeddings
+pymilvus==2.5.14
+sentence-transformers==2.6.1
+
 # Configuration and environment
 python-dotenv==1.1.0
 
 # Additional dependencies
 # See full requirements.txt for complete list
 ```
+
+### RAG System Setup
+
+The RAG system requires Milvus vector database, which can be set up using Docker:
+
+```bash
+# For Windows
+./milvus-setup/scripts/setup_milvus_containers.ps1
+
+# For Linux/Mac
+./milvus-setup/scripts/setup_milvus_containers.sh
+```
+
+This will start a Milvus standalone instance with the following services:
+- etcd: Configuration and metadata storage
+- minio: Object storage for vector data
+- milvus-standalone: Vector database service
 
 ### Environment Variables
 
@@ -167,6 +330,7 @@ CLIENT_{CLIENT_ID}_SNOWFLAKE_ACCOUNT=client_specific_account
 CLIENT_{CLIENT_ID}_SNOWFLAKE_WAREHOUSE=client_specific_warehouse
 CLIENT_{CLIENT_ID}_SNOWFLAKE_DATABASE=client_specific_database
 CLIENT_{CLIENT_ID}_SNOWFLAKE_SCHEMA=client_specific_schema
+CLIENT_{CLIENT_ID}_SNOWFLAKE_ROLE=client_specific_role
 
 # Client-specific OpenAI configuration
 CLIENT_{CLIENT_ID}_OPENAI_API_KEY=client_specific_openai_key
@@ -181,16 +345,28 @@ CLIENT_{CLIENT_ID}_GEMINI_API_KEY=client_specific_gemini_key
 CLIENT_{CLIENT_ID}_GEMINI_MODEL=models/gemini-2.5-flash
 ```
 
-The system enforces strict client-specific API key validation with no automatic fallbacks between clients.
+The system enforces strict client-specific API key validation with no automatic fallbacks between clients. Each client's configuration is completely isolated to prevent data leakage.
 
 ## Running the Application
 
-Start the API server:
+### Starting the API Server
+
+Start the API server manually:
 ```
 python api_server.py
 ```
 
-The server will be available at `http://localhost:8000` with the following endpoints:
+Or use the provided utility script to restart the server (useful during development):
+```
+.\restart_server.bat
+```
+
+The restart_server.bat script:
+- Automatically finds and terminates any existing process running on port 8002
+- Starts a new instance of the API server
+- Provides clear console output about the termination and startup process
+
+The server will be available at `http://localhost:8002` with the following endpoints:
 
 ### API Endpoints and Examples
 
@@ -278,7 +454,7 @@ The unified endpoint supports:
 - All LLM providers through a single interface
 - Client-specific configurations and data dictionaries
 - Using `all` as a model parameter to compare results from all models simultaneously
-enai- Specific model selection (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`, `models/gemini-2.5-flash`)
+- Specific model selection (e.g., `gpt-4o`, `claude-3-5-sonnet-20241022`, `models/gemini-2.5-flash`)
 
 ##### `/query/openai` - OpenAI SQL Generation
 
@@ -378,10 +554,20 @@ GET /models
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `prompt` | string | **Required** | - | Natural language question to convert to SQL |
+| `client_id` | string | *Optional* | "mts" | Client identifier for multi-client support |
 | `limit_rows` | integer | *Optional* | 100 | Maximum number of rows to return |
 | `data_dictionary_path` | string | *Optional* | null | Path to custom data dictionary (null uses default) |
 | `execute_query` | boolean | *Optional* | true | Whether to execute the generated SQL |
 | `model` | string | *Optional* | Depends on endpoint | Specific model to use |
+| `include_charts` | boolean | *Optional* | false | Whether to include chart recommendations |
+| `edited_query` | string | *Optional* | null | For user-edited SQL queries |
+| `use_rag` | boolean | *Optional* | false | Whether to use RAG for context retrieval |
+| `top_k` | integer | *Optional* | 10 | Number of top results to return from RAG |
+| `enable_reranking` | boolean | *Optional* | false | Whether to apply reranking to RAG results |
+| `feedback_enhancement_mode` | string | *Optional* | "never" | Options: "never", "client_scoped", "high_confidence", "time_bounded", "explicit", "client_exact" |
+| `max_feedback_entries` | integer | *Optional* | null | Maximum number of feedback entries to include |
+| `confidence_threshold` | float | *Optional* | null | Minimum similarity threshold for fuzzy matching (0.0-1.0, default: 0.85) |
+| `feedback_time_window_minutes` | integer | *Optional* | null | Time window for feedback in minutes (default: 20 minutes) |
 
 ### API Endpoints
 
@@ -519,7 +705,7 @@ X-Client-ID: mts
 
 ## Testing
 
-The codebase includes comprehensive test scripts:
+The codebase includes test scripts:
 - `test_api.py`: Tests API endpoints
 - `test_token_logging_comprehensive.py`: Tests token logging across all providers and scenarios
 
@@ -534,12 +720,14 @@ python test_token_logging_comprehensive.py
 LLM Query Engine/
 ├── api_server.py                    # Main API server with unified query endpoint
 ├── llm_query_generator.py           # OpenAI query generator with optimized chart instructions
-├── claude_query_generator.py        # Claude query generator
-├── gemini_query_generator.py        # Gemini query generator
+├── claude_query_generator.py        # Claude query generator with escape sequence handling
+├── gemini_query_generator.py        # Gemini query generator with escape sequence handling
 ├── nlq_to_snowflake.py              # OpenAI end-to-end pipeline
 ├── nlq_to_snowflake_claude.py       # Claude end-to-end pipeline
 ├── nlq_to_snowflake_gemini.py       # Gemini end-to-end pipeline
 ├── snowflake_runner.py              # Snowflake connection with client-specific credentials
+├── saved_queries.py                 # Saved queries functionality and API endpoints
+├── cache_utils.py                   # Cache management with multiple backend support
 ├── token_logger.py                  # Token usage tracking and logging
 ├── health_check_utils.py            # System and client-specific health checks
 ├── error_hint_utils.py              # User-friendly error messages
@@ -550,6 +738,12 @@ LLM Query Engine/
 ├── execute_query_route.py           # SQL execution with validation
 ├── generate_query_report.py         # Usage reporting
 ├── requirements.txt                 # Package dependencies
+├── routes/                          # API route definitions
+│   ├── feedback_route.py            # Feedback collection endpoints
+│   └── dictionary_route.py          # Data dictionary management API
+├── services/                        # Service layer implementations
+│   ├── feedback_manager.py          # Feedback storage and retrieval
+│   └── dictionary_service.py        # Dictionary processing service
 ├── config/
 │   └── clients/                     # Client-specific configurations
 │       ├── env/                      # Client environment files (.env)
@@ -557,10 +751,18 @@ LLM Query Engine/
 │       │   ├── mts/                   # MTS client-specific dictionary
 │       │   └── penguin/               # Penguin client-specific dictionary
 │       ├── client_registry.csv       # Client registration information
+│       └── feedback/                 # Client-specific feedback storage
+├── feedback/                        # Feedback system
+│   ├── executions.csv               # Execution tracking for feedback
+│   └── feedback.csv                 # User feedback storage
 ├── milvus-setup/                    # RAG system implementation with Milvus
 │   ├── docker-compose.yml            # Milvus container configuration
 │   ├── rag_embedding.py              # Core RAG functionality
 │   ├── multi_client_rag.py           # Client-specific RAG implementation
+│   ├── rag_reranker.py               # Advanced reranking for improved relevance
+│   ├── scripts/                      # Setup and maintenance scripts
+│   │   ├── setup_milvus_containers.ps1 # Windows setup script
+│   │   └── setup_milvus_containers.sh  # Linux/Mac setup script
 │   ├── schema_processor.py           # Processes database schemas for embeddings
 │   ├── generate_client_embeddings.py # Creates vector embeddings for clients
 │   ├── rag_integration.py            # Integrates RAG with query generators
@@ -629,107 +831,51 @@ Optimized chart recommendations include:
 
 - No hardcoded model names anywhere in the codebase
 - Client-specific environment variables for model selection (e.g., `CLIENT_MTS_OPENAI_MODEL`)
-- Strict validation of client-specific API keys with consistent error messages
+- Strict client-specific API key validation for all models (OpenAI, Claude, Gemini)
+- Consistent error messaging format across all API providers: "Client '{client_id}' {provider} API key not configured"
 - Specific model name responses rather than generic provider names (e.g., "gpt-4o", "claude-3-5-sonnet-20241022")
-- Support for "all" as a valid model parameter to compare results across providers
+- Support for "all" as a valid model parameter to compare results across providers by routing to the compare_models endpoint
+- Proper client-specific data dictionary handling with no automatic fallbacks
+- Client-specific health check endpoints to verify API keys and connections
 
 ## RAG System for Token Optimization
 
 The system includes a Retrieval-Augmented Generation (RAG) implementation that significantly reduces token usage while improving query relevance:
 
-### Overview
+### Benefits
 
-- Uses SentenceTransformer embeddings stored in Milvus vector database
-- Reduces token usage from ~20,000+ to ~400-800 tokens per query
-- Improves SQL generation quality with more relevant schema context
-- Maintains client isolation with client-specific collections
+- **Token Reduction**: 50-60% reduction in token consumption compared to sending full schema (from ~20,000+ to ~400-800 tokens)
+- **Improved Accuracy**: More focused context leads to better SQL generation
+- **Cost Efficiency**: Lower token usage translates to reduced API costs
+- **Faster Response**: Smaller context means quicker processing by LLMs
 
-### Architecture
+### Technical Configuration
 
-1. **Vector Database**: Milvus v2.2.11 with three container services:
-   - milvus-standalone: Main Milvus service
-   - milvus-etcd: For metadata storage
-   - milvus-minio: For vector data storage
+- **Vector Database**: Milvus v2.5.14
+- **Embedding Model**: BAAI/bge-large-en-v1.5 via SentenceTransformer
+- **Metric Type**: IP (Inner Product) - replaced COSINE which is not supported in Milvus v2.5.14
+- **Index Type**: IVF_FLAT for optimal balance of build quality and query speed
+- **Index Parameters**: 
+  - nlist=64 (for ~369 rows of schema data)
+  - nprobe=8 (for search operations)
+- **Results Limit**: 8 most relevant schema items for context generation
+- **Dual Optimization Approach**:
+  - For index creation (rare operation): nlist=128 with IVF_FLAT and IP metric for fine-grained clustering
+  - For daily searches (frequent operation): nprobe=8 with IP metric and limit=8 results for optimal SQL context generation
 
-2. **Embedding Configuration**:
-   - Metric Type: IP (Inner Product similarity)
-   - Index Type: IVF_FLAT
-   - Parameters: {"nlist": 64} for optimal balance of speed and accuracy
-   - Search Parameters: nprobe=8 with limit=8 results
+### Container Setup
 
-3. **Integration with Query Generators**:
-   - Enhances all LLM providers (OpenAI, Claude, Gemini)
-   - Automatically retrieves relevant schema information
-   - Falls back to standard processing if RAG fails
+The Milvus container setup uses docker-compose with three services:
+- etcd: Configuration and metadata storage
+- minio: Object storage for vector data
+- milvus-standalone: Vector database service
 
-### Running with RAG Enabled
+### Integration
 
-```bash
-# Start the API server with RAG enabled
-python api_server.py --with-rag
-
-# Generate embeddings for a client
-python -m milvus-setup.generate_client_embeddings --client_id CLIENT_ID
-```
-
-### RAG Management Commands
-
-```bash
-# Rebuild all collections for active clients
-python -m milvus-setup.rag_manager --rebuild
-
-# Rebuild a specific client's collection
-python -m milvus-setup.rag_manager --rebuild --client mts
-
-# Drop all collections
-python -m milvus-setup.rag_manager --drop
-
-# Verify collections and entity counts
-python -m milvus-setup.rag_manager --verify
-
-# Test a RAG query for a specific client
-python -m milvus-setup.rag_manager --test --client mts --query "Show me all customer orders"
-```
-
-For detailed setup instructions, see `milvus-setup/SETUP_GUIDE.md`.
-
-## Client-Specific Health Checks
-
-The system includes comprehensive health check functionality:
-
-### Client-Specific Health Endpoint
-
-```
-GET /health/client/{client_id}
-```
-
-Verifies:
-- Client existence
-- API key configuration for OpenAI, Claude, and Gemini
-- Snowflake connection parameters
-- Returns detailed health status with timestamps
-
-### System-Wide Clients Health Check
-
-```
-GET /health/client
-```
-
-Provides:
-- Consolidated health status across all clients
-- Overall system health (healthy/degraded/unhealthy)
-- Individual client status details
-- Client count and timestamp
-
-## SQL Validation
-
-The system implements strict SQL validation to ensure only read operations are allowed:
-
-- Frontend validation with clear UI warnings
-- Backend validation to prevent disallowed operations
-- Support for SELECT, SHOW, DESCRIBE, and EXPLAIN operations only
-- Client-specific Snowflake account information display
-- Dynamic updating of connection information when client selection changes
+The RAG system is fully integrated with the multi-client architecture:
+- Each client has its own isolated vector collection
+- Client-specific schema data is embedded and stored separately
+- Queries use the appropriate client collection based on context
 
 ## Feedback System
 
@@ -738,6 +884,11 @@ The system includes a comprehensive feedback collection and management system to
 ### Feedback Collection
 
 - **Types of Feedback**: Supports multiple feedback types:
+  - Query correctness
+  - SQL accuracy
+  - Chart recommendations
+  - Performance feedback
+  - User experience
   - Thumbs up/down for quick sentiment capture
   - Suggestions for improvements
   - Corrections with SQL query fixes

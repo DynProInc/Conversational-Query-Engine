@@ -13,6 +13,9 @@ import datetime
 from typing import Dict, List, Optional, Union, Any, Tuple
 from decimal import Decimal
 
+# Import cache utilities
+from cache_utils import cache_manager
+
 import fastapi
 from fastapi import FastAPI, HTTPException, Request, Path
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
@@ -61,7 +64,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Import and include the prompt query history router
 from prompt_query_history_route import router as prompt_query_history_router
+from saved_queries import router as saved_queries_router
+
 app.include_router(prompt_query_history_router)
+app.include_router(saved_queries_router)
 
 # Import and include the feedback router
 from routes.feedback_route import router as feedback_router
@@ -888,7 +894,11 @@ async def compare_models(request: QueryRequest, data_dictionary_path: Optional[s
                 execute_query=request.execute_query,  # Respect user's execute_query setting
                 limit_rows=request.limit_rows,
                 model=gemini_model,
-                include_charts=request.include_charts  # Also pass the include_charts parameter
+                include_charts=request.include_charts,  # Also pass the include_charts parameter
+                client_id=request.client_id,  # Pass client_id for RAG context
+                use_rag=request.use_rag,  # Pass the RAG flag
+                top_k=request.top_k,  # Pass the top_k parameter
+                enable_reranking=request.enable_reranking  # Pass the reranking parameter
             )
         except Exception as exec_error:
             # Directly propagate SQL execution errors
@@ -1343,6 +1353,38 @@ async def unified_query_endpoint(
         # Initialize response data dictionary that will be used throughout the function
         response_data = {}
         
+        # Cache check - only for non-edited queries
+        if not request.edited_query:
+            # Extract key information for caching
+            client_id = request.client_id
+            prompt = request.prompt
+            model = request.model.lower() if request.model else ""
+            
+            # Create cache context with all relevant parameters
+            cache_context = {
+                'endpoint': 'unified_query',
+                'model': model,
+                'execute_query': request.execute_query,
+                'include_charts': request.include_charts,
+                'use_rag': request.use_rag if hasattr(request, 'use_rag') else False,
+                'top_k': request.top_k if hasattr(request, 'top_k') else 10,
+                'enable_reranking': request.enable_reranking if hasattr(request, 'enable_reranking') else False,
+                'feedback_enhancement_mode': request.feedback_enhancement_mode if hasattr(request, 'feedback_enhancement_mode') else 'never'
+            }
+            
+            # Try to get from cache
+            cached_result = cache_manager.get(prompt, client_id, cache_context)
+            if cached_result is not None:
+                print(f"Cache HIT for client {client_id} - prompt: '{prompt[:30]}...'")
+                
+                # The cached result has already been prepared by the CacheManager.get method
+                # which calls prepare_cached_response internally
+                if isinstance(cached_result, dict):
+                    # Return the cached result
+                    return JSONResponse(content=jsonable_encoder(cached_result))
+                
+            print(f"Cache MISS for client {client_id} - prompt: '{prompt[:30]}...'")
+        
         # Print client information for debugging
         print(f"\nUnified API: Request for client_id = {request.client_id}")
         
@@ -1466,6 +1508,18 @@ async def unified_query_endpoint(
             # Return the comparison response directly
             # Use custom JSON encoder to handle Decimal objects
             json_compatible_response = jsonable_encoder(response_dict)
+            
+            # Cache the comparison response
+            if not request.edited_query:
+                ttl = cache_manager.config.API_RESPONSE_TTL
+                cache_context = {
+                    'endpoint': 'unified_query',
+                    'model': 'compare',
+                    'execute_query': request.execute_query,
+                    'include_charts': request.include_charts
+                }
+                cache_manager.set(request.prompt, response_dict, request.client_id, cache_context, ttl=ttl)
+                
             return JSONResponse(content=json_compatible_response)
             
         # Strict model name validation - only allow exact matches
@@ -1861,10 +1915,52 @@ async def get_all_client_dictionaries():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving client dictionaries: {str(e)}")
 
+# Cache management endpoints
+@app.post("/admin/cache/clear")
+async def clear_cache(pattern: Optional[str] = None, client_id: Optional[str] = None):
+    """Admin endpoint to clear cache"""
+    try:
+        cache_manager.clear_cache(pattern, client_id)
+        return JSONResponse(content={
+            "status": "success", 
+            "message": f"Cache cleared successfully",
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": f"Failed to clear cache: {str(e)}",
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+        )
+
+@app.get("/admin/cache/stats")
+async def cache_stats():
+    """Admin endpoint to get cache statistics"""
+    try:
+        stats = cache_manager.get_cache_stats()
+        return JSONResponse(content={
+            "status": "success",
+            "data": stats,
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": f"Failed to get cache stats: {str(e)}",
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+        )
+
 # Main entry point to run the server directly
 if __name__ == "__main__":
     # Import and include the prompt query history router
     from prompt_query_history_api import router as history_router
+    from saved_queries import router as saved_queries_router
     import argparse
     
     # Parse command line arguments
@@ -1875,6 +1971,7 @@ if __name__ == "__main__":
 
     # Include the prompt query history endpoints directly in our API
     app.include_router(history_router, prefix="")  # Access via /prompt_query_history
+    app.include_router(saved_queries_router)  # Access via /saved_queries
     
     # Optionally include RAG embedding API endpoints
     if args.with_rag:
