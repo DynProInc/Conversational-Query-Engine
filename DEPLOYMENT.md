@@ -302,6 +302,68 @@ Check the logs to verify your changes were applied:
 docker-compose logs -f app
 ```
 
+## Monitoring and Debugging
+
+### Live Log Streaming
+
+To view real-time logs from the container (equivalent to seeing terminal output in local development):
+
+```bash
+# Stream logs in real-time (follow mode)
+docker-compose logs -f app
+
+# Stream logs with timestamps
+docker-compose logs -f --timestamps app
+
+# Show only the last 100 lines and then follow
+docker-compose logs -f --tail=100 app
+```
+
+### Accessing Container Shell
+
+To get an interactive shell inside the container for debugging:
+
+```bash
+# Get a bash shell
+docker-compose exec app bash
+
+# Or if bash is not available
+docker-compose exec app sh
+```
+
+Once inside the container, you can:
+- Check files: `ls -la /app`
+- View logs: `cat /app/logs/app.log`
+- Check environment variables: `env | grep MILVUS`
+- Run Python interactively: `python`
+
+### Debugging API Endpoints
+
+From inside the container:
+
+```bash
+# Test internal connectivity
+curl http://localhost:8002/health
+curl http://milvus-standalone:19530/health
+```
+
+From your host machine:
+
+```bash
+# Test external connectivity
+curl http://localhost:8002/health
+```
+
+### Checking Application Status
+
+```bash
+# Check if the application process is running
+docker-compose exec app ps aux | grep python
+
+# Check port bindings
+docker-compose exec app netstat -tulpn | grep LISTEN
+```
+
 ### Full Rebuild
 
 For major changes or dependency updates, rebuild the entire image:
