@@ -54,9 +54,17 @@ def init_rag_manager(enable_reranking=True):
         rag_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(rag_module)
         
-        # Create RAGManager instance with enable_reranking parameter
-        rag_manager = rag_module.RAGManager(enable_reranking=enable_reranking)
-        logger.info(f"RAG Manager initialized successfully with enable_reranking={enable_reranking}")
+        # Get Milvus host and port from environment variables or use defaults
+        milvus_host = os.environ.get("MILVUS_HOST", "localhost")
+        milvus_port = os.environ.get("MILVUS_PORT", "19530")
+        
+        # Create RAGManager instance with environment variables
+        rag_manager = rag_module.RAGManager(
+            milvus_host=milvus_host,
+            milvus_port=milvus_port,
+            enable_reranking=enable_reranking
+        )
+        logger.info(f"RAG Manager initialized successfully with Milvus at {milvus_host}:{milvus_port} and enable_reranking={enable_reranking}")
         return True
     except Exception as e:
         error_message = str(e)

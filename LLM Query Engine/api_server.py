@@ -1975,33 +1975,38 @@ if __name__ == "__main__":
     
     # Optionally include RAG embedding API endpoints
     if args.with_rag:
-        # Check and start Milvus Docker containers if needed
-        try:
-            # Import Milvus container utilities
-            sys.path.append(os.path.join(os.path.dirname(__file__), 'milvus-setup'))
-            from milvus_container_utils import check_milvus_status, start_milvus_containers
+        # Check if we're running in Docker by looking for environment variables
+        in_docker = os.environ.get("MILVUS_HOST") is not None
+        
+        if in_docker:
+            print("ℹ️ Running in Docker environment, skipping Milvus container checks")
+        else:
+            try:
+                # Import Milvus container utilities
+                sys.path.append(os.path.join(os.path.dirname(__file__), 'milvus-setup'))
+                from milvus_container_utils import check_milvus_status, start_milvus_containers
+                
+                # Check if Milvus containers are running
+                container_status = check_milvus_status()
+                all_running = all(status == "Running" for status in container_status.values())
             
-            # Check if Milvus containers are running
-            container_status = check_milvus_status()
-            all_running = all(status == "Running" for status in container_status.values())
-            
-            if all_running:
-                print("✅ Milvus Docker containers are already running")
-            else:
-                print("⚠️ Milvus Docker containers are not running. Attempting to start...")
-                # Try to start the containers
-                if start_milvus_containers(wait_time=15):
-                    print("✅ Milvus Docker containers started successfully")
-                    # Show status of each container
-                    container_status = check_milvus_status()
-                    for container, state in container_status.items():
-                        print(f"  {container}: {state}")
+                if all_running:
+                    print("✅ Milvus Docker containers are already running")
                 else:
-                    print("❌ Failed to start Milvus Docker containers")
-                    print("The server will continue, but RAG functionality may be limited")
-        except Exception as e:
-            print(f"⚠️ Error checking/starting Milvus containers: {str(e)}")
-            print("The server will continue, but RAG functionality may be limited")
+                    print("⚠️ Milvus Docker containers are not running. Attempting to start...")
+                    # Try to start the containers
+                    if start_milvus_containers(wait_time=15):
+                        print("✅ Milvus Docker containers started successfully")
+                        # Show status of each container
+                        container_status = check_milvus_status()
+                        for container, state in container_status.items():
+                            print(f"  {container}: {state}")
+                    else:
+                        print("❌ Failed to start Milvus Docker containers")
+                        print("The server will continue, but RAG functionality may be limited")
+            except Exception as e:
+                print(f"⚠️ Error checking/starting Milvus containers: {str(e)}")
+                print("The server will continue, but RAG functionality may be limited")
         
         # Now try to initialize RAG API
         try:
