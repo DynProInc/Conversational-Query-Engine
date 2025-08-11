@@ -109,3 +109,12 @@ Thumbs.db
 # Snowflake specific (if applicable)
 *.snowflake
 *.snowsql
+
+# Snap files
+*.snap
+
+# Volume directories
+LLM Query Engine/volumes/
+LLM Query Engine/volumes/etcd/
+LLM Query Engine/volumes/milvus/
+LLM Query Engine/volumes/minio/
