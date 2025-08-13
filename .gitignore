@@ -114,6 +114,10 @@ Thumbs.db
 *.snap
 
 # Volume directories
+volumes/
+volumes/etcd/
+volumes/milvus/
+volumes/minio/
 LLM Query Engine/volumes/
 LLM Query Engine/volumes/etcd/
 LLM Query Engine/volumes/milvus/
