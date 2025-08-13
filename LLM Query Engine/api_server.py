@@ -1803,15 +1803,34 @@ async def get_client_dictionary(client_id: str = Path(..., description="Client I
         if not is_active:
             raise HTTPException(status_code=403, detail=f"Client '{client_id}' is not active")
             
-        # Get the dictionary path
-        dict_path = client_row.iloc[0]['data_dictionary_path']
+        # Get client name for response
+        client_name = client_row.iloc[0]['client_name']
+        
+        # Use client manager to get the dictionary path
+        try:
+            from config.client_manager import ClientManager
+            client_manager = ClientManager()
+            dict_path = client_manager.get_data_dictionary_path(client_id)
+            
+            print(f"Using client manager path for {client_id}: {dict_path}")
+        except Exception as e:
+            # Fall back to the path from the registry if client manager fails
+            dict_path = client_row.iloc[0]['data_dictionary_path']
+            print(f"Falling back to registry path for {client_id}: {dict_path}")
+        
+        # Check if we're running in Docker
+        in_docker = os.path.exists('/.dockerenv') or os.path.exists('/app')
+        
+        if in_docker:
+            # In Docker, use the fixed path structure
+            docker_path = f"/app/LLM Query Engine/config/clients/data_dictionaries/{client_id}/{client_id}_dictionary.csv"
+            if os.path.exists(docker_path):
+                dict_path = docker_path
+                print(f"Using Docker path for {client_id}: {dict_path}")
         
         if not dict_path or not os.path.exists(dict_path):
             raise HTTPException(status_code=404, detail=f"Data dictionary not found for client '{client_id}'")
             
-        # Get client name for response
-        client_name = client_row.iloc[0]['client_name']
-        
         # Verify file exists and is accessible
         if not os.path.isfile(dict_path):
             raise HTTPException(status_code=404, detail=f"Dictionary file not found at path: {dict_path}")
@@ -1975,8 +1994,12 @@ if __name__ == "__main__":
     
     # Optionally include RAG embedding API endpoints
     if args.with_rag:
-        # Check if we're running in Docker by looking for environment variables
-        in_docker = os.environ.get("MILVUS_HOST") is not None
+        # Check if we're running in Docker by looking for Docker-specific files
+        def check_if_docker():
+            """Check if running in Docker container"""
+            return os.path.exists('/.dockerenv') or os.path.exists('/app')
+            
+        in_docker = check_if_docker()
         
         if in_docker:
             print("ℹ️ Running in Docker environment, skipping Milvus container checks")

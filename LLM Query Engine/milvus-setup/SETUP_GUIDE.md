@@ -345,3 +345,13 @@ volumes:
 ```
 
 This configuration uses named Docker volumes for data persistence and proper container orchestration.
+
+
+
+
+# Start the stopped containers
+docker start milvus-etcd milvus-minio milvus-standalone
+
+# Or alternatively, use docker-compose start in the milvus-setup directory
+cd "c:\Users\git_manoj\Conversational-Query-Engine\LLM Query Engine\milvus-setup"
+docker-compose start

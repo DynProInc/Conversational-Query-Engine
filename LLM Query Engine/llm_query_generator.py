@@ -321,7 +321,7 @@ def generate_sql_prompt(tables: List[Dict[str, Any]], query: str, limit_rows: in
         8. end query with ;
 
         ### Numeric Value Handling
-        - Type conversion: Monetary=NUMERIC(15,2), Quantities=INTEGER, Percentages=NUMERIC(5,2),
+        - Type conversion: Monetary=NUMERIC(15,2), Quantities=INTEGER, Percentages=NUMERIC(15,2),
           Rates=NUMERIC(8,4), use COALESCE(field,0) for NULL safety, always specify precision to prevent truncation across all databases
         - dont used TRY_CAST
         - Aggregations: Always use SUM, AVG, etc. with GROUP BY

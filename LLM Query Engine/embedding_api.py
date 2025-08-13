@@ -123,8 +123,30 @@ def get_openai_test(client_id: str, model_name: Optional[str] = None):
     return openai_test_module.OpenAIEmbeddingTest(client_id=client_id, model_name=model_name)
 
 def get_client_dictionary_path(client_id: str) -> Optional[str]:
-    """Get the path to the client's data dictionary from the client registry."""
+    """Get the path to the client's data dictionary using the client manager."""
     try:
+        # First try to use the client manager
+        try:
+            # Import here to avoid circular imports
+            from config.client_manager import ClientManager
+            client_manager = ClientManager()
+            dict_path = client_manager.get_data_dictionary_path(client_id)
+            logger.info(f"Using client manager path for {client_id}: {dict_path}")
+            return dict_path
+        except Exception as e:
+            logger.warning(f"Could not use client manager: {e}, falling back to direct registry access")
+        
+        # Check if we're running in Docker
+        in_docker = os.path.exists('/.dockerenv') or os.path.exists('/app')
+        
+        if in_docker:
+            # In Docker, use the fixed path structure
+            docker_path = f"/app/LLM Query Engine/config/clients/data_dictionaries/{client_id}/{client_id}_dictionary.csv"
+            if os.path.exists(docker_path):
+                logger.info(f"Using Docker path for {client_id}: {docker_path}")
+                return docker_path
+        
+        # Fall back to direct registry access
         current_dir = os.path.dirname(os.path.abspath(__file__))
         registry_path = os.path.join(current_dir, "config", "clients", "client_registry.csv")
 
@@ -141,7 +163,7 @@ def get_client_dictionary_path(client_id: str) -> Optional[str]:
         logger.warning(f"Client '{client_id}' not found or is not active in the registry.")
         return None
     except Exception as e:
-        logger.error(f"Error reading client registry: {e}")
+        logger.error(f"Error getting client dictionary path: {e}")
         return None
 
 @router.post("/build", response_model=StandardResponse)
@@ -224,7 +246,7 @@ async def _drop_embeddings(client_id: str, model_type: str):
         from pymilvus import connections, utility
         
         # Connect to Milvus
-        connections.connect("default", host="localhost", port="19530")
+        connections.connect("default", host=os.environ.get("MILVUS_HOST", "localhost"), port=os.environ.get("MILVUS_PORT", "19530"))
         
         collections_dropped = []
         
@@ -328,7 +350,7 @@ async def get_stats():
         from pymilvus import connections, utility, Collection
         
         # Connect to Milvus
-        connections.connect("default", host="localhost", port="19530")
+        connections.connect("default", host=os.environ.get("MILVUS_HOST", "localhost"), port=os.environ.get("MILVUS_PORT", "19530"))
         
         all_collections = utility.list_collections()
         embedding_collections = [c for c in all_collections if "embedding_test" in c]
@@ -374,7 +396,7 @@ async def _get_stats(client_id: str, model_type: str):
         from pymilvus import connections, utility, Collection
         
         # Connect to Milvus
-        connections.connect("default", host="localhost", port="19530")
+        connections.connect("default", host=os.environ.get("MILVUS_HOST", "localhost"), port=os.environ.get("MILVUS_PORT", "19530"))
         
         stats = {}
         

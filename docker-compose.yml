@@ -16,6 +16,7 @@ services:
       - milvus-standalone
       - etcd
       - minio
+    working_dir: /app/LLM Query Engine
     command: python api_server.py --port 8002 --with-rag
     networks:
       - app-network

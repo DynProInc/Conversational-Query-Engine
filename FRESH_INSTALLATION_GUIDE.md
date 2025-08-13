@@ -1,6 +1,6 @@
 # Fresh Installation Guide for Conversational Query Engine
 
-This guide provides detailed step-by-step instructions for setting up the Conversational Query Engine on a fresh machine (Windows, Linux, or macOS).
+This guide provides detailed step-by-step instructions for setting up the Conversational Query Engine on a fresh machine (Windows, Linux, or macOS) using Docker containers.
 
 ## Prerequisites
 
@@ -64,7 +64,7 @@ CLIENT_MTS_CLAUDE_MODEL=claude-3-5-sonnet-20241022
 CLIENT_PENGUIN_OPENAI_MODEL=gpt-4-turbo
 ```
 
-Save and close the file.
+Save and close the file. This `.env` file will be mounted into the Docker container at runtime.
 
 ## Step 3: Build and Start Docker Containers
 
@@ -86,7 +86,7 @@ This command will:
 3. Start the application with RAG functionality enabled
 4. Configure the application to connect to Milvus using the service name `milvus-standalone`
 
-> **Note**: The first build may take 30-40 minutes depending on your internet connection and machine performance.
+> **Note**: The first build may take 30-40 minutes depending on your internet connection and machine performance. The system will download large language model files for the reranker during the first startup.
 
 ## Step 4: Verify the Installation
 
@@ -113,8 +113,14 @@ curl http://localhost:8002/health
 # Client status check
 curl http://localhost:8002/health/client
 
+# Client dictionary check
+curl http://localhost:8002/client/dictionary/mts
+
 # RAG status check
 curl http://localhost:8002/rag/stats
+
+# Embedding stats check
+curl http://localhost:8002/embeddings/stats
 ```
 
 You can also access the API documentation at:
@@ -128,6 +134,49 @@ View the application logs to ensure everything is running correctly:
 docker-compose logs -f app
 ```
 
+## Step 7: Using the API Endpoints
+
+The Conversational Query Engine provides several API endpoints for different functionalities:
+
+### RAG (Retrieval-Augmented Generation) Endpoints
+
+```bash
+# Build RAG collection for a client
+curl -X POST http://localhost:8002/rag/build -H "Content-Type: application/json" -d '{"client_id": "mts"}'
+
+# Query RAG with standard retrieval
+curl -X POST http://localhost:8002/rag/query -H "Content-Type: application/json" -d '{"query": "What are the top selling stores?", "client_id": "mts", "top_k": 5}'
+
+# Query RAG with enhanced retrieval (reranking)
+curl -X POST http://localhost:8002/rag/enhanced -H "Content-Type: application/json" -d '{"query": "What are the top selling stores?", "client_id": "mts", "top_k": 8, "rerank_top_k": 5}'
+
+# Get RAG statistics
+curl http://localhost:8002/rag/stats
+```
+
+### Embedding Endpoints
+
+```bash
+# Build embeddings for a client
+curl http://localhost:8002/embeddings/build?client_id=mts&model_type=gemini
+
+# Query embeddings
+curl http://localhost:8002/embeddings/query?client_id=mts&query=sales%20data&model_type=gemini&top_k=5
+
+# Get embedding statistics
+curl http://localhost:8002/embeddings/stats
+
+# Drop embeddings for a client
+curl http://localhost:8002/embeddings/drop?client_id=mts&model_type=all
+```
+
+### Client Dictionary Endpoints
+
+```bash
+# Get client dictionary
+curl http://localhost:8002/client/dictionary/mts
+```
+
 ## Troubleshooting
 
 ### Container Startup Issues
@@ -138,6 +187,7 @@ If containers fail to start:
 # Check container logs
 docker-compose logs app
 docker-compose logs milvus-standalone
+docker-compose logs --follow app
 
 # Restart containers
 docker-compose restart
@@ -181,6 +231,20 @@ If the application cannot connect to Milvus:
      - MILVUS_PORT=19530
    ```
 
+### Updating Code Without Rebuilding Docker Image
+
+For small code changes, you can copy files directly into the running container:
+
+```bash
+# Copy updated file to container
+docker cp "path/to/updated/file.py" conversational-query-engine-app-1:"/app/LLM Query Engine/file.py"
+
+# Restart the app container
+docker restart conversational-query-engine-app-1
+```
+
+This is much faster than rebuilding the entire Docker image (which can take 30-40 minutes).
+
 ## Platform-Specific Notes
 
 ### Windows
@@ -188,6 +252,7 @@ If the application cannot connect to Milvus:
 - Use PowerShell or Command Prompt for running commands
 - Ensure Docker Desktop is running with WSL 2 backend for better performance
 - Use double quotes for paths with spaces: `cd "LLM Query Engine"`
+- If using multiple Milvus instances, ensure they use different ports (e.g., 19530:19530 for local and 19531:19530 for Docker)
 
 ### Linux
 
@@ -203,9 +268,32 @@ If the application cannot connect to Milvus:
 - Ensure Docker Desktop has enough resources allocated (at least 4GB RAM)
 - Use Terminal.app or iTerm for running commands
 
+## Docker Environment Details
+
+### Container Structure
+
+The Docker setup consists of four containers:
+1. **app** - The main application container running the FastAPI server
+2. **milvus-standalone** - Milvus vector database for storing embeddings
+3. **etcd** - Key-value store used by Milvus
+4. **minio** - Object storage used by Milvus
+
+### Environment Variables
+
+The Docker container uses these environment variables for Milvus connection:
+- `MILVUS_HOST=milvus-standalone` - Uses the service name for internal Docker network communication
+- `MILVUS_PORT=19530` - Default Milvus port
+
+### Volume Mounts
+
+The Docker setup includes these important volume mounts:
+- `.env` file is mounted into the container for API keys and configuration
+- Client data dictionaries are mounted from the host machine
+- Milvus data is persisted in Docker volumes
+
 ## Alternative: Manual Installation (Without Docker)
 
-If you prefer not to use Docker:
+If you prefer not to use Docker for the application (but still use Docker for Milvus):
 
 1. Install Python 3.13.3
 2. Install dependencies:
@@ -231,5 +319,6 @@ After successful installation:
 1. Create RAG collections for your data
 2. Configure client-specific settings
 3. Integrate with your frontend applications
+4. Test the API endpoints using the Swagger UI at http://localhost:8002/docs
 
 For more detailed information, refer to the main `DEPLOYMENT.md` file.

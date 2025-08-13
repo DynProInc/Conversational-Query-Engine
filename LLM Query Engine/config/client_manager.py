@@ -11,6 +11,16 @@ import pandas as pd
 from typing import Dict, Optional, Any, List
 from pathlib import Path
 import dotenv
+import logging
+
+# Try to import path resolver
+try:
+    from .path_resolver_client import resolve_path
+    path_resolver_available = True
+    logging.getLogger(__name__).info("Path resolver imported successfully in client_manager.py")
+except ImportError:
+    path_resolver_available = False
+    logging.getLogger(__name__).warning("Path resolver not available in client_manager.py, using default paths")
 
 # Base directory for client configuration
 BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -137,7 +147,25 @@ class ClientManager:
         if client_id not in self.clients:
             raise ValueError(f"Client ID '{client_id}' not found")
         
-        return self.clients[client_id]['data_dictionary_path']
+        logger = logging.getLogger(__name__)
+        
+        # Check if we're running in Docker
+        in_docker = os.path.exists('/.dockerenv') or os.path.exists('/app')
+        
+        if in_docker:
+            # In Docker, use the fixed path structure
+            return f"/app/LLM Query Engine/config/clients/data_dictionaries/{client_id}/{client_id}_dictionary.csv"
+        else:
+            # Get the relative path from client configuration for local environment
+            relative_path = self.clients[client_id]['data_dictionary_path']
+            
+            # Use path resolver if available, otherwise return the path as is
+            if path_resolver_available:
+                resolved_path = resolve_path(relative_path)
+                logger.info(f"Resolved path for client {client_id}: {resolved_path}")
+                return resolved_path
+            else:
+                return relative_path
     
     def get_llm_config(self, client_id: str, model_provider: str) -> Dict[str, str]:
         """

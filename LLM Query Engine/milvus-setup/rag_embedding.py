@@ -28,17 +28,32 @@ import argparse
 import pandas as pd
 from typing import List, Dict, Any, Optional, Tuple, Union
 from pathlib import Path
+import numpy as np
+from datetime import datetime
 
-# Fix import paths for modules in hyphenated directories
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parent_dir)
-
-# Configure logging
+# Configure logging first
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("FinalRAG")
+
+# Fix import paths for modules in hyphenated directories
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+
+# Import path resolver directly
+try:
+    # Try direct import first
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import path_resolver
+    logger.info("Path resolver imported successfully")
+except ImportError as e:
+    logger.warning(f"Path resolver not available, falling back to default paths: {e}")
+    path_resolver = None
+
+# Logger already configured above
+# No need to reconfigure
 
 # Import required modules directly using importlib to handle hyphenated directory names
 import importlib.util
@@ -74,9 +89,23 @@ except Exception as e:
     logger.warning(f"Reranker module not available: {e}")
     RERANKER_AVAILABLE = False
 
-# Constants
-CLIENT_REGISTRY = os.path.join(parent_dir, "config", "clients", "client_registry.csv")
-COLUMN_MAPPINGS = os.path.join(parent_dir, "config", "column_mappings.json")
+# Use path resolver for consistent paths if available
+if path_resolver is not None:
+    try:
+        CLIENT_REGISTRY = path_resolver.get_client_registry_path()
+        COLUMN_MAPPINGS = path_resolver.get_column_mappings_path()
+        logger.info(f"Using client registry at: {CLIENT_REGISTRY}")
+        logger.info(f"Using column mappings at: {COLUMN_MAPPINGS}")
+    except Exception as e:
+        logger.warning(f"Error using path resolver: {e}, falling back to default paths")
+        # Constants (fallback)
+        CLIENT_REGISTRY = os.path.join(parent_dir, "config", "clients", "client_registry.csv")
+        COLUMN_MAPPINGS = os.path.join(parent_dir, "config", "column_mappings.json")
+else:
+    # Constants (fallback)
+    CLIENT_REGISTRY = os.path.join(parent_dir, "config", "clients", "client_registry.csv")
+    COLUMN_MAPPINGS = os.path.join(parent_dir, "config", "column_mappings.json")
+    logger.warning(f"Path resolver not available, using default paths:\nClient Registry: {CLIENT_REGISTRY}\nColumn Mappings: {COLUMN_MAPPINGS}")
 
 class RAGManager:
     """Complete RAG solution for multi-client systems"""
@@ -101,8 +130,13 @@ class RAGManager:
     def _connect_to_milvus(self):
         """Connect to Milvus server"""
         try:
-            connections.connect(alias="default", host=self.milvus_host, port=self.milvus_port)
-            logger.info(f"Connected to Milvus at {self.milvus_host}:{self.milvus_port}")
+            # Get host and port from environment variables if available
+            milvus_host = os.environ.get("MILVUS_HOST", self.milvus_host)
+            milvus_port = os.environ.get("MILVUS_PORT", self.milvus_port)
+            
+            logger.info(f"Attempting to connect to Milvus at {milvus_host}:{milvus_port}")
+            connections.connect(alias="default", host=milvus_host, port=milvus_port)
+            logger.info(f"Successfully connected to Milvus at {milvus_host}:{milvus_port}")
         except Exception as e:
             logger.error(f"Failed to connect to Milvus: {e}")
             raise
@@ -136,7 +170,26 @@ class RAGManager:
     
     def get_active_clients(self):
         """Get active clients"""
-        return [(c['client_id'], c['dict_path']) for c in self.get_clients() if c['active']]
+        clients = self.get_clients()
+        active_clients = []
+        
+        for c in clients:
+            if c['active']:
+                client_id = c['client_id']
+                # Try to use path resolver for consistent paths
+                try:
+                    if path_resolver is not None:
+                        dict_path = path_resolver.get_client_dictionary_path(client_id)
+                        logger.info(f"Using resolved path for {client_id}: {dict_path}")
+                    else:
+                        dict_path = c['dict_path']
+                except Exception as e:
+                    logger.warning(f"Could not resolve path for {client_id}, using original: {e}")
+                    dict_path = c['dict_path']
+                    
+                active_clients.append((client_id, dict_path))
+                
+        return active_clients
     
     def _get_collection_name(self, client_id):
         """Get collection name for a client"""
@@ -179,6 +232,15 @@ class RAGManager:
     def process_schema_data(self, client_id, dict_path):
         """Process schema data for a client"""
         try:
+            # Use path resolver if available to get consistent path
+            try:
+                if path_resolver is not None:
+                    resolved_path = path_resolver.get_client_dictionary_path(client_id)
+                    logger.info(f"Path resolver found, using resolved path: {resolved_path}")
+                    dict_path = resolved_path
+            except Exception as e:
+                logger.warning(f"Could not use path resolver for dictionary path: {e}")
+                
             # Process schema CSV - ensure we pass the actual path, not just client_id
             logger.info(f"Loading CSV from path: {dict_path}")
             records = self.schema_processor.process_csv_data(client_id, dict_path)

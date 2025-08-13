@@ -82,16 +82,20 @@ class SchemaRecord:
 class OpenAIEmbeddingTest:
     """Test implementation for OpenAI embeddings with Milvus"""
     
-    def __init__(self, client_id="mts", milvus_host="localhost", milvus_port="19530", 
+    def __init__(self, client_id="mts", milvus_host=None, milvus_port=None, 
                  model_name="text-embedding-3-large"):
         """Initialize the OpenAI embedding test"""
         self.client_id = client_id
-        self.milvus_host = milvus_host
-        self.milvus_port = milvus_port
         self.model_name = model_name
         
         # Load environment variables from client config
         self._load_env_variables()
+        
+        # Get Milvus connection parameters from environment variables or use defaults
+        self.milvus_host = milvus_host or os.getenv("MILVUS_HOST", "localhost")
+        self.milvus_port = milvus_port or os.getenv("MILVUS_PORT", "19530")
+        
+        logger.info(f"Using Milvus connection: {self.milvus_host}:{self.milvus_port}")
         
         # Connect to Milvus
         self._connect_to_milvus()
@@ -123,6 +127,27 @@ class OpenAIEmbeddingTest:
     def _connect_to_milvus(self):
         """Connect to Milvus server"""
         try:
+            # Check if connection already exists
+            try:
+                if utility.has_connection("default"):
+                    # Check if the connection parameters match
+                    conn_params = connections.get_connection_addr("default")
+                    if conn_params.get('host') == self.milvus_host and str(conn_params.get('port')) == str(self.milvus_port):
+                        logger.info(f"Reusing existing Milvus connection to {self.milvus_host}:{self.milvus_port}")
+                        return
+                    else:
+                        # Close existing connection if parameters don't match
+                        connections.disconnect("default")
+                        logger.info(f"Closed existing Milvus connection with different parameters")
+            except Exception as check_err:
+                logger.warning(f"Error checking existing connection: {check_err}")
+                # Try to disconnect just in case
+                try:
+                    connections.disconnect("default")
+                except:
+                    pass
+            
+            # Create new connection
             connections.connect(alias="default", host=self.milvus_host, port=self.milvus_port)
             logger.info(f"Connected to Milvus at {self.milvus_host}:{self.milvus_port}")
         except Exception as e:

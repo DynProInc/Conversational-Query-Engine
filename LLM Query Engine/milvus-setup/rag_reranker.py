@@ -52,37 +52,50 @@ class RAGReranker:
     
     def _initialize_with_fallback(self):
         """Try to initialize with each model until one succeeds"""
-        for model_name in self.RERANKER_MODELS:
-            try:
-                logger.info(f"Attempting to initialize reranker with model: {model_name}")
-                self._initialize_model(model_name)
-                self.current_model = model_name
-                logger.info(f"Successfully initialized reranker with model: {model_name}")
-                self.initialized = True
-                return
-            except Exception as e:
-                logger.warning(f"Failed to initialize model {model_name}: {str(e)}")
-                continue
+        # Set up progress tracking for downloads
+        from transformers.utils import logging as hf_logging
+        hf_logging.set_verbosity_info()
         
-        logger.error("All reranker models failed to initialize. Reranking will be disabled.")
+        for model_name in self.RERANKER_MODELS:
+            logger.info(f"Attempting to initialize reranker with model: {model_name}")
+            if self._initialize_model(model_name):
+                logger.info(f"✅ Successfully initialized reranker with model: {model_name}")
+                return
+            else:
+                logger.warning(f"Failed to initialize with {model_name}, trying next model...")
+        
+        logger.error("❌ All reranker models failed to initialize. Reranking will be disabled.")
         self.initialized = False
     
-    def _initialize_model(self, model_name: str):
-        """Initialize a specific model"""
-        logger.info(f"Loading tokenizer for {model_name}")
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name,
-            trust_remote_code=True
-        )
-        
-        logger.info(f"Loading model {model_name}")
-        self.reranker = AutoModelForSequenceClassification.from_pretrained(
-            model_name,
-            trust_remote_code=True
-        ).to(self.device)
-        
-        # Set to evaluation mode
-        self.reranker.eval()
+    def _initialize_model(self, model_name: str) -> bool:
+        """Initialize the reranker with the specified model"""
+        try:
+            # Set up progress tracking for downloads
+            from transformers.utils import logging as hf_logging
+            hf_logging.set_verbosity_info()
+            
+            logger.info(f"Loading tokenizer for {model_name} (this may take a few minutes)")
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_name,
+                local_files_only=False,  # Force check online if not cached
+            )
+            
+            logger.info(f"Loading model {model_name} (this may take several minutes)")
+            logger.info(f"Download will appear to be stuck but is actually progressing in the background")
+            self.reranker = AutoModelForSequenceClassification.from_pretrained(
+                model_name,
+                local_files_only=False,  # Force check online if not cached
+            )
+            self.reranker.to(self.device)
+            self.reranker.eval()
+            
+            self.current_model = model_name
+            self.initialized = True
+            logger.info(f"✅ Successfully initialized reranker with model {model_name} on {self.device}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize reranker with model {model_name}: {e}")
+            return False
     
     def rerank(self, query: str, matches: List[Dict[str, Any]], top_k: int = None, enable_reranking: bool = True) -> List[Dict[str, Any]]:
         """
