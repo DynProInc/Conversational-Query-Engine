@@ -105,3 +105,10 @@ Thumbs.db
 # Snowflake specific (if applicable)
 *.snowflake
 *.snowsql
+
+
+
+
+# Ignore Milvus and MinIO runtime data
+LLM Query Engine/milvus-setup/volumes/
+LLM Query Engine/milvus-setup/minio/

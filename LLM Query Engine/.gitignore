@@ -119,3 +119,8 @@ Thumbs.db
 *.bak
 *.tmp
 ~$*
+
+
+# Ignore Milvus and MinIO runtime data
+LLM Query Engine/milvus-setup/volumes/
+LLM Query Engine/milvus-setup/minio/
