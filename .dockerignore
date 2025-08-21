@@ -1,0 +1,79 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Environment files (contain sensitive information)
+.env
+*.env
+
+# Docker files
+.dockerignore
+docker-compose*.yml
+Dockerfile*
+
+# Documentation
+*.md
+LICENSE
+docs/
+
+# Development and testing
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Milvus data directories (these should be mounted as volumes)
+milvus-data/
+etcd-data/
+minio-data/
+volumes/
+
+# Milvus specific files
+LLM Query Engine/milvus-setup/logs/
+LLM Query Engine/milvus-setup/__pycache__/
+LLM Query Engine/milvus-setup/embeddings/*.pkl
+LLM Query Engine/milvus-setup/embeddings/*.json
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# Cache directories
+.cache/

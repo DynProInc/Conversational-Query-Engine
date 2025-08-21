@@ -547,13 +547,13 @@
                     // Default to showing unified response first if available
                     if (window.unifiedApiResponse) {
                         showRawResponse('unified');
-                    }
-                    // If we only have execute response and not unified, show that instead
-                    else if (window.executeApiResponse) {
+                    } else if (window.executeApiResponse) {
                         showRawResponse('execute');
-                    }
-                    // If neither is available, show a message
-                    else {
+                    } else if (window.nlqApiResponse) {
+                        showRawResponse('nlq');
+                    } else if (window.sqlApiResponse) {
+                        showRawResponse('sql');
+                    } else {
                         const responseInfoElement = document.getElementById('response-info');
                         if (responseInfoElement) {
                             responseInfoElement.textContent = 'No API responses available yet';
@@ -1041,8 +1041,55 @@
                     console.error('Cannot find sql-query element');
                 }
                 
-                // Display query results
-                document.getElementById('query-results').textContent = JSON.stringify(data.query_output, null, 2);
+                // Display query results as a table
+                const queryResultsElement = document.getElementById('query-results');
+                queryResultsElement.textContent = ''; // Clear existing content
+                
+                if (data.query_output && data.query_output.length > 0) {
+                    // Create a container for both table and raw JSON toggle
+                    const resultsContainer = document.createElement('div');
+                    
+                    // Add toggle button for switching between table and raw JSON
+                    const toggleButton = document.createElement('button');
+                    toggleButton.textContent = 'Show Raw JSON';
+                    toggleButton.className = 'btn btn-sm btn-secondary';
+                    toggleButton.style.marginBottom = '10px';
+                    toggleButton.style.float = 'right';
+                    
+                    // Create a div for the table (initially visible)
+                    const tableDiv = document.createElement('div');
+                    tableDiv.id = 'query-results-table';
+                    tableDiv.style.display = 'block';
+                    
+                    // Create a pre element for raw JSON (initially hidden)
+                    const rawJsonPre = document.createElement('pre');
+                    rawJsonPre.textContent = JSON.stringify(data.query_output, null, 2);
+                    rawJsonPre.style.display = 'none';
+                    
+                    // Add toggle functionality
+                    toggleButton.addEventListener('click', function() {
+                        if (tableDiv.style.display !== 'none') {
+                            tableDiv.style.display = 'none';
+                            rawJsonPre.style.display = 'block';
+                            toggleButton.textContent = 'Show Table View';
+                        } else {
+                            tableDiv.style.display = 'block';
+                            rawJsonPre.style.display = 'none';
+                            toggleButton.textContent = 'Show Raw JSON';
+                        }
+                    });
+                    
+                    // Add elements to the container
+                    resultsContainer.appendChild(toggleButton);
+                    resultsContainer.appendChild(tableDiv);
+                    resultsContainer.appendChild(rawJsonPre);
+                    queryResultsElement.appendChild(resultsContainer);
+                    
+                    // Render the table
+                    renderTableChart({title: 'Query Results'}, data.query_output, 'query-results-table');
+                } else {
+                    queryResultsElement.textContent = 'No results available';
+                }
                 
                 // Debug information
                 const debugInfo = document.createElement('div');
@@ -4907,34 +4954,54 @@
         window.unifiedApiResponse = null; // From /query/unified endpoint
         window.executeApiResponse = null; // From /execute-query endpoint
         
-        // Function to show different API responses in the Raw API tab
-        function showRawResponse(type) {
-            // Update active button
-            document.getElementById('show-unified-response').classList.remove('active');
-            document.getElementById('show-execute-response').classList.remove('active');
+        // Function to show raw API response in the Raw API Response tab
+        function showRawResponse(responseType) {
+            console.log('Showing raw response for:', responseType);
             
+            // Get the raw API response element
             const rawApiElement = document.getElementById('raw-api-response');
             const responseInfoElement = document.getElementById('response-info');
             
-            if (type === 'unified') {
-                document.getElementById('show-unified-response').classList.add('active');
-                if (window.unifiedApiResponse) {
-                    responseInfoElement.textContent = 'Endpoint: /query/unified (Last Response)';
-                    rawApiElement.textContent = JSON.stringify(window.unifiedApiResponse, null, 2);
-                } else {
-                    responseInfoElement.textContent = 'No data from /query/unified endpoint yet';
-                    rawApiElement.textContent = 'No response data available';
-                }
-            } else if (type === 'execute') {
-                document.getElementById('show-execute-response').classList.add('active');
-                if (window.executeApiResponse) {
-                    responseInfoElement.textContent = 'Endpoint: /execute-query (Last Response)';
-                    rawApiElement.textContent = JSON.stringify(window.executeApiResponse, null, 2);
-                } else {
-                    responseInfoElement.textContent = 'No data from /execute-query endpoint yet';
-                    rawApiElement.textContent = 'No response data available';
-                }
+            // Clear previous content
+            rawApiElement.innerHTML = '';
+            
+            // Get the appropriate API response based on the type
+            let apiResponse;
+            let responseInfo;
+            
+            if (responseType === 'execute') {
+                apiResponse = window.executeApiResponse;
+                responseInfo = 'Response from /execute-query endpoint';
+            } else if (responseType === 'nlq') {
+                apiResponse = window.nlqApiResponse;
+                responseInfo = 'Response from /nlq endpoint';
+            } else if (responseType === 'sql') {
+                apiResponse = window.sqlApiResponse;
+                responseInfo = 'Response from /sql endpoint';
+            } else if (responseType === 'unified') {
+                apiResponse = window.unifiedApiResponse;
+                responseInfo = 'Response from /query/unified endpoint';
+            } else {
+                rawApiElement.textContent = 'No API response available';
+                return;
             }
+            
+            // Update response info
+            if (responseInfoElement) {
+                responseInfoElement.textContent = responseInfo;
+                responseInfoElement.style.color = '#333';
+            }
+            
+            // Check if we have a response
+            if (!apiResponse) {
+                rawApiElement.textContent = 'No API response available for ' + responseType;
+                return;
+            }
+            
+            // Create a pre element for raw JSON
+            const rawJsonPre = document.createElement('pre');
+            rawJsonPre.textContent = JSON.stringify(apiResponse, null, 2);
+            rawApiElement.appendChild(rawJsonPre);
         }
         
         // Function to make the SQL query editable inline
@@ -5160,8 +5227,55 @@
                 editQueryBtn.style.display = 'inline-block';
             }
             
-            // Display query results
-            document.getElementById('query-results').textContent = JSON.stringify(data.query_output, null, 2);
+            // Display query results as a table by default
+            const queryResultsElement = document.getElementById('query-results');
+            queryResultsElement.textContent = ''; // Clear existing content
+            
+            if (data.query_output && data.query_output.length > 0) {
+                // Create a container for both table and raw JSON toggle
+                const resultsContainer = document.createElement('div');
+                
+                // Add toggle button
+                const toggleButton = document.createElement('button');
+                toggleButton.textContent = 'Show Raw JSON';
+                toggleButton.className = 'btn btn-sm btn-secondary';
+                toggleButton.style.marginBottom = '10px';
+                toggleButton.style.float = 'right';
+                
+                // Create a div for the table (initially visible)
+                const tableDiv = document.createElement('div');
+                tableDiv.id = 'query-results-table';
+                tableDiv.style.display = 'block';
+                
+                // Create a pre element for raw JSON (initially hidden)
+                const rawJsonPre = document.createElement('pre');
+                rawJsonPre.textContent = JSON.stringify(data.query_output, null, 2);
+                rawJsonPre.style.display = 'none';
+                
+                // Add toggle functionality
+                toggleButton.addEventListener('click', function() {
+                    if (tableDiv.style.display !== 'none') {
+                        tableDiv.style.display = 'none';
+                        rawJsonPre.style.display = 'block';
+                        toggleButton.textContent = 'Show Table View';
+                    } else {
+                        tableDiv.style.display = 'block';
+                        rawJsonPre.style.display = 'none';
+                        toggleButton.textContent = 'Show Raw JSON';
+                    }
+                });
+                
+                // Add elements to the container
+                resultsContainer.appendChild(toggleButton);
+                resultsContainer.appendChild(tableDiv);
+                resultsContainer.appendChild(rawJsonPre);
+                queryResultsElement.appendChild(resultsContainer);
+                
+                // Render the table (visible by default)
+                renderTableChart({title: 'Query Results'}, data.query_output, 'query-results-table');
+            } else {
+                queryResultsElement.textContent = 'No results available';
+            }
             
             // Debug information
             const resultsContainer = document.getElementById('results');
