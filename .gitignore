@@ -122,3 +122,7 @@ LLM Query Engine/volumes/
 LLM Query Engine/volumes/etcd/
 LLM Query Engine/volumes/milvus/
 LLM Query Engine/volumes/minio/
+
+# Ignore Milvus and MinIO runtime data
+LLM Query Engine/milvus-setup/volumes/
+LLM Query Engine/milvus-setup/minio/

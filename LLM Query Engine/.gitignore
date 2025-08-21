@@ -132,3 +132,7 @@ volumes/
 volumes/etcd/
 volumes/milvus/
 volumes/minio/
+
+# Ignore Milvus and MinIO runtime data
+milvus-setup/volumes/
+milvus-setup/minio/
